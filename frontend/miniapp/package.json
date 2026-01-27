@@ -1,0 +1,23 @@
+{
+  "name": "scorehub-miniapp",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "vue3",
+    "@dcloudio/uni-h5": "vue3",
+    "@dcloudio/uni-mp-weixin": "vue3",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@dcloudio/vite-plugin-uni": "vue3",
+    "@dcloudio/types": "latest",
+    "miniprogram-api-typings": "^3.12.0",
+    "typescript": "^5.4.0",
+    "vite": "latest",
+    "@dcloudio/uni-cli-shared": "vue3"
+  }
+}

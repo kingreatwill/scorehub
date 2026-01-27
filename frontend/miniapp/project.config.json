@@ -1,0 +1,15 @@
+{
+  "description": "得分簿",
+  "miniprogramRoot": "dist/dev/mp-weixin/",
+  "compileType": "miniprogram",
+  "appid": "wx76a547eb4f5a61f8",
+  "projectname": "得分簿",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": false,
+    "minified": true,
+    "newFeature": true,
+    "bigPackageSizeSupport": true
+  }
+}

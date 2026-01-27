@@ -1,0 +1,61 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "得分簿"
+      }
+    },
+    {
+      "path": "pages/home/home",
+      "style": {
+        "navigationBarTitleText": "得分簿"
+      }
+    },
+    {
+      "path": "pages/my/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/scorebook/detail",
+      "style": {
+        "navigationBarTitleText": "得分详情"
+      }
+    },
+    {
+      "path": "pages/scorebook/profile",
+      "style": {
+        "navigationBarTitleText": "我的资料"
+      }
+    },
+    {
+      "path": "pages/join/index",
+      "style": {
+        "navigationBarTitleText": "加入得分簿"
+      }
+    }
+  ],
+  "tabBar": {
+    "position": "bottom",
+    "color": "#8A8A8A",
+    "selectedColor": "#111111",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "得分簿",
+        "iconPath": "static/tabbar/scorebook.png",
+        "selectedIconPath": "static/tabbar/scorebook-active.png"
+      },
+      {
+        "pagePath": "pages/my/index",
+        "text": "我的",
+        "iconPath": "static/tabbar/my.png",
+        "selectedIconPath": "static/tabbar/my-active.png"
+      }
+    ]
+  }
+}

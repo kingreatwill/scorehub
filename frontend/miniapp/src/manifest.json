@@ -1,0 +1,20 @@
+{
+  "name": "得分簿",
+  "appid": "wx76a547eb4f5a61f8",
+  "description": "多人实时记分小程序",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "wx76a547eb4f5a61f8",
+    "setting": {
+      "urlCheck": false
+    },
+    "requiredPrivateInfos": ["getLocation"],
+    "permission": {
+      "scope.userLocation": {
+        "desc": "用于创建得分簿时自动填充当前位置"
+      }
+    }
+  }
+}
