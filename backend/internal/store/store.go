@@ -350,6 +350,61 @@ RETURNING id::text, name, location_text, start_time, updated_at, status::text, c
 	return sb, nil
 }
 
+// AutoEndInactiveScorebooks ends scorebooks that are still "recording" but have had
+// no new score record for the given duration (or since creation if there are no records).
+//
+// It returns the list of scorebooks that were ended by this call.
+func (s *Store) AutoEndInactiveScorebooks(ctx context.Context, inactiveFor time.Duration) ([]Scorebook, error) {
+	if inactiveFor <= 0 {
+		return nil, nil
+	}
+	threshold := time.Now().Add(-inactiveFor)
+
+	rows, err := s.pool.Query(ctx, `
+UPDATE scorebooks s
+SET status = 'ended', ended_at = NOW(), updated_at = NOW()
+WHERE s.status = 'recording'
+  AND COALESCE(
+    (
+      SELECT r.created_at
+      FROM score_records r
+      WHERE r.scorebook_id = s.id
+      ORDER BY r.created_at DESC
+      LIMIT 1
+    ),
+    s.start_time
+  ) < $1
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, created_by_user_id, ended_at, invite_code
+`, threshold)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Scorebook
+	for rows.Next() {
+		var sb Scorebook
+		if err := rows.Scan(
+			&sb.ID,
+			&sb.Name,
+			&sb.LocationText,
+			&sb.StartTime,
+			&sb.UpdatedAt,
+			&sb.Status,
+			&sb.CreatedByUserID,
+			&sb.EndedAt,
+			&sb.InviteCode,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, sb)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *Store) JoinScorebook(ctx context.Context, scorebookID string, user User, nickname, avatarURL string) (Member, error) {
 	if strings.TrimSpace(nickname) == "" {
 		nickname = user.WeChatNickname

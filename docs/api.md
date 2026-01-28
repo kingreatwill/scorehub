@@ -53,16 +53,19 @@ Request:
 
 ### GET /location/reverse_geocode?lat=..&lng=..
 
-根据经纬度反查地址（`locationText`）。支持腾讯/高德：
+根据经纬度反查地址（`locationText`）。支持腾讯/高德/百度：
 
 - 腾讯：`SCOREHUB_TENCENT_MAP_KEY`（优先使用腾讯地图 `geocoder/v1` 的 `formatted_addresses.recommend`）
 - 高德：`SCOREHUB_AMAP_KEY`（使用高德 `v3/geocode/regeo`，优先返回 `regeocode.formatted_address`；为空时回退为「城市·区县」风格的短文本）
+- 百度：`SCOREHUB_BAIDU_MAP_AK`（使用百度 `reverse_geocoding/v3`，优先返回 `result.formatted_address`；为空时回退为「城市·区县」风格的短文本）
 
-未配置任何 key 时会回退为 `lat,lng`；若同时配置，优先腾讯，腾讯失败时回退高德。
+未配置任何 key 时会回退为 `lat,lng`；若同时配置，优先腾讯，其次高德，最后百度。
 
 ## Scorebooks
 
 所有接口默认需要 `Authorization: Bearer <token>`。
+
+说明：得分簿在「记录中」状态下若连续 7 天没有新的记分记录，会被后端自动结束（`status` 变为 `ended`）。
 
 ### POST /scorebooks
 

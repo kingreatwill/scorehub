@@ -16,6 +16,7 @@ type Config struct {
 
 	TencentMapKey string
 	AmapKey       string
+	BaiduMapAK    string
 }
 
 func Load() Config {
@@ -29,6 +30,7 @@ func Load() Config {
 		WeChatSecret:  getenv("SCOREHUB_WECHAT_SECRET", ""),
 		TencentMapKey: getenv("SCOREHUB_TENCENT_MAP_KEY", ""),
 		AmapKey:       getenv("SCOREHUB_AMAP_KEY", ""),
+		BaiduMapAK:    getenv("SCOREHUB_BAIDU_MAP_AK", ""),
 	}
 }
 

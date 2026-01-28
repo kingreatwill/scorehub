@@ -25,6 +25,7 @@ func main() {
 	defer st.Close()
 
 	hub := realtime.NewHub()
+	startAutoEndInactiveScorebooksJob(ctx, st, hub)
 
 	h := server.Default(server.WithHostPorts(cfg.Addr))
 	h.Use(middleware.RequestLog())
