@@ -53,7 +53,12 @@ Request:
 
 ### GET /location/reverse_geocode?lat=..&lng=..
 
-根据经纬度反查地址（`locationText`）。需要配置 `SCOREHUB_TENCENT_MAP_KEY`（优先使用腾讯地图 `geocoder/v1` 的 `formatted_addresses.recommend`），否则会回退为 `lat,lng`。
+根据经纬度反查地址（`locationText`）。支持腾讯/高德：
+
+- 腾讯：`SCOREHUB_TENCENT_MAP_KEY`（优先使用腾讯地图 `geocoder/v1` 的 `formatted_addresses.recommend`）
+- 高德：`SCOREHUB_AMAP_KEY`（使用高德 `v3/geocode/regeo`，优先返回 `regeocode.formatted_address`；为空时回退为「城市·区县」风格的短文本）
+
+未配置任何 key 时会回退为 `lat,lng`；若同时配置，优先腾讯，腾讯失败时回退高德。
 
 ## Scorebooks
 

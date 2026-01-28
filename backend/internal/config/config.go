@@ -15,6 +15,7 @@ type Config struct {
 	WeChatSecret string
 
 	TencentMapKey string
+	AmapKey       string
 }
 
 func Load() Config {
@@ -27,6 +28,7 @@ func Load() Config {
 		WeChatAppID:   getenv("SCOREHUB_WECHAT_APPID", ""),
 		WeChatSecret:  getenv("SCOREHUB_WECHAT_SECRET", ""),
 		TencentMapKey: getenv("SCOREHUB_TENCENT_MAP_KEY", ""),
+		AmapKey:       getenv("SCOREHUB_AMAP_KEY", ""),
 	}
 }
 

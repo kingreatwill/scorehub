@@ -10,6 +10,7 @@
       </view>
       <view class="sub hero-sub">
         <view class="pill" v-if="scorebook.locationText">{{ scorebook.locationText }}</view>
+        <view class="pill" v-if="scorebook.startTime">{{ formatTime(scorebook.startTime) }}</view>
         <view class="pill">成员 {{ members.length }}</view>
         <view class="pill code" @click="copyInvite">
           邀请码 <text class="mono">{{ scorebook.inviteCode }}</text>
@@ -265,11 +266,14 @@ function formatScore(v: any): string {
 function formatTime(v: any): string {
   const d = new Date(String(v || ''))
   if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const yyyy = String(d.getFullYear())
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
   const hh = String(d.getHours()).padStart(2, '0')
   const mi = String(d.getMinutes()).padStart(2, '0')
-  return `${mm}-${dd} ${hh}:${mi}`
+  if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd} ${hh}:${mi}`
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
 function memberByID(memberID: any) {

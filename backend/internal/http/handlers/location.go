@@ -43,13 +43,34 @@ func (h *LocationHandlers) ReverseGeocode(ctx context.Context, c *app.RequestCon
 	}
 
 	fallback := fmt.Sprintf("%.4f,%.4f", lat, lng)
-	if h.cfg.TencentMapKey == "" {
+	if h.cfg.TencentMapKey == "" && h.cfg.AmapKey == "" {
 		c.JSON(http.StatusOK, map[string]any{"locationText": fallback, "source": "raw"})
 		return
 	}
 
-	text, err := reverseGeocodeTencent(ctx, h.cfg.TencentMapKey, lat, lng)
-	if err != nil || strings.TrimSpace(text) == "" {
+	if h.cfg.TencentMapKey != "" {
+		text, err := reverseGeocodeTencent(ctx, h.cfg.TencentMapKey, lat, lng)
+		if err == nil && strings.TrimSpace(text) != "" {
+			c.JSON(http.StatusOK, map[string]any{"locationText": text, "source": "tencent"})
+			return
+		}
+		// 兼容：腾讯反查失败时，如配置了高德则尝试回退
+		if h.cfg.AmapKey == "" {
+			out := map[string]any{"locationText": fallback, "source": "raw"}
+			if err != nil {
+				out["geocodeError"] = err.Error()
+			}
+			c.JSON(http.StatusOK, out)
+			return
+		}
+	}
+
+	if h.cfg.AmapKey != "" {
+		text, err := reverseGeocodeAmap(ctx, h.cfg.AmapKey, lat, lng)
+		if err == nil && strings.TrimSpace(text) != "" {
+			c.JSON(http.StatusOK, map[string]any{"locationText": text, "source": "amap"})
+			return
+		}
 		out := map[string]any{"locationText": fallback, "source": "raw"}
 		if err != nil {
 			out["geocodeError"] = err.Error()
@@ -58,7 +79,8 @@ func (h *LocationHandlers) ReverseGeocode(ctx context.Context, c *app.RequestCon
 		return
 	}
 
-	c.JSON(http.StatusOK, map[string]any{"locationText": text, "source": "tencent"})
+	// 理论上不会走到这里（上面已处理无 key 情况），保底返回 raw。
+	c.JSON(http.StatusOK, map[string]any{"locationText": fallback, "source": "raw"})
 }
 
 type tencentGeocoderResp struct {
@@ -155,4 +177,108 @@ func reverseGeocodeTencent(ctx context.Context, key string, lat, lng float64) (s
 	}
 
 	return "", nil
+}
+
+type amapRegeoResp struct {
+	Status   string `json:"status"`
+	Info     string `json:"info"`
+	Infocode string `json:"infocode"`
+	Regeocode struct {
+		FormattedAddress string `json:"formatted_address"`
+		AddressComponent struct {
+			Province string          `json:"province"`
+			City     json.RawMessage `json:"city"`
+			District string          `json:"district"`
+		} `json:"addressComponent"`
+	} `json:"regeocode"`
+}
+
+func reverseGeocodeAmap(ctx context.Context, key string, lat, lng float64) (string, error) {
+	u := url.URL{
+		Scheme: "https",
+		Host:   "restapi.amap.com",
+		Path:   "/v3/geocode/regeo",
+	}
+	q := u.Query()
+	q.Set("location", fmt.Sprintf("%.6f,%.6f", lng, lat)) // 高德：lng,lat
+	q.Set("key", key)
+	q.Set("output", "JSON")
+	q.Set("extensions", "base")
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("amap http %d", resp.StatusCode)
+	}
+
+	var r amapRegeoResp
+	if err := json.Unmarshal(b, &r); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(r.Status) != "1" {
+		msg := strings.TrimSpace(r.Info)
+		if msg == "" {
+			msg = "unknown error"
+		}
+		code := strings.TrimSpace(r.Infocode)
+		if code != "" {
+			return "", fmt.Errorf("amap status %s (%s): %s", r.Status, code, msg)
+		}
+		return "", fmt.Errorf("amap status %s: %s", r.Status, msg)
+	}
+
+	if v := strings.TrimSpace(r.Regeocode.FormattedAddress); v != "" {
+		return v, nil
+	}
+
+	ac := r.Regeocode.AddressComponent
+	city := strings.TrimSpace(parseAmapCity(ac.City))
+	province := strings.TrimSpace(ac.Province)
+	district := strings.TrimSpace(ac.District)
+
+	main := city
+	if main == "" {
+		main = province
+	}
+	parts := make([]string, 0, 2)
+	if main != "" {
+		parts = append(parts, main)
+	}
+	if district != "" && district != main {
+		parts = append(parts, district)
+	}
+	short := strings.Join(parts, "·")
+	if short != "" {
+		return short, nil
+	}
+
+	return "", nil
+}
+
+func parseAmapCity(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.TrimSpace(s)
+	}
+	var arr []string
+	if err := json.Unmarshal(raw, &arr); err == nil && len(arr) > 0 {
+		return strings.TrimSpace(strings.Join(arr, ""))
+	}
+	return ""
 }

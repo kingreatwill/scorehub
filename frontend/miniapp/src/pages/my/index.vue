@@ -11,8 +11,11 @@
           <text class="status">{{ it.status === 'ended' ? '已结束' : '记录中' }}</text>
         </view>
         <view class="sub">
-          <text v-if="it.locationText">{{ it.locationText }}</text>
-          <text>成员 {{ it.memberCount }}</text>
+          <view class="sub-left">
+            <text v-if="it.locationText">{{ it.locationText }}</text>
+            <text v-if="it.startTime">{{ formatTime(it.startTime) }}</text>
+          </view>
+          <text class="sub-right">成员 {{ it.memberCount }}</text>
         </view>
       </view>
 
@@ -44,6 +47,19 @@ onShow(async () => {
 
 function open(id: string) {
   uni.navigateTo({ url: `/pages/scorebook/detail?id=${id}` })
+}
+
+function formatTime(v: any): string {
+  const d = new Date(String(v || ''))
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const yyyy = String(d.getFullYear())
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd} ${hh}:${mi}`
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 </script>
 
@@ -90,6 +106,17 @@ function open(id: string) {
   font-size: 24rpx;
   display: flex;
   justify-content: space-between;
+  gap: 12rpx;
+}
+.sub-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  min-width: 0;
+}
+.sub-right {
+  flex: none;
+  white-space: nowrap;
 }
 .empty {
   margin-top: 80rpx;
