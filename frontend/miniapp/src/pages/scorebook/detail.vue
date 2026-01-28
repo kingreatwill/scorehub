@@ -13,12 +13,12 @@
         <view class="pill" v-if="scorebook.startTime">{{ formatTime(scorebook.startTime) }}</view>
         <view class="pill">成员 {{ members.length }}</view>
         <view class="pill code" @click="copyInvite">
-          邀请码 <text class="mono">{{ scorebook.inviteCode }}</text>
+          邀请码: <text class="mono">{{ scorebook.inviteCode }}</text>
+          <text class="qr-icon" @click.stop="openInviteCodeQR">▦</text>
         </view>
       </view>
       <view class="actions">
-        <button size="mini" class="action-btn" @click="copyInvite">复制邀请码</button>
-        <button size="mini" class="action-btn" v-if="scorebook.status !== 'ended'" @click="openQRCode">二维码</button>
+        <button size="mini" class="action-btn" v-if="scorebook.status !== 'ended'" @click="openQRCode">小程序码</button>
         <!-- #ifdef MP-WEIXIN -->
         <button size="mini" class="action-btn" open-type="share">分享</button>
         <!-- #endif -->
@@ -166,11 +166,29 @@
 
     <view class="modal-mask" v-if="qrModalOpen" @click="closeQRCode" />
     <view class="modal" v-if="qrModalOpen">
-      <view class="modal-title">扫码加入（进行中）</view>
+      <view class="modal-title">使用微信扫码加入</view>
       <view v-if="qrLoading" class="hint">生成中…</view>
       <image v-else class="qr" :src="qrSrc" mode="widthFix" @click="previewQRCode" />
       <view class="modal-actions">
         <button size="mini" @click="closeQRCode">关闭</button>
+      </view>
+    </view>
+
+    <view class="modal-mask" v-if="inviteQRModalOpen" @click="closeInviteCodeQR" />
+    <view class="modal" v-if="inviteQRModalOpen">
+      <view class="modal-title">邀请码二维码</view>
+      <view v-if="inviteQRLoading" class="hint">生成中…</view>
+      <canvas
+        class="invite-qr-canvas"
+        canvas-id="inviteQrCanvas"
+        id="inviteQrCanvas"
+        :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px` }"
+        :width="inviteQRSize"
+        :height="inviteQRSize"
+      />
+      <view class="hint">在首页点「扫码加入」即可识别</view>
+      <view class="modal-actions">
+        <button size="mini" @click="closeInviteCodeQR">关闭</button>
       </view>
     </view>
 
@@ -206,7 +224,7 @@
 
 <script setup lang="ts">
 import { onHide, onLoad, onShareAppMessage, onShow, onUnload } from '@dcloudio/uni-app'
-import { computed, ref } from 'vue'
+import { computed, getCurrentInstance, nextTick, ref } from 'vue'
 import {
   connectScorebookWS,
   createRecord,
@@ -216,6 +234,7 @@ import {
   listScorebookRecords,
   updateScorebookName,
 } from '../../utils/api'
+import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
 
 const id = ref('')
 const scorebook = ref<any>(null)
@@ -242,6 +261,9 @@ const recordsPageSize = 50
 const qrModalOpen = ref(false)
 const qrLoading = ref(false)
 const qrSrc = ref('')
+const inviteQRModalOpen = ref(false)
+const inviteQRLoading = ref(false)
+const inviteQRSize = 232
 const endModalOpen = ref(false)
 const endWinners = ref<any>(null)
 
@@ -482,7 +504,7 @@ async function safeRefresh() {
 function startPolling() {
   stopPolling()
   pollTimer.value = setInterval(() => {
-    if (scoreModalOpen.value || qrModalOpen.value || endModalOpen.value || recordsPaging.value) return
+    if (scoreModalOpen.value || qrModalOpen.value || inviteQRModalOpen.value || endModalOpen.value || recordsPaging.value) return
     safeRefresh()
   }, 5000)
 }
@@ -672,6 +694,68 @@ function previewQRCode() {
   uni.previewImage({ urls: [qrSrc.value] })
 }
 
+async function openInviteCodeQR() {
+  const code = String(scorebook.value?.inviteCode || '').trim()
+  if (!code) return
+
+  // #ifndef MP-WEIXIN
+  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
+  return
+  // #endif
+
+  // #ifdef MP-WEIXIN
+  inviteQRModalOpen.value = true
+  inviteQRLoading.value = true
+  scoreModalOpen.value = false
+  qrModalOpen.value = false
+  endModalOpen.value = false
+
+  try {
+    await nextTick()
+    await drawInviteCodeQR(code)
+  } catch (e: any) {
+    inviteQRModalOpen.value = false
+    const raw = String(e?.message || '')
+    const msg =
+      raw.includes('makeInviteCodeQRMatrix') || raw.includes('utils/qrcode') ? '二维码模块未编译，请重新编译小程序' : raw || '生成二维码失败'
+    uni.showToast({ title: msg, icon: 'none' })
+  } finally {
+    inviteQRLoading.value = false
+  }
+  // #endif
+}
+
+function closeInviteCodeQR() {
+  inviteQRModalOpen.value = false
+}
+
+function drawInviteCodeQR(code: string): Promise<void> {
+  const instance = getCurrentInstance()
+  const proxy = (instance?.proxy as any) || undefined
+  const matrix = makeInviteCodeQRMatrix(code)
+  const n = matrix.length
+  const margin = 4
+  const moduleSize = Math.max(1, Math.floor(inviteQRSize / (n + margin * 2)))
+  const drawSize = moduleSize * (n + margin * 2)
+
+  const ctx = uni.createCanvasContext('inviteQrCanvas', proxy)
+  ctx.setFillStyle('#ffffff')
+  ctx.fillRect(0, 0, drawSize, drawSize)
+  ctx.setFillStyle('#000000')
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!matrix[r][c]) continue
+      const x = (c + margin) * moduleSize
+      const y = (r + margin) * moduleSize
+      ctx.fillRect(x, y, moduleSize, moduleSize)
+    }
+  }
+
+  return new Promise((resolve) => {
+    ctx.draw(false, resolve)
+  })
+}
+
 function closeEndModal() {
   endModalOpen.value = false
 }
@@ -818,6 +902,32 @@ async function submitScore() {
 }
 .pill.code:active {
   opacity: 0.85;
+}
+.pill.code {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.qr-icon {
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 8rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  line-height: 1;
+}
+.qr-icon:active {
+  opacity: 0.85;
+}
+.invite-qr-canvas {
+  margin: 16rpx auto 10rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.08);
 }
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
