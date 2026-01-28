@@ -73,6 +73,6 @@ npm run build:mp-weixin
 - `docs/api.md` 后端接口说明
 - 微信小程序开发文档: https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/userProfile.html
 - 微信小程序开发平台: https://mp.weixin.qq.com/wxamp/devprofile/get_profile?token=44927146&lang=zh_CN
-- 腾讯地图: https://lbs.qq.com/service/webService/webServiceGuide/address/Gcoder
-- 高德地图: https://lbs.amap.com/api/webservice/summary
-- 百度地图: https://baidumap.apifox.cn/api-32790722
+- 腾讯地图(并发5次/秒, 6000次/日): https://lbs.qq.com/service/webService/webServiceGuide/address/Gcoder
+- 高德地图(并发3次/秒, 150000次/月): https://lbs.amap.com/api/webservice/summary
+- 百度地图(并发1次/秒, 300次/日): https://baidumap.apifox.cn/api-32790722
