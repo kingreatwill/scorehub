@@ -65,6 +65,7 @@ type tencentGeocoderResp struct {
 	Status  int    `json:"status"`
 	Message string `json:"message"`
 	Result  struct {
+		Address string `json:"address"`
 		AddressComponent struct {
 			Nation   string `json:"nation"`
 			Province string `json:"province"`
@@ -120,6 +121,18 @@ func reverseGeocodeTencent(ctx context.Context, key string, lat, lng float64) (s
 		return "", fmt.Errorf("tencent map status %d: %s", r.Status, msg)
 	}
 
+	if v := strings.TrimSpace(r.Result.FormattedAddresses.Recommend); v != "" {
+		return v, nil
+	}
+
+	if v := strings.TrimSpace(r.Result.FormattedAddresses.Rough); v != "" {
+		return v, nil
+	}
+
+	if addr := strings.TrimSpace(r.Result.Address); addr != "" {
+		return addr, nil
+	}
+
 	ac := r.Result.AddressComponent
 	city := strings.TrimSpace(ac.City)
 	province := strings.TrimSpace(ac.Province)
@@ -141,11 +154,5 @@ func reverseGeocodeTencent(ctx context.Context, key string, lat, lng float64) (s
 		return out, nil
 	}
 
-	if v := strings.TrimSpace(r.Result.FormattedAddresses.Rough); v != "" {
-		return v, nil
-	}
-	if v := strings.TrimSpace(r.Result.FormattedAddresses.Recommend); v != "" {
-		return v, nil
-	}
 	return "", nil
 }

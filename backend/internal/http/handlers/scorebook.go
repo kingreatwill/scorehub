@@ -238,6 +238,7 @@ func (h *ScorebookHandlers) EndScorebook(ctx context.Context, c *app.RequestCont
 
 	var champion any
 	var runnerUp any
+	var third any
 	if tops, err := h.st.GetTopWinners(ctx, sb.ID); err == nil {
 		if len(tops) >= 1 {
 			champion = map[string]any{
@@ -255,6 +256,14 @@ func (h *ScorebookHandlers) EndScorebook(ctx context.Context, c *app.RequestCont
 				"score":     tops[1].Score,
 			}
 		}
+		if len(tops) >= 3 {
+			third = map[string]any{
+				"memberId":  tops[2].ID,
+				"nickname":  tops[2].Nickname,
+				"avatarUrl": tops[2].AvatarURL,
+				"score":     tops[2].Score,
+			}
+		}
 	} else {
 		// 不影响结束流程，但记录内部错误方便排查
 		c.Error(err)
@@ -262,6 +271,7 @@ func (h *ScorebookHandlers) EndScorebook(ctx context.Context, c *app.RequestCont
 	winners := map[string]any{
 		"champion": champion,
 		"runnerUp": runnerUp,
+		"third":    third,
 	}
 
 	h.hub.Broadcast(sb.ID, map[string]any{
@@ -414,8 +424,8 @@ func (h *ScorebookHandlers) CreateRecord(ctx context.Context, c *app.RequestCont
 	}
 	req.ToMemberID = strings.TrimSpace(req.ToMemberID)
 	req.Note = strings.TrimSpace(req.Note)
-	if req.ToMemberID == "" || req.Delta == 0 {
-		writeError(c, http.StatusBadRequest, "bad_request", "toMemberId and delta required")
+	if req.ToMemberID == "" || req.Delta <= 0 {
+		writeError(c, http.StatusBadRequest, "bad_request", "toMemberId and positive delta required")
 		return
 	}
 
@@ -430,6 +440,9 @@ func (h *ScorebookHandlers) CreateRecord(ctx context.Context, c *app.RequestCont
 			return
 		case store.ErrInvalidArgument:
 			writeError(c, http.StatusBadRequest, "bad_request", "invalid member")
+			return
+		case store.ErrInvalidDelta:
+			writeError(c, http.StatusBadRequest, "bad_request", "delta must be positive")
 			return
 		case store.ErrScorebookEnded:
 			writeError(c, http.StatusBadRequest, "ended", "scorebook ended")

@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS score_records (
   scorebook_id   UUID NOT NULL REFERENCES scorebooks(id) ON DELETE CASCADE,
   from_member_id UUID NOT NULL REFERENCES scorebook_members(id),
   to_member_id   UUID NOT NULL REFERENCES scorebook_members(id),
-  delta          INT NOT NULL CHECK (delta <> 0),
+  delta          INT NOT NULL CHECK (delta > 0),
   note           TEXT NOT NULL DEFAULT '',
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

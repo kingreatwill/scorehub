@@ -7,4 +7,5 @@ var (
 	ErrForbidden       = errors.New("forbidden")
 	ErrScorebookEnded  = errors.New("scorebook ended")
 	ErrInvalidArgument = errors.New("invalid argument")
+	ErrInvalidDelta    = errors.New("invalid delta")
 )

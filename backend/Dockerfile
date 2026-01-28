@@ -5,9 +5,10 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/scorehub ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/scorehub ./cmd/api
 
 FROM alpine:3.20
+RUN apk add --no-cache ca-certificates tzdata
 RUN adduser -D -u 10001 app
 USER app
 WORKDIR /app

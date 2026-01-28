@@ -1,7 +1,7 @@
 type ApiError = { code: string; message: string }
 
-const API_BASE = 'http://localhost:8080/api/v1'
-const WS_BASE = 'ws://localhost:8080'
+const API_BASE = 'https://localapi.wcoder.com/api/v1'
+const WS_BASE = 'wss://localapi.wcoder.com'
 
 function getToken(): string {
   return (uni.getStorageSync('token') as string) || ''
@@ -82,6 +82,11 @@ export async function updateMyProfile(id: string, payload: { nickname: string; a
 
 export async function createRecord(id: string, payload: { toMemberId: string; delta: number; note?: string }) {
   return request<{ record: any }>('POST', `/scorebooks/${id}/records`, payload)
+}
+
+export async function listScorebookRecords(id: string, limit = 50, offset = 0) {
+  const q = `?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
+  return request<{ items: any[]; limit: number; offset: number }>('GET', `/scorebooks/${id}/records${q}`)
 }
 
 export async function getInviteInfo(code: string) {

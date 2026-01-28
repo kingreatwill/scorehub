@@ -72,3 +72,4 @@ npm run build:mp-weixin
 - `docs/api.md` 后端接口说明
 - 微信小程序开发文档: https://developers.weixin.qq.com/miniprogram/dev/framework/open-ability/userProfile.html
 - 微信小程序开发平台: https://mp.weixin.qq.com/wxamp/devprofile/get_profile?token=44927146&lang=zh_CN
+- 地图: https://lbs.qq.com/service/webService/webServiceGuide/address/Gcoder

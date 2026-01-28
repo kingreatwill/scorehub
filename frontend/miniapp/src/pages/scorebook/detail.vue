@@ -25,8 +25,8 @@
       </view>
     </view>
 
-    <view class="card" v-if="scorebook.status === 'ended' && (computedWinners.champion || computedWinners.runnerUp)">
-      <view class="title">本局排名（得分 &gt; 0）</view>
+    <view class="card" v-if="scorebook.status === 'ended' && (computedWinners.champion || computedWinners.runnerUp || computedWinners.third)">
+      <view class="title">本局排名（得分大于0）</view>
       <view class="rank-row" v-if="computedWinners.champion">
         <text class="rank-label">冠军</text>
         <view class="rank-user">
@@ -42,6 +42,14 @@
           <text class="rank-name">{{ computedWinners.runnerUp.nickname }}</text>
         </view>
         <text class="rank-score pos">{{ formatScore(computedWinners.runnerUp.score) }}</text>
+      </view>
+      <view class="rank-row" v-if="computedWinners.third">
+        <text class="rank-label">季军</text>
+        <view class="rank-user">
+          <image class="rank-avatar" :src="computedWinners.third.avatarUrl || fallbackAvatar" mode="aspectFill" />
+          <text class="rank-name">{{ computedWinners.third.nickname }}</text>
+        </view>
+        <text class="rank-score pos">{{ formatScore(computedWinners.third.score) }}</text>
       </view>
     </view>
 
@@ -65,16 +73,94 @@
       </view>
     </view>
 
-    <view class="modal-mask" v-if="scoreModalOpen" @click="closeScoreModal" />
-    <view class="modal" v-if="scoreModalOpen">
-      <view class="modal-title">给「{{ scoreTarget?.nickname }}」记分</view>
-      <input class="input" v-model="scoreDelta" placeholder="分数（例如 10 或 -5）" />
-      <input class="input" v-model="scoreNote" placeholder="备注（可选）" />
-      <view class="modal-actions">
-        <button size="mini" @click="closeScoreModal">取消</button>
-        <button size="mini" class="primary" @click="submitScore">确认</button>
+    <view class="card">
+      <view class="row">
+        <view class="title">记录</view>
+      </view>
+      <view class="empty-records" v-if="recordsLoaded && records.length === 0">暂无记录</view>
+      <view class="records" v-else-if="records.length > 0">
+        <view class="record" v-for="r in records" :key="r.id">
+          <view class="record-row">
+            <view class="record-users">
+              <image class="record-avatar" :src="avatarOf(r.fromMemberId)" mode="aspectFill" />
+              <text class="record-name">{{ nicknameOf(r.fromMemberId) }}</text>
+              <text class="record-arrow">→</text>
+              <image class="record-avatar" :src="avatarOf(r.toMemberId)" mode="aspectFill" />
+              <text class="record-name">{{ nicknameOf(r.toMemberId) }}</text>
+            </view>
+            <view class="record-meta">
+              <text class="record-delta pos">{{ formatScore(r.delta) }}</text>
+              <text class="record-time">{{ formatTime(r.createdAt) }}</text>
+            </view>
+          </view>
+          <view class="record-note" v-if="r.note">{{ r.note }}</view>
+        </view>
+      </view>
+      <view class="records-more" v-if="recordsHasMore || recordsPaging">
+        <button size="mini" class="more-btn" v-if="recordsHasMore && !recordsPaging" @click="loadMoreRecords">加载更多</button>
+        <view class="hint" v-else>加载中…</view>
       </view>
     </view>
+
+	    <view class="modal-mask" v-if="scoreModalOpen" @click="closeScoreModal" />
+	    <view class="modal score-modal" v-if="scoreModalOpen">
+	      <view class="modal-head">
+	        <view class="modal-title">记分</view>
+	        <view class="modal-close" @click="closeScoreModal">×</view>
+	      </view>
+
+	      <view class="score-target">
+	        <image class="score-target-avatar" :src="scoreTarget?.avatarUrl || fallbackAvatar" mode="aspectFill" />
+	        <view class="score-target-body">
+	          <view class="score-target-name">{{ scoreTarget?.nickname }}</view>
+	          <view class="score-target-sub">
+	            <text class="score-target-sub-label">当前</text>
+	            <text class="score-target-sub-score" :class="scoreTone(scoreTarget?.score)">{{ formatScore(scoreTarget?.score) }}</text>
+	          </view>
+	        </view>
+	        <view class="delta-badge" :class="deltaTone(deltaValue)">
+	          {{ formatScore(deltaValue) }}
+	        </view>
+	      </view>
+
+	      <view class="delta-input-row">
+	        <input class="delta-input" type="number" v-model="scoreDelta" placeholder="输入分数" />
+	        <button size="mini" class="chip" @click="clearDelta">清零</button>
+	      </view>
+
+	      <view class="preset-title">快捷</view>
+	      <view class="preset-grid">
+	        <button size="mini" class="preset pos" @click="addDelta(5)">+5</button>
+	        <button size="mini" class="preset pos" @click="addDelta(10)">+10</button>
+	        <button size="mini" class="preset pos" @click="addDelta(20)">+20</button>
+	        <button size="mini" class="preset pos" @click="addDelta(30)">+30</button>
+	        <button size="mini" class="preset pos" @click="addDelta(50)">+50</button>
+	      </view>
+
+	      <view class="preview">
+	        <view class="preview-row">
+	          <text class="preview-label">对方</text>
+	          <text class="preview-before" :class="scoreTone(scoreTarget?.score)">{{ formatScore(scoreTarget?.score) }}</text>
+	          <text class="preview-arrow">→</text>
+	          <text class="preview-after" :class="scoreTone(targetAfter)">{{ formatScore(targetAfter) }}</text>
+	        </view>
+	        <view class="preview-row">
+	          <text class="preview-label">我</text>
+	          <text class="preview-before" :class="scoreTone(myScore)">{{ formatScore(myScore) }}</text>
+	          <text class="preview-arrow">→</text>
+	          <text class="preview-after" :class="scoreTone(myAfter)">{{ formatScore(myAfter) }}</text>
+	        </view>
+	      </view>
+
+	      <input class="input" v-model="scoreNote" placeholder="备注（可选）" />
+
+	      <view class="modal-actions">
+	        <button size="mini" @click="closeScoreModal">取消</button>
+	        <button size="mini" class="primary" :disabled="scoreSubmitting" @click="submitScore">
+	          {{ scoreSubmitting ? '提交中…' : '确认记分' }}
+	        </button>
+	      </view>
+	    </view>
 
     <view class="modal-mask" v-if="qrModalOpen" @click="closeQRCode" />
     <view class="modal" v-if="qrModalOpen">
@@ -89,7 +175,7 @@
     <view class="modal-mask" v-if="endModalOpen" @click="closeEndModal" />
     <view class="modal" v-if="endModalOpen">
       <view class="modal-title">本局结束</view>
-      <view class="hint" v-if="!endWinners?.champion">本局无人得分 &gt; 0</view>
+      <view class="hint" v-if="!endWinners?.champion">本局无人得分大于0</view>
       <view class="end-row" v-if="endWinners?.champion">
         <text class="end-label">冠军</text>
         <text class="end-name">{{ endWinners.champion.nickname }}</text>
@@ -99,6 +185,11 @@
         <text class="end-label">亚军</text>
         <text class="end-name">{{ endWinners.runnerUp.nickname }}</text>
         <text class="end-score pos">{{ formatScore(endWinners.runnerUp.score) }}</text>
+      </view>
+      <view class="end-row" v-if="endWinners?.third">
+        <text class="end-label">季军</text>
+        <text class="end-name">{{ endWinners.third.nickname }}</text>
+        <text class="end-score pos">{{ formatScore(endWinners.third.score) }}</text>
       </view>
       <view class="modal-actions">
         <button size="mini" @click="closeEndModal">关闭</button>
@@ -112,9 +203,17 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShareAppMessage, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
-import { connectScorebookWS, createRecord, endScorebook, getInviteQRCode, getScorebookDetail, updateScorebookName } from '../../utils/api'
+import {
+  connectScorebookWS,
+  createRecord,
+  endScorebook,
+  getInviteQRCode,
+  getScorebookDetail,
+  listScorebookRecords,
+  updateScorebookName,
+} from '../../utils/api'
 
 const id = ref('')
 const scorebook = ref<any>(null)
@@ -129,12 +228,25 @@ const scoreModalOpen = ref(false)
 const scoreTarget = ref<any>(null)
 const scoreDelta = ref('')
 const scoreNote = ref('')
+const scoreSubmitting = ref(false)
+
+const records = ref<any[]>([])
+const recordsLoaded = ref(false)
+const recordsPaging = ref(false)
+const recordsHasMore = ref(false)
+const recordsNextOffset = ref(0)
+const recordsPageSize = 50
 
 const qrModalOpen = ref(false)
 const qrLoading = ref(false)
 const qrSrc = ref('')
 const endModalOpen = ref(false)
 const endWinners = ref<any>(null)
+
+const refreshing = ref(false)
+const refreshQueued = ref(false)
+const pollTimer = ref<any>(null)
+const localRecordIDs = new Map<string, number>()
 
 function scoreTone(v: any): string {
   const n = Number(v || 0)
@@ -149,11 +261,72 @@ function formatScore(v: any): string {
   return n > 0 ? `+${n}` : String(n)
 }
 
+function formatTime(v: any): string {
+  const d = new Date(String(v || ''))
+  if (Number.isNaN(d.getTime())) return ''
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${mm}-${dd} ${hh}:${mi}`
+}
+
+function memberByID(memberID: any) {
+  const id = String(memberID || '')
+  return members.value.find((m) => String(m.id) === id)
+}
+
+function nicknameOf(memberID: any): string {
+  const m = memberByID(memberID)
+  return String(m?.nickname || '未知')
+}
+
+function avatarOf(memberID: any): string {
+  const m = memberByID(memberID)
+  return String(m?.avatarUrl || fallbackAvatar)
+}
+
+function deltaTone(v: any): string {
+  const n = Number(v || 0)
+  if (n > 0) return 'pos'
+  if (n < 0) return 'neg'
+  return 'zero'
+}
+
+function parseIntSafe(v: any): number {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return 0
+  return Math.trunc(n)
+}
+
+const deltaValue = computed(() => parseIntSafe(scoreDelta.value))
+const myMember = computed(() => members.value.find((m) => m.id === me.value?.memberId) || members.value.find((m) => m.isMe))
+const myScore = computed(() => Number(myMember.value?.score || 0))
+const targetAfter = computed(() => Number(scoreTarget.value?.score || 0) + deltaValue.value)
+const myAfter = computed(() => myScore.value - deltaValue.value)
+
+function addDelta(v: number) {
+  const next = parseIntSafe(scoreDelta.value) + v
+  scoreDelta.value = next === 0 ? '' : String(next)
+}
+
+function clearDelta() {
+  scoreDelta.value = ''
+}
+
 const computedWinners = computed(() => {
   const eligible = (members.value || [])
     .map((m) => ({ ...m, score: Number(m.score || 0) }))
     .filter((m) => Number.isFinite(m.score) && m.score > 0)
-    .sort((a, b) => (b.score as number) - (a.score as number))
+    .sort((a, b) => {
+      const ds = (b.score as number) - (a.score as number)
+      if (ds !== 0) return ds
+      const ta = Date.parse(String(a.joinedAt || ''))
+      const tb = Date.parse(String(b.joinedAt || ''))
+      const na = Number.isFinite(ta) ? ta : 0
+      const nb = Number.isFinite(tb) ? tb : 0
+      return na - nb
+    })
 
   const champion = eligible[0]
     ? { memberId: eligible[0].id, nickname: eligible[0].nickname, avatarUrl: eligible[0].avatarUrl, score: eligible[0].score }
@@ -161,8 +334,11 @@ const computedWinners = computed(() => {
   const runnerUp = eligible[1]
     ? { memberId: eligible[1].id, nickname: eligible[1].nickname, avatarUrl: eligible[1].avatarUrl, score: eligible[1].score }
     : null
+  const third = eligible[2]
+    ? { memberId: eligible[2].id, nickname: eligible[2].nickname, avatarUrl: eligible[2].avatarUrl, score: eligible[2].score }
+    : null
 
-  return { champion, runnerUp }
+  return { champion, runnerUp, third }
 })
 
 onShareAppMessage(() => {
@@ -178,9 +354,19 @@ onLoad(async (q) => {
   id.value = String((q as any).id || '')
   await refresh()
   socketTask.value = connectScorebookWS(id.value, onEvent)
+  startPolling()
+})
+
+onShow(() => {
+  startPolling()
+})
+
+onHide(() => {
+  stopPolling()
 })
 
 onUnload(() => {
+  stopPolling()
   try {
     socketTask.value?.close({})
   } catch (e) {}
@@ -191,19 +377,155 @@ async function refresh() {
   scorebook.value = res.scorebook
   me.value = res.me
   members.value = res.members || []
+  await refreshRecordsFirstPage()
+}
+
+function mergeRecordsTop(incoming: any[]) {
+  const map = new Map<string, any>()
+  for (const r of records.value || []) {
+    const rid = String(r?.id || '')
+    if (rid) map.set(rid, r)
+  }
+  for (const r of incoming || []) {
+    const rid = String(r?.id || '')
+    if (rid) map.set(rid, r)
+  }
+  const out = Array.from(map.values())
+  out.sort((a, b) => {
+    const ta = Date.parse(String(a?.createdAt || ''))
+    const tb = Date.parse(String(b?.createdAt || ''))
+    const na = Number.isFinite(ta) ? ta : 0
+    const nb = Number.isFinite(tb) ? tb : 0
+    return nb - na
+  })
+  records.value = out
+}
+
+async function refreshRecordsFirstPage() {
+  try {
+    const r = await listScorebookRecords(id.value, recordsPageSize, 0)
+    const items = r.items || []
+    if (!recordsLoaded.value) {
+      records.value = items
+    } else {
+      mergeRecordsTop(items)
+    }
+
+    // 仅在“尚未翻页”的情况下，才根据第 1 页更新翻页状态，避免翻到末尾后又被后台刷新把按钮刷出来
+    if (recordsNextOffset.value <= recordsPageSize) {
+      if (items.length >= recordsPageSize) {
+        recordsHasMore.value = true
+        recordsNextOffset.value = Math.max(recordsNextOffset.value, recordsPageSize)
+      } else {
+        recordsHasMore.value = false
+        recordsNextOffset.value = Math.max(recordsNextOffset.value, items.length)
+      }
+    }
+  } catch (e) {
+    // 后台刷新失败不弹 toast
+  } finally {
+    recordsLoaded.value = true
+  }
+}
+
+async function loadMoreRecords() {
+  if (recordsPaging.value || !recordsHasMore.value) return
+  recordsPaging.value = true
+  try {
+    const r = await listScorebookRecords(id.value, recordsPageSize, recordsNextOffset.value)
+    const items = r.items || []
+    const seen = new Set<string>()
+    for (const x of records.value || []) {
+      const rid = String(x?.id || '')
+      if (rid) seen.add(rid)
+    }
+    for (const it of items) {
+      const rid = String(it?.id || '')
+      if (!rid || seen.has(rid)) continue
+      seen.add(rid)
+      records.value.push(it)
+    }
+    recordsNextOffset.value += items.length
+    recordsHasMore.value = items.length >= recordsPageSize
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
+  } finally {
+    recordsPaging.value = false
+    recordsLoaded.value = true
+  }
+}
+
+async function safeRefresh() {
+  if (refreshing.value) {
+    refreshQueued.value = true
+    return
+  }
+  refreshing.value = true
+  try {
+    await refresh()
+  } catch (e) {
+    // 后台刷新失败不弹 toast
+  } finally {
+    refreshing.value = false
+    if (refreshQueued.value) {
+      refreshQueued.value = false
+      safeRefresh()
+    }
+  }
+}
+
+function startPolling() {
+  stopPolling()
+  pollTimer.value = setInterval(() => {
+    if (scoreModalOpen.value || qrModalOpen.value || endModalOpen.value || recordsPaging.value) return
+    safeRefresh()
+  }, 5000)
+}
+
+function stopPolling() {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value)
+    pollTimer.value = null
+  }
+}
+
+function applyRecordToMembers(r: any) {
+  if (!r?.toMemberId || !r?.fromMemberId) return
+  const delta = Number(r.delta)
+  if (!Number.isFinite(delta) || delta === 0) return
+  const to = members.value.find((m) => m.id === r.toMemberId)
+  if (to) to.score = Number(to.score || 0) + delta
+  const from = members.value.find((m) => m.id === r.fromMemberId)
+  if (from) from.score = Number(from.score || 0) - delta
+}
+
+function prependRecord(r: any) {
+  if (!r?.id) return
+  const rid = String(r.id)
+  if (!rid) return
+  if (records.value.some((x) => String(x?.id) === rid)) return
+  records.value.unshift(r)
+}
+
+function rememberLocalRecordID(id: string) {
+  localRecordIDs.set(id, Date.now())
+  const now = Date.now()
+  for (const [k, ts] of localRecordIDs.entries()) {
+    if (now - ts > 60_000) localRecordIDs.delete(k)
+  }
 }
 
 function onEvent(evt: any) {
   if (!evt?.type) return
   if (evt.type === 'record.created') {
     const r = evt.data?.record
-    if (!r?.toMemberId || !r?.fromMemberId) return
-    const delta = Number(r.delta)
-    if (!Number.isFinite(delta) || delta === 0) return
-    const to = members.value.find((m) => m.id === r.toMemberId)
-    if (to) to.score = Number(to.score || 0) + delta
-    const from = members.value.find((m) => m.id === r.fromMemberId)
-    if (from) from.score = Number(from.score || 0) - delta
+    const rid = String(r?.id || '')
+    if (rid && localRecordIDs.has(rid)) {
+      localRecordIDs.delete(rid)
+      return
+    }
+    applyRecordToMembers(r)
+    prependRecord(r)
     return
   }
   if (evt.type === 'member.joined') {
@@ -244,7 +566,7 @@ function onEvent(evt: any) {
     }
     return
   }
-  refresh()
+  safeRefresh()
 }
 
 function copyInvite() {
@@ -274,7 +596,11 @@ async function rename() {
 async function end() {
   uni.showModal({
     title: '结束得分簿',
-    content: '只有掌柜可以结束，结束后不可再记分。',
+    content: '结束后不可再记分，且无法恢复。',
+    showCancel: true,
+    confirmText: '确认结束',
+    cancelText: '取消',
+    confirmColor: '#ff4d4f',
     success: async (res) => {
       if (!res.confirm) return
       try {
@@ -297,9 +623,7 @@ async function end() {
 function onClickMember(m: any) {
   if (m.isMe) {
     uni.navigateTo({
-      url: `/pages/scorebook/profile?id=${encodeURIComponent(id.value)}&nickname=${encodeURIComponent(
-        m.nickname || ''
-      )}&avatarUrl=${encodeURIComponent(m.avatarUrl || '')}`,
+      url: `/pages/scorebook/profile?id=${encodeURIComponent(id.value)}`,
     })
     return
   }
@@ -348,14 +672,26 @@ function closeEndModal() {
 }
 
 async function submitScore() {
-  const delta = Number(scoreDelta.value)
+  const delta = deltaValue.value
   if (!scoreTarget.value?.id) return
-  if (!delta) return uni.showToast({ title: '请输入分数', icon: 'none' })
+  if (!Number.isFinite(delta) || delta <= 0) return uni.showToast({ title: '请输入正分数', icon: 'none' })
+  if (scoreSubmitting.value) return
   try {
-    await createRecord(id.value, { toMemberId: scoreTarget.value.id, delta, note: scoreNote.value.trim() })
+    scoreSubmitting.value = true
+    const res = await createRecord(id.value, { toMemberId: scoreTarget.value.id, delta, note: scoreNote.value.trim() })
+    if (res?.record?.id) {
+      rememberLocalRecordID(String(res.record.id))
+      applyRecordToMembers(res.record)
+      prependRecord(res.record)
+    }
     closeScoreModal()
+    scoreDelta.value = ''
+    scoreNote.value = ''
+    safeRefresh()
   } catch (e: any) {
     uni.showToast({ title: e?.message || '记分失败', icon: 'none' })
+  } finally {
+    scoreSubmitting.value = false
   }
 }
 </script>
@@ -390,6 +726,8 @@ async function submitScore() {
 .name {
   font-size: 34rpx;
   font-weight: 700;
+  flex: 1;
+  min-width: 0;
 }
 .badge {
   font-size: 24rpx;
@@ -397,6 +735,8 @@ async function submitScore() {
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
+  white-space: nowrap;
+  flex: none;
 }
 .badge.ended {
   background: rgba(255, 255, 255, 0.12);
@@ -600,6 +940,12 @@ async function submitScore() {
 .pos {
   color: #00c853;
 }
+.neg {
+  color: #ff5252;
+}
+.zero {
+  color: #333;
+}
 .empty {
   margin-top: 120rpx;
   text-align: center;
@@ -623,10 +969,37 @@ async function submitScore() {
   padding: 20rpx;
   box-shadow: 0 18rpx 50rpx rgba(0, 0, 0, 0.18);
 }
+.score-modal {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  max-height: 80vh;
+  overflow: auto;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 10rpx;
+}
 .modal-title {
   font-size: 30rpx;
   font-weight: 600;
-  margin-bottom: 12rpx;
+  margin-bottom: 0;
+}
+.modal-close {
+  width: 56rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  text-align: center;
+  border-radius: 999rpx;
+  background: #f6f7fb;
+  color: #333;
+  font-size: 36rpx;
+}
+.modal-close:active {
+  opacity: 0.85;
 }
 .input {
   background: #f6f7fb;
@@ -634,6 +1007,235 @@ async function submitScore() {
   padding: 18rpx 16rpx;
   font-size: 28rpx;
   margin-top: 12rpx;
+}
+.score-target {
+  margin-top: 4rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  background: #f6f7fb;
+  border-radius: 16rpx;
+  padding: 14rpx;
+}
+.score-target-avatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 18rpx;
+  background: #fff;
+}
+.score-target-body {
+  flex: 1;
+  min-width: 0;
+}
+.score-target-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.score-target-sub {
+  margin-top: 4rpx;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  color: #666;
+  font-size: 24rpx;
+}
+.score-target-sub-score {
+  font-weight: 700;
+}
+.delta-badge {
+  min-width: 120rpx;
+  padding: 10rpx 12rpx;
+  border-radius: 999rpx;
+  text-align: center;
+  font-size: 30rpx;
+  font-weight: 800;
+  background: #fff;
+  color: #333;
+}
+.delta-badge.pos {
+  background: rgba(0, 200, 83, 0.12);
+  color: #00c853;
+}
+.delta-badge.neg {
+  background: rgba(255, 82, 82, 0.12);
+  color: #ff5252;
+}
+.delta-input-row {
+  margin-top: 12rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.delta-input {
+  flex: 1;
+  background: #f6f7fb;
+  border-radius: 12rpx;
+  padding: 18rpx 16rpx;
+  font-size: 34rpx;
+  font-weight: 700;
+}
+.chip {
+  border-radius: 12rpx;
+}
+.preset-title {
+  margin-top: 14rpx;
+  color: #666;
+  font-size: 24rpx;
+}
+.preset-grid {
+  margin-top: 10rpx;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10rpx;
+}
+.preset {
+  border-radius: 14rpx;
+  background: #f6f7fb;
+}
+.preset::after {
+  border: none;
+}
+.preset.pos {
+  color: #00c853;
+}
+.preset.neg {
+  color: #ff5252;
+}
+.preview {
+  margin-top: 12rpx;
+  padding: 12rpx 14rpx;
+  border-radius: 16rpx;
+  background: #fff;
+  border: 1rpx solid rgba(0, 0, 0, 0.06);
+}
+.preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10rpx;
+  margin-top: 8rpx;
+}
+.preview-row:first-child {
+  margin-top: 0;
+}
+.preview-label {
+  width: 64rpx;
+  color: #666;
+  font-size: 24rpx;
+}
+.preview-before,
+.preview-after {
+  font-size: 28rpx;
+  font-weight: 700;
+}
+.preview-arrow {
+  color: #999;
+  font-size: 22rpx;
+}
+
+.records {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+.record {
+  background: #f6f7fb;
+  border-radius: 16rpx;
+  padding: 14rpx 14rpx;
+}
+.record-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.record-users {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  min-width: 0;
+  flex: 1;
+}
+.record-avatar {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 12rpx;
+  background: #ddd;
+  flex: none;
+}
+.record-name {
+  max-width: 180rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 26rpx;
+  color: #111;
+}
+.record-arrow {
+  color: #999;
+  font-size: 24rpx;
+  flex: none;
+}
+.record-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  flex: none;
+}
+.record-delta {
+  font-size: 28rpx;
+  font-weight: 800;
+}
+.record-time {
+  font-size: 22rpx;
+  color: #888;
+}
+.record-note {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #666;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.records-more {
+  margin-top: 12rpx;
+  display: flex;
+  justify-content: center;
+}
+.more-btn {
+  border-radius: 999rpx;
+  padding: 0 26rpx;
+}
+.more-btn::after {
+  border: none;
+}
+.empty-records {
+  color: #888;
+  font-size: 24rpx;
+  padding: 10rpx 0;
+}
+.score-modal .chip,
+.score-modal .preset,
+.score-modal .modal-actions button {
+  height: 72rpx;
+  line-height: 72rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.score-modal .chip::after,
+.score-modal .modal-actions button::after {
+  border: none;
+}
+.score-modal .modal-actions {
+  justify-content: space-between;
+}
+.score-modal .modal-actions button {
+  flex: 1;
+  border-radius: 14rpx;
 }
 .modal-actions {
   margin-top: 16rpx;

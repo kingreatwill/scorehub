@@ -462,6 +462,10 @@ RETURNING id::text, scorebook_id::text, user_id, role::text, nickname, avatar_ur
 }
 
 func (s *Store) CreateRecord(ctx context.Context, scorebookID string, userID int64, toMemberID string, delta int64, note string) (ScoreRecord, error) {
+	if delta <= 0 {
+		return ScoreRecord{}, ErrInvalidDelta
+	}
+
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return ScoreRecord{}, err
@@ -566,7 +570,7 @@ FROM scorebook_members m
 WHERE m.scorebook_id = $1::uuid
   AND m.score > 0
 ORDER BY m.score DESC, m.joined_at ASC
-LIMIT 2
+LIMIT 3
 `, scorebookID)
 	if err != nil {
 		return nil, err

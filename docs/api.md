@@ -53,7 +53,7 @@ Request:
 
 ### GET /location/reverse_geocode?lat=..&lng=..
 
-根据经纬度反查位置名称（`locationText`）。需要配置 `SCOREHUB_TENCENT_MAP_KEY`，否则会回退为 `lat,lng`。
+根据经纬度反查地址（`locationText`）。需要配置 `SCOREHUB_TENCENT_MAP_KEY`（优先使用腾讯地图 `geocoder/v1` 的 `formatted_addresses.recommend`），否则会回退为 `lat,lng`。
 
 ## Scorebooks
 
@@ -87,10 +87,10 @@ Request:
 
 结束（仅掌柜/创建者）。
 
-Response（会返回冠亚军：按分数降序取前 2 名，且分数必须 > 0；可能为空）：
+Response（会返回冠亚季军：按分数降序取前 3 名，且分数必须 > 0；可能为空）：
 
 ```json
-{"scorebook":{...},"winners":{"champion":{"memberId":"...","nickname":"...","avatarUrl":"...","score":10},"runnerUp":null}}
+{"scorebook":{...},"winners":{"champion":{"memberId":"...","nickname":"...","avatarUrl":"...","score":10},"runnerUp":null,"third":null}}
 ```
 
 ### POST /scorebooks/:id/join
@@ -117,7 +117,7 @@ Response（会返回冠亚军：按分数降序取前 2 名，且分数必须 > 
 
 ### POST /scorebooks/:id/records
 
-对某个成员记分（`toMemberId` 为对方 memberId，`delta` 为本次增加/减少的分数）。
+对某个成员记分（`toMemberId` 为对方 memberId，`delta` 为本次增加的分数，必须 > 0）。
 
 ```json
 {"toMemberId":"<uuid>","delta":10,"note":"炸胡"}

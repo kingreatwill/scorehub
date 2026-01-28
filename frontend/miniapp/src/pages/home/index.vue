@@ -26,25 +26,27 @@
       <input class="input" v-model="newName" placeholder="名称（可空，默认 时间 + 位置）" />
       <view class="loc-row">
         <text class="hint">位置：{{ currentLocationText || '未获取' }}</text>
-        <button size="mini" v-if="isMpWeixin" @click="refreshLocation" :disabled="locating">
-          {{ locating ? '定位中…' : '获取位置' }}
+        <button size="mini" class="loc-btn" v-if="isMpWeixin" @click="refreshLocation" :disabled="locating" hover-class="none">
+          <view class="loc-logo" :class="{ loading: locating }">
+            <view class="loc-logo-dot" />
+          </view>
         </button>
       </view>
-      <button class="btn primary" @click="onCreate">开始</button>
+      <button class="btn" @click="onCreate">开始</button>
     </view>
 
+
     <view class="card" v-if="token">
-      <view class="title">扫码加入</view>
+      <input class="input" v-model="inviteCode" placeholder="邀请码（例如 8 位码）" />
+      <button class="btn" @click="onJoinByCode">邀请码加入</button>
+    </view>
+
+
+    <view class="card" v-if="token">
       <view v-if="isMpWeixin">
-        <button class="btn primary" @click="onScanJoin">打开扫码</button>
+        <button class="btn" @click="onScanJoin">扫码加入</button>
       </view>
       <view v-else class="hint">仅微信小程序支持扫码</view>
-    </view>
-
-    <view class="card" v-if="token">
-      <view class="title">通过邀请码加入</view>
-      <input class="input" v-model="inviteCode" placeholder="邀请码（例如 8 位码）" />
-      <button class="btn" @click="onJoinByCode">加入并打开</button>
     </view>
   </view>
 </template>
@@ -337,6 +339,55 @@ async function onJoinByCode() {
   align-items: center;
   justify-content: space-between;
   gap: 12rpx;
+}
+.loc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72rpx;
+  height: 72rpx;
+  padding: 0;
+  border-radius: 18rpx;
+  background: #f6f7fb;
+  color: #111;
+}
+.loc-btn::after {
+  border: none;
+}
+.loc-btn:active {
+  opacity: 0.9;
+}
+.loc-logo {
+  width: 28rpx;
+  height: 28rpx;
+  background: #111;
+  border-radius: 14rpx 14rpx 14rpx 0;
+  transform: rotate(-45deg);
+  position: relative;
+  flex: none;
+}
+.loc-logo-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  position: absolute;
+  left: 8rpx;
+  top: 8rpx;
+}
+.loc-logo.loading .loc-logo-dot {
+  animation: locDotPulse 0.7s ease-in-out infinite;
+}
+@keyframes locDotPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.6);
+    opacity: 0.6;
+  }
 }
 .avatar-wrapper {
   padding: 18rpx 16rpx;
