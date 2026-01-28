@@ -44,7 +44,7 @@ go run ./cmd/api
 ```
 
 后端会自动加载 `.env`（支持在仓库根目录或 `backend/` 目录启动）；也可通过环境变量 `SCOREHUB_ENV_FILE` 指定自定义路径。
-如需将定位经纬度自动反查为位置名称（例如「上海·徐汇」），请在 `.env` 中配置 `SCOREHUB_TENCENT_MAP_KEY`（腾讯位置服务 key）、`SCOREHUB_AMAP_KEY`（高德开放平台 key）或 `SCOREHUB_BAIDU_MAP_AK`（百度地图开放平台 AK）；若同时配置，优先腾讯，其次高德，最后百度。
+如需将定位经纬度自动反查为位置名称（例如「上海·徐汇」），请在 `.env` 中配置 `SCOREHUB_TENCENT_MAP_KEY`（腾讯位置服务 key）、`SCOREHUB_AMAP_KEY`（高德开放平台 key）或 `SCOREHUB_BAIDU_MAP_AK`（百度地图开放平台 AK）。若同时配置，后端会根据各家 QPS 限制选择可用服务（每次请求只调用一家，避免依次调用导致额度浪费）。
 
 4) 启动前端
 
@@ -75,4 +75,4 @@ npm run build:mp-weixin
 - 微信小程序开发平台: https://mp.weixin.qq.com/wxamp/devprofile/get_profile?token=44927146&lang=zh_CN
 - 腾讯地图(并发5次/秒, 6000次/日): https://lbs.qq.com/service/webService/webServiceGuide/address/Gcoder
 - 高德地图(并发3次/秒, 150000次/月): https://lbs.amap.com/api/webservice/summary
-- 百度地图(并发1次/秒, 300次/日): https://baidumap.apifox.cn/api-32790722
+- 百度地图(并发3次/秒, 300次/日): https://baidumap.apifox.cn/api-32790722

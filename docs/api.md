@@ -59,7 +59,7 @@ Request:
 - 高德：`SCOREHUB_AMAP_KEY`（使用高德 `v3/geocode/regeo`，优先返回 `regeocode.formatted_address`；为空时回退为「城市·区县」风格的短文本）
 - 百度：`SCOREHUB_BAIDU_MAP_AK`（使用百度 `reverse_geocoding/v3`，优先返回 `result.formatted_address`；为空时回退为「城市·区县」风格的短文本）
 
-未配置任何 key 时会回退为 `lat,lng`；若同时配置，优先腾讯，其次高德，最后百度。
+未配置任何 key 时会回退为 `lat,lng`；若同时配置，后端会根据各家 QPS 限制选择可用服务（每次请求只调用一家）。
 
 ## Scorebooks
 

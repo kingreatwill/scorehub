@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
@@ -43,50 +46,62 @@ func (h *LocationHandlers) ReverseGeocode(ctx context.Context, c *app.RequestCon
 	}
 
 	fallback := fmt.Sprintf("%.4f,%.4f", lat, lng)
-	if h.cfg.TencentMapKey == "" && h.cfg.AmapKey == "" && h.cfg.BaiduMapAK == "" {
+	hasAnyKey := h.cfg.TencentMapKey != "" || h.cfg.AmapKey != "" || h.cfg.BaiduMapAK != ""
+	if !hasAnyKey {
 		c.JSON(http.StatusOK, map[string]any{"locationText": fallback, "source": "raw"})
 		return
 	}
 
-	var lastErr error
-	if h.cfg.TencentMapKey != "" {
-		text, err := reverseGeocodeTencent(ctx, h.cfg.TencentMapKey, lat, lng)
-		if err == nil && strings.TrimSpace(text) != "" {
-			c.JSON(http.StatusOK, map[string]any{"locationText": text, "source": "tencent"})
-			return
+	type chosenProvider struct {
+		source string
+		call   func(context.Context) (string, error)
+	}
+
+	// 根据各家 QPS 限制选择一个可用的 provider；每次请求只调用一家，避免“依次调用”浪费配额。
+	var chosen *chosenProvider
+	if h.cfg.TencentMapKey != "" && tencentGeocodeQPSLimiter.Allow() {
+		chosen = &chosenProvider{
+			source: "tencent",
+			call: func(ctx context.Context) (string, error) {
+				return reverseGeocodeTencent(ctx, h.cfg.TencentMapKey, lat, lng)
+			},
 		}
-		if err != nil {
-			lastErr = err
+	} else if h.cfg.AmapKey != "" && amapGeocodeQPSLimiter.Allow() {
+		chosen = &chosenProvider{
+			source: "amap",
+			call: func(ctx context.Context) (string, error) {
+				return reverseGeocodeAmap(ctx, h.cfg.AmapKey, lat, lng)
+			},
+		}
+	} else if h.cfg.BaiduMapAK != "" && baiduGeocodeQPSLimiter.Allow() {
+		chosen = &chosenProvider{
+			source: "baidu",
+			call: func(ctx context.Context) (string, error) {
+				return reverseGeocodeBaidu(ctx, h.cfg.BaiduMapAK, lat, lng)
+			},
 		}
 	}
 
-	if h.cfg.AmapKey != "" {
-		text, err := reverseGeocodeAmap(ctx, h.cfg.AmapKey, lat, lng)
-		if err == nil && strings.TrimSpace(text) != "" {
-			c.JSON(http.StatusOK, map[string]any{"locationText": text, "source": "amap"})
-			return
-		}
-		if err != nil {
-			lastErr = err
-		}
+	if chosen == nil {
+		c.JSON(http.StatusOK, map[string]any{
+			"locationText": fallback,
+			"source":       "raw",
+			"geocodeError": "geocode rate limited",
+		})
+		return
 	}
 
-	if h.cfg.BaiduMapAK != "" {
-		text, err := reverseGeocodeBaidu(ctx, h.cfg.BaiduMapAK, lat, lng)
-		if err == nil && strings.TrimSpace(text) != "" {
-			c.JSON(http.StatusOK, map[string]any{"locationText": text, "source": "baidu"})
-			return
-		}
+	text, err := chosen.call(ctx)
+	if err != nil || strings.TrimSpace(text) == "" {
+		out := map[string]any{"locationText": fallback, "source": "raw"}
 		if err != nil {
-			lastErr = err
+			out["geocodeError"] = err.Error()
 		}
+		c.JSON(http.StatusOK, out)
+		return
 	}
 
-	out := map[string]any{"locationText": fallback, "source": "raw"}
-	if lastErr != nil {
-		out["geocodeError"] = lastErr.Error()
-	}
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, map[string]any{"locationText": text, "source": chosen.source})
 }
 
 type tencentGeocoderResp struct {
@@ -377,3 +392,64 @@ func reverseGeocodeBaidu(ctx context.Context, ak string, lat, lng float64) (stri
 
 	return "", nil
 }
+
+type tokenBucket struct {
+	mu     sync.Mutex
+	rate   float64
+	burst  float64
+	tokens float64
+	last   time.Time
+}
+
+func newTokenBucket(rate, burst float64) *tokenBucket {
+	if rate < 0 {
+		rate = 0
+	}
+	if burst < 1 {
+		burst = 1
+	}
+	now := time.Now()
+	return &tokenBucket{
+		rate:  rate,
+		burst: burst,
+		tokens: func() float64 {
+			if rate > 0 {
+				return math.Min(burst, rate)
+			}
+			return burst
+		}(),
+		last: now,
+	}
+}
+
+func (b *tokenBucket) Allow() bool {
+	if b == nil {
+		return true
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	now := time.Now()
+	if b.last.IsZero() {
+		b.last = now
+	}
+
+	elapsed := now.Sub(b.last).Seconds()
+	if elapsed > 0 && b.rate > 0 {
+		b.tokens = math.Min(b.burst, b.tokens+elapsed*b.rate)
+	}
+	b.last = now
+
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens -= 1
+	return true
+}
+
+var (
+	// QPS 约束：参考 README 中的「并发 x 次/秒」说明。
+	tencentGeocodeQPSLimiter = newTokenBucket(5, 5)
+	amapGeocodeQPSLimiter    = newTokenBucket(3, 3)
+	baiduGeocodeQPSLimiter   = newTokenBucket(3, 3)
+)
