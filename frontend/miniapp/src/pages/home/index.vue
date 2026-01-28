@@ -48,13 +48,30 @@
       </view>
       <view v-else class="hint">仅微信小程序支持扫码</view>
     </view>
+
+    <view class="card" v-if="token">
+      <view class="title">记录中的得分簿</view>
+      <view v-if="activeScorebooks.length === 0" class="hint">暂无记录中的得分簿</view>
+      <view v-else class="list">
+        <view class="item" v-for="it in activeScorebooks" :key="it.id" @click="openScorebook(it.id)">
+          <view class="row">
+            <text class="name">{{ it.name }}</text>
+            <text class="status">记录中</text>
+          </view>
+          <view class="sub">
+            <text v-if="it.locationText">{{ it.locationText }}</text>
+            <text>成员 {{ it.memberCount }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { createScorebook, devLogin, joinByInviteCode, reverseGeocode, updateMe, wechatLogin } from '../../utils/api'
+import { createScorebook, devLogin, joinByInviteCode, listMyScorebooks, reverseGeocode, updateMe, wechatLogin } from '../../utils/api'
 
 const token = ref('')
 const isMpWeixin = ref(false)
@@ -73,11 +90,14 @@ const fallbackAvatar =
 
 const newName = ref('')
 const inviteCode = ref('')
+const myScorebooks = ref<any[]>([])
+const activeScorebooks = computed(() => (myScorebooks.value || []).filter((it) => String(it?.status || '') !== 'ended'))
 
 onShow(() => {
   token.value = (uni.getStorageSync('token') as string) || ''
   loadSavedUser()
   loadSavedLocation()
+  loadMyScorebooks()
 })
 
 onLoad((q) => {
@@ -93,6 +113,7 @@ async function onDevLogin() {
     const res = await devLogin(getOrCreateDevOpenid(), nickname.value.trim(), avatarUrl.value.trim())
     token.value = res.token
     refreshLocation()
+    loadMyScorebooks()
     uni.showToast({ title: '登录成功', icon: 'success' })
   } catch (e: any) {
     uni.showToast({ title: e?.message || '登录失败', icon: 'none' })
@@ -183,6 +204,7 @@ async function onWechatLogin() {
       }
     }
     refreshLocation()
+    loadMyScorebooks()
     uni.showToast({ title: '登录成功', icon: 'success' })
   } catch (e: any) {
     uni.showToast({ title: e?.message || e?.errMsg || '微信登录失败', icon: 'none' })
@@ -295,6 +317,24 @@ async function onJoinByCode() {
   } catch (e: any) {
     uni.showToast({ title: e?.message || '加入失败', icon: 'none' })
   }
+}
+
+async function loadMyScorebooks() {
+  if (!token.value) {
+    myScorebooks.value = []
+    return
+  }
+  try {
+    const res = await listMyScorebooks()
+    myScorebooks.value = res.items || []
+  } catch (e: any) {
+    // 首页不打扰用户流程，静默失败即可
+  }
+}
+
+function openScorebook(id: string) {
+  if (!id) return
+  uni.navigateTo({ url: `/pages/scorebook/detail?id=${id}` })
 }
 </script>
 
@@ -414,5 +454,48 @@ async function onJoinByCode() {
 .primary {
   background: #111;
   color: #fff;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 12rpx;
+}
+.item {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
+}
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.name {
+  font-size: 30rpx;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.35;
+}
+.status {
+  color: #666;
+  font-size: 24rpx;
+  flex: none;
+  white-space: nowrap;
+  margin-top: 4rpx;
+}
+.sub {
+  margin-top: 8rpx;
+  color: #666;
+  font-size: 24rpx;
+  display: flex;
+  justify-content: space-between;
+  gap: 12rpx;
 }
 </style>

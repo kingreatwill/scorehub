@@ -64,7 +64,7 @@ function open(id: string) {
 }
 .row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12rpx;
 }
@@ -73,15 +73,16 @@ function open(id: string) {
   font-weight: 600;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.35;
 }
 .status {
   color: #666;
   font-size: 24rpx;
   flex: none;
   white-space: nowrap;
+  margin-top: 4rpx;
 }
 .sub {
   margin-top: 8rpx;
