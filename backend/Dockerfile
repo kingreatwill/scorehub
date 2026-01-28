@@ -16,3 +16,9 @@ COPY --from=builder /out/scorehub /app/scorehub
 
 EXPOSE 8080
 ENTRYPOINT ["/app/scorehub"]
+
+# docker build -t scorehub .
+# docker tag scorehub kingreatwill/scorehub:v1.0
+# docker login -u kingreatwill
+# docker push kingreatwill/scorehub:v1.0
+# docker run -d --name scorehub --link postgresql   -p 10005:8080   -v /data/dockerv/scorehub/.env:/app/.env:ro   -v /etc/localtime:/etc/localtime:ro   --restart unless-stopped kingreatwill/scorehub:v1.0
