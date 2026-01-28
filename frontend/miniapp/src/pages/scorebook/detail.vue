@@ -4,7 +4,8 @@
       <view class="row hero-row">
         <view class="name">{{ scorebook.name }}</view>
         <view class="badge" :class="{ ended: scorebook.status === 'ended' }">
-          {{ scorebook.status === 'ended' ? '已结束' : '记录中' }}
+          <view class="badge-dot" :class="{ ended: scorebook.status === 'ended' }" />
+          <text>{{ scorebook.status === 'ended' ? '已结束' : '记录中' }}</text>
         </view>
       </view>
       <view class="sub hero-sub">
@@ -719,37 +720,89 @@ async function submitScore() {
 .hero {
   background: linear-gradient(135deg, #111 0%, #2b2b2b 100%);
   color: #fff;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20rpx;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  right: -120rpx;
+  top: -140rpx;
+  width: 360rpx;
+  height: 360rpx;
+  border-radius: 999rpx;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+  transform: rotate(12deg);
+  pointer-events: none;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  left: -140rpx;
+  bottom: -180rpx;
+  width: 420rpx;
+  height: 420rpx;
+  border-radius: 999rpx;
+  background: radial-gradient(circle at 60% 40%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0));
+  transform: rotate(-10deg);
+  pointer-events: none;
 }
 .hero-row {
   align-items: flex-start;
+  gap: 14rpx;
+  position: relative;
+  z-index: 1;
 }
 .name {
-  font-size: 34rpx;
+  font-size: 36rpx;
   font-weight: 700;
   flex: 1;
   min-width: 0;
+  line-height: 1.25;
+  word-break: break-all;
+  white-space: normal;
 }
 .badge {
   font-size: 24rpx;
-  padding: 6rpx 12rpx;
+  padding: 8rpx 12rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
   white-space: nowrap;
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  position: relative;
+  z-index: 1;
 }
 .badge.ended {
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.85);
+}
+.badge-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 200, 83, 0.95);
+  box-shadow: 0 0 0 6rpx rgba(0, 200, 83, 0.18);
+  flex: none;
+}
+.badge-dot.ended {
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 0 6rpx rgba(255, 255, 255, 0.12);
 }
 .sub {
   margin-top: 8rpx;
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
+  position: relative;
+  z-index: 1;
 }
 .hero-sub {
-  margin-top: 14rpx;
+  margin-top: 16rpx;
 }
 .pill {
   font-size: 24rpx;
@@ -757,6 +810,7 @@ async function submitScore() {
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.92);
+  border: 1rpx solid rgba(255, 255, 255, 0.12);
 }
 .pill.code:active {
   opacity: 0.85;
@@ -770,11 +824,18 @@ async function submitScore() {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
+  position: relative;
+  z-index: 1;
 }
 .action-btn {
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
   border-radius: 12rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  padding: 0 18rpx;
+  font-size: 26rpx;
+  font-weight: 600;
 }
 .action-btn::after {
   border: none;
