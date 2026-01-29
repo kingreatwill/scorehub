@@ -716,6 +716,39 @@ function closeScoreModal() {
   scoreModalOpen.value = false
 }
 
+function inviteQRCodeCacheKey(scorebookId: string): string {
+  return `scorehub.inviteQRCode.${encodeURIComponent(String(scorebookId || '').trim())}`
+}
+
+function getCachedInviteQRCode(scorebookId: string): string {
+  const key = inviteQRCodeCacheKey(scorebookId)
+  if (!key) return ''
+  try {
+    const v: any = uni.getStorageSync(key)
+    if (!v) return ''
+    if (typeof v === 'string') return v
+    if (typeof v === 'object' && v) {
+      const src = String(v.src || '').trim()
+      return src
+    }
+    return ''
+  } catch (e) {
+    return ''
+  }
+}
+
+function setCachedInviteQRCode(scorebookId: string, src: string) {
+  const key = inviteQRCodeCacheKey(scorebookId)
+  if (!key) return
+  const next = String(src || '').trim()
+  if (!next) return
+  try {
+    uni.setStorageSync(key, { src: next, ts: Date.now() })
+  } catch (e) {
+    // ignore storage errors (quota etc.)
+  }
+}
+
 async function openQRCode() {
   if (scorebook.value?.status === 'ended') {
     uni.showToast({ title: '已结束，不能加入', icon: 'none' })
@@ -724,7 +757,14 @@ async function openQRCode() {
   qrModalOpen.value = true
   qrLoading.value = true
   try {
-    qrSrc.value = await getInviteQRCode(id.value)
+    const cached = getCachedInviteQRCode(id.value)
+    if (cached) {
+      qrSrc.value = cached
+      return
+    }
+    const fresh = await getInviteQRCode(id.value)
+    qrSrc.value = fresh
+    setCachedInviteQRCode(id.value, fresh)
   } catch (e: any) {
     uni.showToast({ title: e?.message || '生成二维码失败', icon: 'none' })
     qrModalOpen.value = false
