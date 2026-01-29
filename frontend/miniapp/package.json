@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev:mp-weixin": "uni -p mp-weixin",
-    "build:mp-weixin": "uni build -p mp-weixin"
+    "dev:mp-weixin": "node scripts/set-miniprogram-root.cjs dist/dev/mp-weixin/ && uni -p mp-weixin",
+    "build:mp-weixin": "node scripts/set-miniprogram-root.cjs dist/build/mp-weixin/ && uni build -p mp-weixin"
   },
   "dependencies": {
     "@dcloudio/uni-app": "vue3",
