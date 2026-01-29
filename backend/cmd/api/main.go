@@ -48,7 +48,6 @@ func main() {
 	authed := api.Group("", middleware.AuthRequired(cfg, st))
 	authed.GET("/me", meHandlers.GetMe)
 	authed.PATCH("/me", meHandlers.UpdateMe)
-	authed.GET("/location/reverse_geocode", locationHandlers.ReverseGeocode)
 	authed.POST("/scorebooks", scorebookHandlers.CreateScorebook)
 	authed.GET("/scorebooks", scorebookHandlers.ListMyScorebooks)
 	authed.GET("/scorebooks/:id", scorebookHandlers.GetScorebookDetail)
@@ -59,8 +58,11 @@ func main() {
 	authed.GET("/scorebooks/:id/invite_qrcode", scorebookHandlers.GetInviteQRCode)
 	authed.POST("/scorebooks/:id/records", scorebookHandlers.CreateRecord)
 	authed.GET("/scorebooks/:id/records", scorebookHandlers.ListRecords)
-	authed.GET("/invites/:code", scorebookHandlers.GetInviteInfo)
 	authed.POST("/invites/:code/join", scorebookHandlers.JoinByInviteCode)
+
+	// Public: allow location & invite info lookup without login.
+	api.GET("/location/reverse_geocode", locationHandlers.ReverseGeocode)
+	api.GET("/invites/:code", scorebookHandlers.GetInviteInfo)
 
 	h.GET("/ws/scorebooks/:id", scorebookHandlers.ScorebookWS)
 

@@ -14,11 +14,22 @@
         <view class="pill">成员 {{ members.length }}</view>
         <view class="pill code" @click="copyInvite">
           邀请码: <text class="mono">{{ scorebook.inviteCode }}</text>
-          <text class="qr-icon" @click.stop="openInviteCodeQR">▦</text>
+          <view class="qr-icon" @click.stop="openInviteCodeQR">
+            <view class="qr-finder tl"><view class="qr-finder-inner" /></view>
+            <view class="qr-finder tr"><view class="qr-finder-inner" /></view>
+            <view class="qr-finder bl"><view class="qr-finder-inner" /></view>
+            <view class="qr-dot d1" />
+            <view class="qr-dot d2" />
+            <view class="qr-dot d3" />
+            <view class="qr-dot d4" />
+            <view class="qr-dot d5" />
+            <view class="qr-dot d6" />
+            <view class="qr-dot d7" />
+          </view>
         </view>
       </view>
       <view class="actions">
-        <button size="mini" class="action-btn" v-if="scorebook.status !== 'ended'" @click="openQRCode">小程序码</button>
+        <button size="mini" class="action-btn" v-if="me?.memberId && scorebook.status !== 'ended'" @click="openQRCode">小程序码</button>
         <!-- #ifdef MP-WEIXIN -->
         <button size="mini" class="action-btn" open-type="share">分享</button>
         <!-- #endif -->
@@ -56,8 +67,9 @@
     </view>
 
     <view class="card">
-      <view class="title">成员（点头像记分）</view>
-      <view class="tip">点自己可修改头像/昵称</view>
+      <view class="title">{{ me ? '成员（点头像记分）' : '成员' }}</view>
+      <view class="tip" v-if="me">点自己可修改头像/昵称</view>
+      <view class="tip" v-else>登录并加入后可记分</view>
       <view class="grid">
         <view class="member" :class="{ me: m.isMe }" v-for="m in members" :key="m.id" @click="onClickMember(m)">
           <image class="avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
@@ -218,7 +230,11 @@
   </view>
 
   <view class="page" v-else>
-    <view class="empty">加载中…</view>
+    <view class="empty" v-if="loadError">
+      <view>{{ loadError }}</view>
+      <button class="btn" v-if="!token" @click="goLogin">去「我的」登录</button>
+    </view>
+    <view class="empty" v-else>加载中…</view>
   </view>
 </template>
 
@@ -236,11 +252,13 @@ import {
 } from '../../utils/api'
 import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
 
+const token = ref('')
 const id = ref('')
 const scorebook = ref<any>(null)
 const me = ref<{ memberId: string; isOwner: boolean } | null>(null)
 const members = ref<any[]>([])
 const socketTask = ref<UniApp.SocketTask | null>(null)
+const loadError = ref('')
 
 const fallbackAvatar =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="%23ddd"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23666" font-size="14">avatar</text></svg>'
@@ -378,8 +396,28 @@ onShareAppMessage(() => {
 })
 
 onLoad(async (q) => {
-  id.value = String((q as any).id || '')
-  await refresh()
+  token.value = (uni.getStorageSync('token') as string) || ''
+
+  const query = (q || {}) as any
+  const code = String(query.code || query.scene || '').trim()
+  if (!String(query.id || '').trim() && code) {
+    uni.redirectTo({ url: `/pages/join/index?code=${encodeURIComponent(code)}` })
+    return
+  }
+
+  id.value = String(query.id || '').trim()
+  if (!token.value) {
+    loadError.value = '未登录，无法查看得分簿。'
+    return
+  }
+
+  try {
+    await refresh()
+  } catch (e: any) {
+    loadError.value = String(e?.message || '加载失败')
+    return
+  }
+
   try {
     socketTask.value = await connectScorebookWS(id.value, onEvent)
   } catch (e) {
@@ -404,10 +442,16 @@ onUnload(() => {
 })
 
 async function refresh() {
+  loadError.value = ''
+  if (!id.value) {
+    throw new Error('缺少参数')
+  }
+
   const res = await getScorebookDetail(id.value)
   scorebook.value = res.scorebook
   me.value = res.me
   members.value = res.members || []
+
   await refreshRecordsFirstPage()
 }
 
@@ -698,6 +742,11 @@ function previewQRCode() {
   uni.previewImage({ urls: [qrSrc.value] })
 }
 
+function goLogin() {
+  uni.setStorageSync('scorehub.afterLogin', { to: 'home', ts: Date.now() })
+  uni.switchTab({ url: '/pages/my/index' })
+}
+
 async function openInviteCodeQR() {
   const code = String(scorebook.value?.inviteCode || '').trim()
   if (!code) return
@@ -918,14 +967,75 @@ async function submitScore() {
   border-radius: 8rpx;
   border: 1rpx solid rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.12);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22rpx;
-  line-height: 1;
+  position: relative;
+  overflow: hidden;
 }
 .qr-icon:active {
   opacity: 0.85;
+}
+.qr-finder {
+  position: absolute;
+  width: 10rpx;
+  height: 10rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.92);
+  border-radius: 3rpx;
+  box-sizing: border-box;
+}
+.qr-finder-inner {
+  position: absolute;
+  left: 2rpx;
+  top: 2rpx;
+  width: 4rpx;
+  height: 4rpx;
+  border-radius: 2rpx;
+  background: rgba(255, 255, 255, 0.92);
+}
+.qr-finder.tl {
+  left: 4rpx;
+  top: 4rpx;
+}
+.qr-finder.tr {
+  right: 4rpx;
+  top: 4rpx;
+}
+.qr-finder.bl {
+  left: 4rpx;
+  bottom: 4rpx;
+}
+.qr-dot {
+  position: absolute;
+  width: 4rpx;
+  height: 4rpx;
+  border-radius: 2rpx;
+  background: rgba(255, 255, 255, 0.92);
+}
+.qr-dot.d1 {
+  left: 16rpx;
+  top: 8rpx;
+}
+.qr-dot.d2 {
+  left: 22rpx;
+  top: 14rpx;
+}
+.qr-dot.d3 {
+  left: 16rpx;
+  top: 18rpx;
+}
+.qr-dot.d4 {
+  left: 22rpx;
+  top: 22rpx;
+}
+.qr-dot.d5 {
+  left: 12rpx;
+  top: 14rpx;
+}
+.qr-dot.d6 {
+  left: 20rpx;
+  top: 10rpx;
+}
+.qr-dot.d7 {
+  left: 14rpx;
+  top: 24rpx;
 }
 .invite-qr-canvas {
   margin: 16rpx auto 10rpx;

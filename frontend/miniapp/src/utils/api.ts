@@ -1,5 +1,8 @@
 type ApiError = { code: string; message: string }
 
+// const API_BASE = 'https://localapi.wcoder.com/api/v1'
+// const WS_BASE = 'wss://localapi.wcoder.com'
+
 const API_BASE = 'https://wxapi.wcoder.com/api/v1'
 const WS_BASE = 'wss://wxapi.wcoder.com'
 
