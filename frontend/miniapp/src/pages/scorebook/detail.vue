@@ -720,8 +720,7 @@ async function openInviteCodeQR() {
   } catch (e: any) {
     inviteQRModalOpen.value = false
     const raw = String(e?.message || '')
-    const msg =
-      raw.includes('makeInviteCodeQRMatrix') || raw.includes('utils/qrcode') ? '二维码模块未编译，请重新编译小程序' : raw || '生成二维码失败'
+    const msg = raw || '生成二维码失败'
     uni.showToast({ title: msg, icon: 'none' })
   } finally {
     inviteQRLoading.value = false
@@ -736,16 +735,7 @@ function closeInviteCodeQR() {
 function drawInviteCodeQR(code: string): Promise<void> {
   const instance = getCurrentInstance()
   const proxy = (instance?.proxy as any) || undefined
-  //const matrix = makeInviteCodeQRMatrix(code)
-
-  let matrix
-  try {
-    matrix = makeInviteCodeQRMatrix(code)
-    console.log('[drawInviteCodeQR] Matrix generated:', matrix.length, 'x', matrix[0]?.length)
-  } catch (e) {
-    console.error('[drawInviteCodeQR] makeInviteCodeQRMatrix failed:', e)
-    throw e
-  }
+  const matrix = makeInviteCodeQRMatrix(code)
 
   const n = matrix.length
   const margin = 4
