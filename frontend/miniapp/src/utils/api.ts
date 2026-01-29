@@ -1,10 +1,13 @@
 type ApiError = { code: string; message: string }
 
-// const API_BASE = 'https://localapi.wcoder.com/api/v1'
-// const WS_BASE = 'wss://localapi.wcoder.com'
+function normalizeBase(v: string): string {
+  const s = String(v || '').trim()
+  return s.replace(/\/+$/, '')
+}
 
-const API_BASE = 'https://wxapi.wcoder.com/api/v1'
-const WS_BASE = 'wss://wxapi.wcoder.com'
+// `dev` uses local API via env; `build` falls back to prod.
+const API_BASE = normalizeBase(import.meta.env.VITE_SCOREHUB_API_BASE || 'https://wxapi.wcoder.com/api/v1')
+const WS_BASE = normalizeBase(import.meta.env.VITE_SCOREHUB_WS_BASE || 'wss://wxapi.wcoder.com')
 
 function getToken(): string {
   return (uni.getStorageSync('token') as string) || ''

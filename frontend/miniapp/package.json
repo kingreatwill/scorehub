@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev:mp-weixin": "node scripts/set-miniprogram-root.cjs dist/dev/mp-weixin/ && uni -p mp-weixin",
-    "build:mp-weixin": "node scripts/set-miniprogram-root.cjs dist/build/mp-weixin/ && uni build -p mp-weixin"
+    "dev:mp-weixin": "node scripts/set-miniprogram-root.cjs dist/dev/mp-weixin/ && VITE_SCOREHUB_API_BASE=https://localapi.wcoder.com/api/v1 VITE_SCOREHUB_WS_BASE=wss://localapi.wcoder.com uni -p mp-weixin",
+    "build:mp-weixin": "node scripts/set-miniprogram-root.cjs dist/build/mp-weixin/ && VITE_SCOREHUB_API_BASE=https://wxapi.wcoder.com/api/v1 VITE_SCOREHUB_WS_BASE=wss://wxapi.wcoder.com uni build -p mp-weixin"
   },
   "dependencies": {
     "@dcloudio/uni-app": "vue3",
