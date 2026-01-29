@@ -380,7 +380,11 @@ onShareAppMessage(() => {
 onLoad(async (q) => {
   id.value = String((q as any).id || '')
   await refresh()
-  socketTask.value = connectScorebookWS(id.value, onEvent)
+  try {
+    socketTask.value = await connectScorebookWS(id.value, onEvent)
+  } catch (e) {
+    socketTask.value = null
+  }
   startPolling()
 })
 
@@ -732,7 +736,17 @@ function closeInviteCodeQR() {
 function drawInviteCodeQR(code: string): Promise<void> {
   const instance = getCurrentInstance()
   const proxy = (instance?.proxy as any) || undefined
-  const matrix = makeInviteCodeQRMatrix(code)
+  //const matrix = makeInviteCodeQRMatrix(code)
+
+  let matrix
+  try {
+    matrix = makeInviteCodeQRMatrix(code)
+    console.log('[drawInviteCodeQR] Matrix generated:', matrix.length, 'x', matrix[0]?.length)
+  } catch (e) {
+    console.error('[drawInviteCodeQR] makeInviteCodeQRMatrix failed:', e)
+    throw e
+  }
+
   const n = matrix.length
   const margin = 4
   const moduleSize = Math.max(1, Math.floor(inviteQRSize / (n + margin * 2)))

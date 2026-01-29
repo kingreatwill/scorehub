@@ -130,10 +130,12 @@ export async function reverseGeocode(lat: number, lng: number) {
   return request<{ locationText: string; source?: string }>('GET', `/location/reverse_geocode${q}`)
 }
 
-export function connectScorebookWS(scorebookId: string, onEvent: (evt: any) => void) {
+export async function connectScorebookWS(scorebookId: string, onEvent: (evt: any) => void) {
   const token = getToken()
   const url = `${WS_BASE}/ws/scorebooks/${encodeURIComponent(scorebookId)}?token=${encodeURIComponent(token)}`
-  const task = uni.connectSocket({ url })
+  // In some uni-app runtimes, WebSocket APIs switch to Promise style when no callback is provided.
+  // Adding a no-op `complete` callback + awaiting makes it compatible with both styles.
+  const task = await uni.connectSocket({ url, complete: () => {} } as any)
 
   task.onMessage((msg) => {
     try {
