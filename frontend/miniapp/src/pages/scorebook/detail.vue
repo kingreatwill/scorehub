@@ -72,12 +72,14 @@
       <view class="tip" v-else>登录并加入后可记分</view>
       <view class="grid">
         <view class="member" :class="{ me: m.isMe }" v-for="m in members" :key="m.id" @click="onClickMember(m)">
-          <image class="avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
+          <view class="avatar-wrap">
+            <image class="avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
+            <view class="tag avatar-tag me" v-if="m.isMe">我</view>
+            <view class="tag avatar-tag owner" v-if="m.isOwner">掌柜</view>
+          </view>
           <view class="member-body">
             <view class="member-top">
               <view class="nick">
-                <text class="tag" v-if="m.isMe">我</text>
-                <text class="tag owner" v-if="m.isOwner">掌柜</text>
                 <text class="nick-text">{{ m.nickname }}</text>
               </view>
               <view class="score" :class="scoreTone(m.score)">{{ formatScore(m.score) }}</view>
@@ -1187,12 +1189,32 @@ async function submitScore() {
   background: #fff;
   border: 1rpx solid rgba(17, 17, 17, 0.16);
 }
+.avatar-wrap {
+  width: 88rpx;
+  height: 88rpx;
+  flex: none;
+  position: relative;
+}
 .avatar {
   width: 88rpx;
   height: 88rpx;
   border-radius: 16rpx;
   background: #ddd;
   flex: none;
+}
+.tag.avatar-tag {
+  position: absolute;
+  top: 6rpx;
+  z-index: 1;
+  font-size: 18rpx;
+  padding: 0 6rpx;
+  line-height: 28rpx;
+}
+.tag.avatar-tag.owner {
+  left: 6rpx;
+}
+.tag.avatar-tag.me {
+  right: 6rpx;
 }
 .member-body {
   flex: 1;
