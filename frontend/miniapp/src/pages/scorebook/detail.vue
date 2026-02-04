@@ -1229,9 +1229,9 @@ async function submitScore() {
 }
 .member-top {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12rpx;
+  gap: 6rpx;
 }
 .nick {
   display: flex;
@@ -1259,7 +1259,7 @@ async function submitScore() {
 .score {
   font-size: 36rpx;
   font-weight: 700;
-  text-align: right;
+  text-align: left;
   flex: none;
 }
 .score.pos {
