@@ -66,11 +66,12 @@
             <image class="avatar" :src="avatarUrl || user?.avatarUrl || fallbackAvatar" mode="aspectFill" />
             <view class="avatar-tip">点击更换头像</view>
           </button>
+          <input class="input" name="nickname" type="nickname" v-model="nickname" placeholder="昵称（可选）" />
         </template>
         <template v-else>
+          <input class="input" v-model="nickname" placeholder="昵称" />
           <input class="input" v-model="avatarUrl" placeholder="头像 URL（可选）" />
         </template>
-        <input class="input" v-model="nickname" placeholder="昵称" />
         <button class="btn primary" :disabled="editSubmitting" @click="saveProfile">保存</button>
       </view>
     </view>

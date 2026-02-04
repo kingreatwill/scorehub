@@ -76,3 +76,8 @@ npm run build:mp-weixin
 - 腾讯地图(并发5次/秒, 6000次/日): https://lbs.qq.com/service/webService/webServiceGuide/address/Gcoder
 - 高德地图(并发3次/秒, 150000次/月): https://lbs.amap.com/api/webservice/summary
 - 百度地图(并发3次/秒, 300次/日): https://baidumap.apifox.cn/api-32790722
+
+
+## 说明
+MP-WEIXIN 不是项目里某个文件“手动定义”的变量，而是 uni-app 的条件编译平台标识：当构建/运行目标是微信小程序时，编译器自动认为 MP-WEIXIN 为真。
+它由构建命令的 -p mp-weixin 决定
