@@ -4,7 +4,7 @@
       <view class="title">开始新的得分簿</view>
       <input class="input" v-model="newName" placeholder="名称（可空，默认 时间 + 位置）" />
       <view class="loc-row">
-        <text class="hint">位置：{{ currentLocationText || '未获取' }}</text>
+        <input class="input loc-input" v-model="locationText" placeholder="位置（可空）" />
         <button
           size="mini"
           class="loc-btn"
@@ -17,6 +17,16 @@
             <view class="loc-logo-dot" />
           </view>
         </button>
+        <!-- <button size="mini" class="loc-btn text" v-if="isMpWeixin" @click="chooseLocationFromMap" hover-class="none">地图</button> -->
+        <button size="mini" class="loc-btn text" v-if="locationText" @click="clearLocation" hover-class="none">清空</button>
+      </view>
+      <view class="loc-history" v-if="locationHistory.length">
+        <view class="loc-history-title">历史</view>
+        <view class="loc-history-list">
+          <view class="loc-chip" v-for="(h, i) in locationHistory" :key="`${h}-${i}`" @click="selectLocationHistory(h)">
+            {{ h }}
+          </view>
+        </view>
       </view>
       <button class="btn" @click="onCreate">开始</button>
     </view>
@@ -68,7 +78,8 @@ import { createScorebook, joinByInviteCode, listMyScorebooks, reverseGeocode } f
 const token = ref('')
 const isMpWeixin = ref(false)
 const locating = ref(false)
-const currentLocationText = ref('')
+const locationText = ref('')
+const locationHistory = ref<string[]>([])
 
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
@@ -104,7 +115,11 @@ function goLogin() {
 function loadSavedLocation() {
   const loc = (uni.getStorageSync('lastLocation') as any) || null
   if (loc?.text) {
-    currentLocationText.value = String(loc.text)
+    locationText.value = String(loc.text)
+  }
+  const history = (uni.getStorageSync('locationHistory') as any) || []
+  if (Array.isArray(history)) {
+    locationHistory.value = history.map((v) => String(v || '').trim()).filter((v) => v)
   }
 }
 
@@ -143,13 +158,57 @@ async function refreshLocation() {
       const geo = await reverseGeocode(res.latitude, res.longitude)
       if (geo?.locationText) text = String(geo.locationText)
     } catch (e) {}
-    currentLocationText.value = text
-    uni.setStorageSync('lastLocation', { latitude: res.latitude, longitude: res.longitude, text, ts: Date.now() })
+    locationText.value = text
   } catch (e: any) {
     // 用户拒绝授权时给出可恢复提示
     uni.showToast({ title: e?.errMsg?.includes('auth') ? '定位权限未开启' : '获取位置失败', icon: 'none' })
   } finally {
     locating.value = false
+  }
+  // #endif
+}
+
+function rememberLocation(text: string, coord?: { latitude?: number; longitude?: number }) {
+  const t = String(text || '').trim()
+  if (!t) return
+  const next = [t, ...locationHistory.value.filter((v) => v !== t)].slice(0, 4)
+  locationHistory.value = next
+  uni.setStorageSync('locationHistory', next)
+  if (coord?.latitude != null && coord?.longitude != null) {
+    uni.setStorageSync('lastLocation', { latitude: coord.latitude, longitude: coord.longitude, text: t, ts: Date.now() })
+  } else {
+    uni.setStorageSync('lastLocation', { text: t, ts: Date.now() })
+  }
+}
+
+function selectLocationHistory(text: string) {
+  locationText.value = String(text || '').trim()
+}
+
+function clearLocation() {
+  locationText.value = ''
+}
+
+async function chooseLocationFromMap() {
+  // #ifndef MP-WEIXIN
+  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
+  return
+  // #endif
+
+  // #ifdef MP-WEIXIN
+  try {
+    const res = await new Promise<UniApp.ChooseLocationSuccess>((resolve, reject) => {
+      uni.chooseLocation({ success: resolve, fail: reject } as any)
+    })
+    const text = String(res?.name || res?.address || '').trim()
+    if (!text) {
+      uni.showToast({ title: '未获取到位置', icon: 'none' })
+      return
+    }
+    locationText.value = text
+  } catch (e: any) {
+    if (String(e?.errMsg || '').includes('cancel')) return
+    uni.showToast({ title: e?.message || '选取位置失败', icon: 'none' })
   }
   // #endif
 }
@@ -194,7 +253,9 @@ async function onCreate() {
     return
   }
   try {
-    const res = await createScorebook({ name: newName.value.trim(), locationText: currentLocationText.value.trim() })
+    const loc = locationText.value.trim()
+    if (loc) rememberLocation(loc)
+    const res = await createScorebook({ name: newName.value.trim(), locationText: loc })
     uni.navigateTo({ url: `/pages/scorebook/detail?id=${res.scorebook.id}` })
   } catch (e: any) {
     uni.showToast({ title: e?.message || '创建失败', icon: 'none' })
@@ -270,8 +331,11 @@ function openScorebook(id: string) {
   margin-top: 8rpx;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12rpx;
+}
+.loc-input {
+  flex: 1;
+  min-width: 0;
 }
 .loc-btn {
   display: flex;
@@ -283,6 +347,11 @@ function openScorebook(id: string) {
   border-radius: 18rpx;
   background: #f6f7fb;
   color: #111;
+}
+.loc-btn.text {
+  width: auto;
+  padding: 0 16rpx;
+  font-size: 24rpx;
 }
 .loc-btn::after {
   border: none;
@@ -307,6 +376,29 @@ function openScorebook(id: string) {
   position: absolute;
   left: 8rpx;
   top: 8rpx;
+}
+.loc-history {
+  margin-top: 10rpx;
+}
+.loc-history-title {
+  color: #666;
+  font-size: 24rpx;
+  margin-bottom: 6rpx;
+}
+.loc-history-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+.loc-chip {
+  background: #f6f7fb;
+  color: #333;
+  font-size: 24rpx;
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
+}
+.loc-chip:active {
+  opacity: 0.85;
 }
 .loc-logo.loading .loc-logo-dot {
   animation: locDotPulse 0.7s ease-in-out infinite;
