@@ -44,7 +44,7 @@
         <text class="rank-label">冠军</text>
         <view class="rank-user">
           <image class="rank-avatar" :src="computedWinners.champion.avatarUrl || fallbackAvatar" mode="aspectFill" />
-          <text class="rank-name">{{ computedWinners.champion.nickname }}</text>
+          <text class="rank-name">{{ displayNickname(computedWinners.champion.nickname) }}</text>
         </view>
         <text class="rank-score pos">{{ formatScore(computedWinners.champion.score) }}</text>
       </view>
@@ -52,7 +52,7 @@
         <text class="rank-label">亚军</text>
         <view class="rank-user">
           <image class="rank-avatar" :src="computedWinners.runnerUp.avatarUrl || fallbackAvatar" mode="aspectFill" />
-          <text class="rank-name">{{ computedWinners.runnerUp.nickname }}</text>
+          <text class="rank-name">{{ displayNickname(computedWinners.runnerUp.nickname) }}</text>
         </view>
         <text class="rank-score pos">{{ formatScore(computedWinners.runnerUp.score) }}</text>
       </view>
@@ -60,7 +60,7 @@
         <text class="rank-label">季军</text>
         <view class="rank-user">
           <image class="rank-avatar" :src="computedWinners.third.avatarUrl || fallbackAvatar" mode="aspectFill" />
-          <text class="rank-name">{{ computedWinners.third.nickname }}</text>
+          <text class="rank-name">{{ displayNickname(computedWinners.third.nickname) }}</text>
         </view>
         <text class="rank-score pos">{{ formatScore(computedWinners.third.score) }}</text>
       </view>
@@ -80,7 +80,7 @@
           <view class="member-body">
             <view class="member-top">
               <view class="nick">
-                <text class="nick-text">{{ m.nickname }}</text>
+                <text class="nick-text">{{ displayNickname(m.nickname) }}</text>
               </view>
               <view class="score" :class="scoreTone(m.score)">{{ formatScore(m.score) }}</view>
             </view>
@@ -128,7 +128,7 @@
 	      <view class="score-target">
 	        <image class="score-target-avatar" :src="scoreTarget?.avatarUrl || fallbackAvatar" mode="aspectFill" />
 	        <view class="score-target-body">
-	          <view class="score-target-name">{{ scoreTarget?.nickname }}</view>
+	          <view class="score-target-name">{{ displayNickname(scoreTarget?.nickname) }}</view>
 	          <view class="score-target-sub">
 	            <text class="score-target-sub-label">当前</text>
 	            <text class="score-target-sub-score" :class="scoreTone(scoreTarget?.score)">{{ formatScore(scoreTarget?.score) }}</text>
@@ -212,17 +212,17 @@
       <view class="hint" v-if="!endWinners?.champion">本局无人得分大于0</view>
       <view class="end-row" v-if="endWinners?.champion">
         <text class="end-label">冠军</text>
-        <text class="end-name">{{ endWinners.champion.nickname }}</text>
+        <text class="end-name">{{ displayNickname(endWinners.champion.nickname) }}</text>
         <text class="end-score pos">{{ formatScore(endWinners.champion.score) }}</text>
       </view>
       <view class="end-row" v-if="endWinners?.runnerUp">
         <text class="end-label">亚军</text>
-        <text class="end-name">{{ endWinners.runnerUp.nickname }}</text>
+        <text class="end-name">{{ displayNickname(endWinners.runnerUp.nickname) }}</text>
         <text class="end-score pos">{{ formatScore(endWinners.runnerUp.score) }}</text>
       </view>
       <view class="end-row" v-if="endWinners?.third">
         <text class="end-label">季军</text>
-        <text class="end-name">{{ endWinners.third.nickname }}</text>
+        <text class="end-name">{{ displayNickname(endWinners.third.nickname) }}</text>
         <text class="end-score pos">{{ formatScore(endWinners.third.score) }}</text>
       </view>
       <view class="modal-actions">
@@ -253,6 +253,7 @@ import {
   updateScorebookName,
 } from '../../utils/api'
 import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
+import { clampNickname } from '../../utils/nickname'
 
 const token = ref('')
 const id = ref('')
@@ -325,12 +326,18 @@ function memberByID(memberID: any) {
 
 function nicknameOf(memberID: any): string {
   const m = memberByID(memberID)
-  return String(m?.nickname || '未知')
+  return displayNickname(m?.nickname || '未知')
 }
 
 function avatarOf(memberID: any): string {
   const m = memberByID(memberID)
   return String(m?.avatarUrl || fallbackAvatar)
+}
+
+function displayNickname(v: any): string {
+  const s = String(v ?? '').trim()
+  if (!s) return '未知'
+  return clampNickname(s)
 }
 
 function deltaTone(v: any): string {

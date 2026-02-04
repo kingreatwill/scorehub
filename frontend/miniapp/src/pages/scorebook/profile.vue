@@ -9,7 +9,16 @@
           <view class="avatar-tip">{{ avatarUrl ? '点击更换头像' : '点击选择头像' }}</view>
         </button>
         <!-- #endif -->
-        <input class="input" name="nickname" :type="nicknameInputType" v-model="nickname" placeholder="昵称" />
+        <input
+          class="input"
+          name="nickname"
+          :type="nicknameInputType"
+          :value="nickname"
+          placeholder="昵称"
+          :controlled="true"
+          :cursor="nicknameCursor"
+          @input="onNicknameInput"
+        />
         <button class="btn primary" form-type="submit">保存</button>
       </form>
     </view>
@@ -20,10 +29,12 @@
 import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 import { getScorebookDetail, updateMyProfile } from '../../utils/api'
+import { clampNickname } from '../../utils/nickname'
 
 const scorebookId = ref('')
 const nickname = ref('')
 const avatarUrl = ref('')
+const nicknameCursor = ref(0)
 
 const fallbackAvatar =
   'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
@@ -36,7 +47,7 @@ nicknameInputType = 'nickname'
 onLoad(async (q) => {
   const query = q as any
   scorebookId.value = String(query.id || '')
-  nickname.value = decodeURIComponent(String(query.nickname || ''))
+  nickname.value = clampNickname(decodeURIComponent(String(query.nickname || '')))
   avatarUrl.value = decodeURIComponent(String(query.avatarUrl || ''))
 
   if (!scorebookId.value) return
@@ -44,10 +55,17 @@ onLoad(async (q) => {
     const res = await getScorebookDetail(scorebookId.value)
     const myID = res?.me?.memberId
     const my = (res?.members || []).find((m: any) => m?.id === myID)
-    if (my?.nickname) nickname.value = String(my.nickname)
+    if (my?.nickname) nickname.value = clampNickname(String(my.nickname))
     if (my?.avatarUrl) avatarUrl.value = String(my.avatarUrl)
   } catch (e) {}
 })
+
+function onNicknameInput(e: any) {
+  const next = clampNickname(String(e?.detail?.value || ''))
+  nickname.value = next
+  nicknameCursor.value = next.length
+  return next
+}
 
 async function onChooseAvatar(e: any) {
   // #ifndef MP-WEIXIN
@@ -92,9 +110,10 @@ async function onChooseAvatar(e: any) {
 }
 
 async function save() {
-  if (!nickname.value.trim()) return uni.showToast({ title: '昵称不能为空', icon: 'none' })
+  const nextNickname = clampNickname(nickname.value.trim())
+  if (!nextNickname) return uni.showToast({ title: '昵称不能为空', icon: 'none' })
   try {
-    await updateMyProfile(scorebookId.value, { nickname: nickname.value.trim(), avatarUrl: avatarUrl.value.trim() })
+    await updateMyProfile(scorebookId.value, { nickname: nextNickname, avatarUrl: avatarUrl.value.trim() })
     uni.showToast({ title: '已保存', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 300)
   } catch (e: any) {
@@ -103,7 +122,7 @@ async function save() {
 }
 
 async function onSaveSubmit(e: any) {
-  const submittedNickname = String(e?.detail?.value?.nickname || '').trim()
+  const submittedNickname = clampNickname(String(e?.detail?.value?.nickname || '').trim())
   if (submittedNickname !== nickname.value.trim()) nickname.value = submittedNickname
   await save()
 }

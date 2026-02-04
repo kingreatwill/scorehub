@@ -9,12 +9,21 @@
               <image class="avatar" :src="avatarUrl || fallbackAvatar" mode="aspectFill" />
               <view class="avatar-tip">{{ avatarUrl ? '点击更换头像' : '点击选择头像（可选）' }}</view>
             </button>
-            <input class="input" name="nickname" type="nickname" v-model="nickname" placeholder="昵称（可选）" />
+            <input
+              class="input"
+              name="nickname"
+              type="nickname"
+              :value="nickname"
+              placeholder="昵称（可选）"
+              :controlled="true"
+              :cursor="nicknameCursor"
+              @input="onNicknameInput"
+            />
             <button class="btn primary" form-type="submit">微信登录</button>
           </form>
         </template>
         <template v-else>
-          <input class="input" v-model="nickname" placeholder="昵称" />
+          <input class="input" :value="nickname" placeholder="昵称" :controlled="true" :cursor="nicknameCursor" @input="onNicknameInput" />
           <input class="input" v-model="avatarUrl" placeholder="头像 URL（可选）" />
           <button class="btn primary" @click="onDevLogin">登录</button>
         </template>
@@ -66,10 +75,19 @@
             <image class="avatar" :src="avatarUrl || user?.avatarUrl || fallbackAvatar" mode="aspectFill" />
             <view class="avatar-tip">点击更换头像</view>
           </button>
-          <input class="input" name="nickname" type="nickname" v-model="nickname" placeholder="昵称（可选）" />
+          <input
+            class="input"
+            name="nickname"
+            type="nickname"
+            :value="nickname"
+            placeholder="昵称（可选）"
+            :controlled="true"
+            :cursor="nicknameCursor"
+            @input="onNicknameInput"
+          />
         </template>
         <template v-else>
-          <input class="input" v-model="nickname" placeholder="昵称" />
+          <input class="input" :value="nickname" placeholder="昵称" :controlled="true" :cursor="nicknameCursor" @input="onNicknameInput" />
           <input class="input" v-model="avatarUrl" placeholder="头像 URL（可选）" />
         </template>
         <button class="btn primary" :disabled="editSubmitting" @click="saveProfile">保存</button>
@@ -82,6 +100,7 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { devLogin, listMyScorebooks, updateMe, wechatLogin } from '../../utils/api'
+import { clampNickname } from '../../utils/nickname'
 
 const token = ref('')
 const items = ref<any[]>([])
@@ -95,6 +114,7 @@ isMpWeixin.value = true
 const nickname = ref('')
 const avatarUrl = ref('')
 const editOpen = ref(false)
+const nicknameCursor = ref(0)
 const editSubmitting = ref(false)
 
 const fallbackAvatar = 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
@@ -111,10 +131,17 @@ onShow(async () => {
   await loadMyScorebooks()
 })
 
+function onNicknameInput(e: any) {
+  const next = clampNickname(String(e?.detail?.value || ''))
+  nickname.value = next
+  nicknameCursor.value = next.length
+  return next
+}
+
 function loadSavedUserDraft() {
   const u = (uni.getStorageSync('user') as any) || null
   if (!u) return
-  if (u.nickname && !nickname.value.trim()) nickname.value = String(u.nickname)
+  if (u.nickname && !nickname.value.trim()) nickname.value = clampNickname(String(u.nickname))
   if (u.avatarUrl && !avatarUrl.value.trim()) avatarUrl.value = String(u.avatarUrl)
 }
 
@@ -133,7 +160,7 @@ function open(id: string) {
 
 function openEdit() {
   if (!token.value) return
-  nickname.value = String(user.value?.nickname || '').trim()
+  nickname.value = clampNickname(String(user.value?.nickname || '').trim())
   avatarUrl.value = String(user.value?.avatarUrl || '').trim()
   editOpen.value = true
 }
@@ -146,7 +173,7 @@ function closeEdit() {
 async function saveProfile() {
   if (!token.value) return
   if (editSubmitting.value) return
-  const nextNickname = nickname.value.trim()
+  const nextNickname = clampNickname(nickname.value.trim())
   const nextAvatar = avatarUrl.value.trim()
   if (!nextNickname) {
     uni.showToast({ title: '请输入昵称', icon: 'none' })
@@ -158,7 +185,7 @@ async function saveProfile() {
     const res = await updateMe({ nickname: nextNickname, avatarUrl: nextAvatar })
     user.value = res.user
     avatarUrl.value = String(res?.user?.avatarUrl || nextAvatar)
-    nickname.value = String(res?.user?.nickname || nextNickname)
+    nickname.value = clampNickname(String(res?.user?.nickname || nextNickname))
     uni.showToast({ title: '已保存', icon: 'success' })
     editOpen.value = false
   } catch (e: any) {
@@ -179,7 +206,7 @@ function getOrCreateDevOpenid(): string {
 
 async function onDevLogin() {
   try {
-    const res = await devLogin(getOrCreateDevOpenid(), nickname.value.trim(), avatarUrl.value.trim())
+    const res = await devLogin(getOrCreateDevOpenid(), clampNickname(nickname.value.trim()), avatarUrl.value.trim())
     token.value = res.token
     user.value = res.user
     await afterLoginRedirect()
@@ -253,13 +280,13 @@ async function onWechatLogin() {
     user.value = res.user
 
     // 同步昵称/头像（可选）
-    const nextNickname = nickname.value.trim()
+    const nextNickname = clampNickname(nickname.value.trim())
     const nextAvatar = avatarUrl.value.trim()
     if (nextNickname || nextAvatar) {
       try {
         const u = await updateMe({ nickname: nextNickname, avatarUrl: nextAvatar })
         user.value = u.user
-        nickname.value = String(u?.user?.nickname || nickname.value)
+        nickname.value = clampNickname(String(u?.user?.nickname || nickname.value))
         avatarUrl.value = String(u?.user?.avatarUrl || avatarUrl.value)
       } catch (e: any) {
         // 登录成功，资料同步失败不阻断
@@ -276,7 +303,7 @@ async function onWechatLogin() {
 }
 
 async function onWechatLoginSubmit(e: any) {
-  const submitted = String(e?.detail?.value?.nickname || '').trim()
+  const submitted = clampNickname(String(e?.detail?.value?.nickname || '').trim())
   if (submitted !== nickname.value.trim()) nickname.value = submitted
   await onWechatLogin()
 }
