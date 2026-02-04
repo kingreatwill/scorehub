@@ -70,7 +70,7 @@
       <view class="title">{{ me ? '成员（点头像记分）' : '成员' }}</view>
       <view class="tip" v-if="me">点自己可修改头像/昵称</view>
       <view class="tip" v-else>登录并加入后可记分</view>
-      <view class="grid">
+      <view class="member-grid">
         <view class="member" :class="{ me: m.isMe }" v-for="m in members" :key="m.id" @click="onClickMember(m)">
           <view class="avatar-wrap">
             <image class="avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
@@ -118,7 +118,7 @@
       </view>
     </view>
 
-	    <view class="modal-mask" v-if="scoreModalOpen" @click="closeScoreModal" />
+	    <view class="modal-mask score-mask" v-if="scoreModalOpen" @click="closeScoreModal" />
 	    <view class="modal score-modal" v-if="scoreModalOpen">
 	      <view class="modal-head">
 	        <view class="modal-title">记分</view>
@@ -459,9 +459,19 @@ async function refresh() {
   const res = await getScorebookDetail(id.value)
   scorebook.value = res.scorebook
   me.value = res.me
-  members.value = res.members || []
+  members.value = decorateMembers(res.members || [])
 
   await refreshRecordsFirstPage()
+}
+
+function decorateMembers(list: any[]): any[] {
+  const myId = String(me.value?.memberId || '')
+  return (list || []).map((m) => ({
+    ...m,
+    score: Number(m?.score || 0),
+    isMe: myId && String(m?.id || '') === myId,
+    isOwner: String(m?.role || '') === 'owner',
+  }))
 }
 
 function mergeRecordsTop(incoming: any[]) {
@@ -612,19 +622,19 @@ function onEvent(evt: any) {
     prependRecord(r)
     return
   }
-  if (evt.type === 'member.joined') {
-    const m = evt.data?.member
-    if (!m?.id) return
-    if (!members.value.some((x) => x.id === m.id)) {
-      members.value.push({
-        ...m,
-        score: 0,
-        isMe: m.id === me.value?.memberId,
-        isOwner: m.role === 'owner',
-      })
-    }
-    return
-  }
+	  if (evt.type === 'member.joined') {
+	    const m = evt.data?.member
+	    if (!m?.id) return
+	    if (!members.value.some((x) => x.id === m.id)) {
+	      members.value.push({
+	        ...m,
+	        score: 0,
+	        isMe: m.id === me.value?.memberId,
+	        isOwner: m.role === 'owner',
+	      })
+	    }
+	    return
+	  }
   if (evt.type === 'member.updated') {
     const m = evt.data?.member
     if (!m?.id) return
@@ -1175,22 +1185,24 @@ async function submitScore() {
   font-size: 30rpx;
   font-weight: 700;
 }
-.grid {
+.member-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16rpx;
 }
 .member {
   background: #f6f7fb;
   border-radius: 16rpx;
   padding: 16rpx;
+  height: 120rpx;
+  box-sizing: border-box;
   display: flex;
   gap: 12rpx;
   align-items: center;
-  transition: transform 0.08s ease;
+  transition: opacity 0.08s ease;
 }
 .member:active {
-  transform: scale(0.98);
+  opacity: 0.92;
 }
 .member.me {
   background: #fff;
@@ -1311,14 +1323,19 @@ async function submitScore() {
 }
 .modal-mask {
   position: fixed;
+  z-index: 1000;
   left: 0;
   top: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.4);
 }
+.modal-mask.score-mask {
+  z-index: 1200;
+}
 .modal {
   position: fixed;
+  z-index: 1001;
   left: 24rpx;
   right: 24rpx;
   bottom: 24rpx;
@@ -1333,6 +1350,7 @@ async function submitScore() {
   transform: translateY(-50%);
   max-height: 80vh;
   overflow: auto;
+  z-index: 1201;
 }
 .modal-head {
   display: flex;
