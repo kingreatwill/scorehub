@@ -44,13 +44,19 @@
           <image class="scan-icon" :src="scanIcon" mode="aspectFit" />
         </button>
       </view>
-      <button class="btn primary" v-if="token" @click="onJoinByCode">邀请码加入</button>
-      <button class="btn primary" v-else @click="goLogin">邀请码加入</button>
+      <button class="btn" v-if="token" @click="onJoinByCode">邀请码加入</button>
+      <button class="btn" v-else @click="goLogin">邀请码加入</button>
     </view>
 
     <view class="card" v-if="token">
-      <view class="title">记录中的得分簿</view>
-      <view v-if="activeScorebooks.length === 0" class="hint">暂无记录中的得分簿</view>
+      <view class="title-row">
+        <view class="title">记录中的得分簿</view>
+        <view class="more" @click="openScorebookList">
+          <image class="more-icon" :src="moreIcon" mode="aspectFit" />
+        </view>
+      </view>
+      <view v-if="loadingScorebooks && activeScorebooks.length === 0" class="hint">加载中…</view>
+      <view v-else-if="activeScorebooks.length === 0" class="hint">暂无记录中的得分簿</view>
       <view v-else class="list">
         <view class="item" v-for="it in activeScorebooks" :key="it.id" @click="openScorebook(it.id)">
           <view class="row">
@@ -88,10 +94,15 @@ isMpWeixin.value = true
 const newName = ref('')
 const inviteCode = ref('')
 const myScorebooks = ref<any[]>([])
-const activeScorebooks = computed(() => (myScorebooks.value || []).filter((it) => String(it?.status || '') !== 'ended'))
+const loadingScorebooks = ref(false)
+const activeScorebooks = computed(() =>
+  (myScorebooks.value || []).filter((it) => isScorebook(it) && String(it?.status || '') !== 'ended'),
+)
 
 const scanIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8"/></svg>'
+const moreIcon =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2" fill="%23111"/><circle cx="12" cy="12" r="2" fill="%23111"/><circle cx="18" cy="12" r="2" fill="%23111"/></svg>'
 
 onShow(() => {
   token.value = (uni.getStorageSync('token') as string) || ''
@@ -281,19 +292,33 @@ async function onJoinByCode() {
 async function loadMyScorebooks() {
   if (!token.value) {
     myScorebooks.value = []
+    loadingScorebooks.value = false
     return
   }
+  const showLoading = myScorebooks.value.length === 0
+  loadingScorebooks.value = showLoading
   try {
     const res = await listMyScorebooks()
     myScorebooks.value = res.items || []
   } catch (e: any) {
     // 首页不打扰用户流程，静默失败即可
+  } finally {
+    if (showLoading) loadingScorebooks.value = false
   }
 }
 
 function openScorebook(id: string) {
   if (!id) return
   uni.navigateTo({ url: `/pages/scorebook/detail?id=${id}` })
+}
+
+function openScorebookList() {
+  uni.navigateTo({ url: '/pages/scorebook/list' })
+}
+
+function isScorebook(item: any): boolean {
+  const t = String(item?.bookType || 'scorebook').toLowerCase()
+  return t === 'scorebook'
 }
 </script>
 
@@ -309,6 +334,32 @@ function openScorebook(id: string) {
   border-radius: 16rpx;
   padding: 24rpx;
   box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
+}
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+.title-row .title {
+  margin-bottom: 0;
+}
+.more {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 999rpx;
+  background: #f1f2f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.more:active {
+  opacity: 0.8;
+}
+.more-icon {
+  width: 28rpx;
+  height: 28rpx;
 }
 .title {
   font-size: 32rpx;

@@ -38,6 +38,7 @@ func main() {
 	authHandlers := handlers.NewAuthHandlers(cfg, st)
 	meHandlers := handlers.NewMeHandlers(st)
 	scorebookHandlers := handlers.NewScorebookHandlers(cfg, st, hub)
+	ledgerHandlers := handlers.NewLedgerHandlers(st)
 	locationHandlers := handlers.NewLocationHandlers(cfg)
 
 	api := h.Group("/api/v1")
@@ -59,10 +60,17 @@ func main() {
 	authed.POST("/scorebooks/:id/records", scorebookHandlers.CreateRecord)
 	authed.GET("/scorebooks/:id/records", scorebookHandlers.ListRecords)
 	authed.POST("/invites/:code/join", scorebookHandlers.JoinByInviteCode)
+	authed.POST("/ledgers", ledgerHandlers.CreateLedger)
+	authed.GET("/ledgers", ledgerHandlers.ListLedgers)
+	authed.POST("/ledgers/:id/members", ledgerHandlers.AddLedgerMember)
+	authed.PATCH("/ledgers/:id/members/:memberId", ledgerHandlers.UpdateLedgerMember)
+	authed.POST("/ledgers/:id/records", ledgerHandlers.AddLedgerRecord)
+	authed.POST("/ledgers/:id/end", ledgerHandlers.EndLedger)
 
 	// Public: allow location & invite info lookup without login.
 	api.GET("/location/reverse_geocode", locationHandlers.ReverseGeocode)
 	api.GET("/invites/:code", scorebookHandlers.GetInviteInfo)
+	api.GET("/ledgers/:id", ledgerHandlers.GetLedgerDetail)
 
 	h.GET("/ws/scorebooks/:id", scorebookHandlers.ScorebookWS)
 

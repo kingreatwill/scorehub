@@ -18,11 +18,11 @@
         <view class="hint" v-else-if="invite?.status === 'ended'">该得分簿已结束，无法加入。</view>
         <view class="hint" v-else-if="joining">正在加入…</view>
         <view class="hint" v-else>准备就绪</view>
-        <button class="btn primary" :disabled="!canJoin" @click="join">加入并进入</button>
+        <button class="btn" :disabled="!canJoin" @click="join">加入并进入</button>
       </template>
       <template v-else>
         <view class="hint">未登录：登录后可加入并记分。</view>
-        <button class="btn primary" @click="goLogin">去「我的」登录</button>
+        <button class="btn" @click="goLogin">去「我的」登录</button>
       </template>
     </view>
   </view>

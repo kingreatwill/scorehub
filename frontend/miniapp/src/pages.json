@@ -7,6 +7,12 @@
       }
     },
     {
+      "path": "pages/ledger/index",
+      "style": {
+        "navigationBarTitleText": "记账簿"
+      }
+    },
+    {
       "path": "pages/home/home",
       "style": {
         "navigationBarTitleText": "得分簿"
@@ -31,6 +37,24 @@
       }
     },
     {
+      "path": "pages/scorebook/list",
+      "style": {
+        "navigationBarTitleText": "得分簿列表"
+      }
+    },
+    {
+      "path": "pages/ledger/detail",
+      "style": {
+        "navigationBarTitleText": "记账详情"
+      }
+    },
+    {
+      "path": "pages/ledger/list",
+      "style": {
+        "navigationBarTitleText": "记账簿列表"
+      }
+    },
+    {
       "path": "pages/join/index",
       "style": {
         "navigationBarTitleText": "加入得分簿"
@@ -49,6 +73,12 @@
         "text": "得分簿",
         "iconPath": "static/tabbar/scorebook.png",
         "selectedIconPath": "static/tabbar/scorebook-active.png"
+      },
+      {
+        "pagePath": "pages/ledger/index",
+        "text": "记账簿",
+        "iconPath": "static/tabbar/ledger.png",
+        "selectedIconPath": "static/tabbar/ledger-active.png"
       },
       {
         "pagePath": "pages/my/index",

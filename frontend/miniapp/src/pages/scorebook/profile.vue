@@ -19,7 +19,7 @@
           :cursor="nicknameCursor"
           @input="onNicknameInput"
         />
-        <button class="btn primary" form-type="submit">保存</button>
+        <button class="btn" form-type="submit">保存</button>
       </form>
     </view>
   </view>

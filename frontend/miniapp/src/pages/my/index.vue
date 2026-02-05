@@ -19,13 +19,13 @@
               :cursor="nicknameCursor"
               @input="onNicknameInput"
             />
-            <button class="btn primary" form-type="submit">微信登录</button>
+            <button class="btn" form-type="submit">微信登录</button>
           </form>
         </template>
         <template v-else>
           <input class="input" :value="nickname" placeholder="昵称" :controlled="true" :cursor="nicknameCursor" @input="onNicknameInput" />
           <input class="input" v-model="avatarUrl" placeholder="头像 URL（可选）" />
-          <button class="btn primary" @click="onDevLogin">登录</button>
+          <button class="btn" @click="onDevLogin">登录</button>
         </template>
       </view>
     </view>
@@ -42,22 +42,16 @@
       <button class="btn" @click="logout">退出登录</button>
     </view>
 
-    <view class="card" v-if="token">
-      <view class="title">我的得分簿</view>
-      <view v-if="items.length === 0" class="hint">暂无得分簿</view>
-      <view v-else class="list">
-        <view class="item" v-for="it in items" :key="it.id" @click="open(it.id)">
-          <view class="row">
-            <text class="name">{{ it.name }}</text>
-            <text class="status">{{ it.status === 'ended' ? '已结束' : '记录中' }}</text>
-          </view>
-          <view class="sub">
-            <view class="sub-left">
-              <text v-if="it.locationText">{{ it.locationText }}</text>
-              <text v-if="it.startTime">{{ formatTime(it.startTime) }}</text>
-            </view>
-            <text class="sub-right">成员 {{ it.memberCount }}</text>
-          </view>
+    <view class="card">
+      <view class="title">我的功能</view>
+      <view class="feature-grid">
+        <view class="feature" @click="openScorebookList">
+          <image class="feature-icon" :src="scorebookIcon" mode="aspectFit" />
+          <view class="feature-label">得分簿</view>
+        </view>
+        <view class="feature" @click="openLedgerList">
+          <image class="feature-icon" :src="ledgerIcon" mode="aspectFit" />
+          <view class="feature-label">记账簿</view>
         </view>
       </view>
     </view>
@@ -90,7 +84,7 @@
           <input class="input" :value="nickname" placeholder="昵称" :controlled="true" :cursor="nicknameCursor" @input="onNicknameInput" />
           <input class="input" v-model="avatarUrl" placeholder="头像 URL（可选）" />
         </template>
-        <button class="btn primary" :disabled="editSubmitting" @click="saveProfile">保存</button>
+        <button class="btn" :disabled="editSubmitting" @click="saveProfile">保存</button>
       </view>
     </view>
   </view>
@@ -99,11 +93,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { devLogin, listMyScorebooks, updateMe, wechatLogin } from '../../utils/api'
+import { devLogin, updateMe, wechatLogin } from '../../utils/api'
 import { clampNickname } from '../../utils/nickname'
 
 const token = ref('')
-const items = ref<any[]>([])
 const user = ref<any>(null)
 
 const isMpWeixin = ref(false)
@@ -116,19 +109,15 @@ const avatarUrl = ref('')
 const editOpen = ref(false)
 const nicknameCursor = ref(0)
 const editSubmitting = ref(false)
+const ledgerIcon = '/static/tabbar/ledger.png'
+const scorebookIcon = '/static/tabbar/scorebook.png'
 
 const fallbackAvatar = 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
 
-onShow(async () => {
+onShow(() => {
   token.value = (uni.getStorageSync('token') as string) || ''
   user.value = (uni.getStorageSync('user') as any) || null
   loadSavedUserDraft()
-
-  if (!token.value) {
-    items.value = []
-    return
-  }
-  await loadMyScorebooks()
 })
 
 function onNicknameInput(e: any) {
@@ -145,17 +134,12 @@ function loadSavedUserDraft() {
   if (u.avatarUrl && !avatarUrl.value.trim()) avatarUrl.value = String(u.avatarUrl)
 }
 
-async function loadMyScorebooks() {
-  try {
-    const res = await listMyScorebooks()
-    items.value = res.items || []
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
-  }
+function openLedgerList() {
+  uni.navigateTo({ url: '/pages/ledger/list' })
 }
 
-function open(id: string) {
-  uni.navigateTo({ url: `/pages/scorebook/detail?id=${id}` })
+function openScorebookList() {
+  uni.navigateTo({ url: '/pages/scorebook/list' })
 }
 
 function openEdit() {
@@ -210,7 +194,6 @@ async function onDevLogin() {
     token.value = res.token
     user.value = res.user
     await afterLoginRedirect()
-    await loadMyScorebooks()
     uni.showToast({ title: '登录成功', icon: 'success' })
   } catch (e: any) {
     uni.showToast({ title: e?.message || '登录失败', icon: 'none' })
@@ -294,7 +277,6 @@ async function onWechatLogin() {
     }
 
     await afterLoginRedirect()
-    await loadMyScorebooks()
     uni.showToast({ title: '登录成功', icon: 'success' })
   } catch (e: any) {
     uni.showToast({ title: e?.message || e?.errMsg || '微信登录失败', icon: 'none' })
@@ -328,24 +310,10 @@ function logout() {
   uni.removeStorageSync('user')
   token.value = ''
   user.value = null
-  items.value = []
   nickname.value = ''
   avatarUrl.value = ''
   editOpen.value = false
   uni.showToast({ title: '已退出', icon: 'success' })
-}
-
-function formatTime(v: any): string {
-  const d = new Date(String(v || ''))
-  if (Number.isNaN(d.getTime())) return ''
-  const now = new Date()
-  const yyyy = String(d.getFullYear())
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mi = String(d.getMinutes()).padStart(2, '0')
-  if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd} ${hh}:${mi}`
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 </script>
 
@@ -441,56 +409,34 @@ function formatTime(v: any): string {
   color: #666;
   font-size: 24rpx;
 }
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
+.feature-grid {
+  margin-top: 12rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
 }
-.item {
-  background: #fff;
+.feature {
+  padding: 18rpx 12rpx;
   border-radius: 16rpx;
-  padding: 20rpx;
-  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
-}
-.row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12rpx;
-}
-.name {
-  font-size: 30rpx;
-  font-weight: 600;
-  flex: 1;
-  min-width: 0;
-  white-space: normal;
-  word-break: break-all;
-  line-height: 1.35;
-}
-.status {
-  color: #666;
-  font-size: 24rpx;
-  flex: none;
-  white-space: nowrap;
-  margin-top: 4rpx;
-}
-.sub {
-  margin-top: 8rpx;
-  color: #666;
-  font-size: 24rpx;
-  display: flex;
-  justify-content: space-between;
-  gap: 12rpx;
-}
-.sub-left {
+  background: #f6f7fb;
   display: flex;
   flex-direction: column;
-  gap: 4rpx;
-  min-width: 0;
+  align-items: center;
+  gap: 10rpx;
 }
-.sub-right {
+.feature:active {
+  opacity: 0.85;
+}
+.feature-icon {
+  width: 56rpx;
+  height: 56rpx;
   flex: none;
-  white-space: nowrap;
+}
+.feature-label {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #111;
+  text-align: center;
 }
 .modal-mask {
   position: fixed;

@@ -41,6 +41,7 @@ func NewScorebookHandlers(cfg appconfig.Config, st *store.Store, hub *realtime.H
 type createScorebookRequest struct {
 	Name         string `json:"name"`
 	LocationText string `json:"locationText"`
+	BookType     string `json:"bookType"`
 }
 
 func (h *ScorebookHandlers) CreateScorebook(ctx context.Context, c *app.RequestContext) {
@@ -63,6 +64,7 @@ func (h *ScorebookHandlers) CreateScorebook(ctx context.Context, c *app.RequestC
 
 	name := strings.TrimSpace(req.Name)
 	locationText := strings.TrimSpace(req.LocationText)
+	bookType := "scorebook"
 	if name == "" {
 		ts := time.Now().Format("2006-01-02 15:04")
 		if locationText != "" {
@@ -78,7 +80,7 @@ func (h *ScorebookHandlers) CreateScorebook(ctx context.Context, c *app.RequestC
 		return
 	}
 
-	sb, owner, err := h.st.CreateScorebook(ctx, user, name, locationText)
+	sb, owner, err := h.st.CreateScorebook(ctx, user, name, locationText, bookType)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
 		return
@@ -117,6 +119,7 @@ func (h *ScorebookHandlers) ListMyScorebooks(ctx context.Context, c *app.Request
 			"startTime":    it.StartTime,
 			"updatedAt":    it.UpdatedAt,
 			"status":       it.Status,
+			"bookType":     it.BookType,
 			"endedAt":      it.EndedAt,
 			"inviteCode":   it.InviteCode,
 			"isOwner":      it.MyRole == "owner",
@@ -740,8 +743,19 @@ func toScorebookDTO(sb store.Scorebook) map[string]any {
 		"startTime":    sb.StartTime,
 		"updatedAt":    sb.UpdatedAt,
 		"status":       sb.Status,
+		"bookType":     sb.BookType,
 		"endedAt":      sb.EndedAt,
 		"inviteCode":   sb.InviteCode,
+	}
+}
+
+func normalizeBookType(v string) string {
+	t := strings.ToLower(strings.TrimSpace(v))
+	switch t {
+	case "ledger", "scorebook":
+		return t
+	default:
+		return "scorebook"
 	}
 }
 

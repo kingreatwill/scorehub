@@ -58,7 +58,7 @@ export async function updateMe(payload: { nickname?: string; avatarUrl?: string 
   return body
 }
 
-export async function createScorebook(payload: { name?: string; locationText?: string }) {
+export async function createScorebook(payload: { name?: string; locationText?: string; bookType?: string }) {
   return request<{ scorebook: any; me: any }>('POST', '/scorebooks', payload)
 }
 
@@ -134,6 +134,38 @@ export async function getInviteQRCode(scorebookId: string) {
 export async function reverseGeocode(lat: number, lng: number) {
   const q = `?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`
   return request<{ locationText: string; source?: string }>('GET', `/location/reverse_geocode${q}`)
+}
+
+export async function createLedger(payload: { name?: string }) {
+  return request<{ ledger: any; member?: any }>('POST', '/ledgers', payload)
+}
+
+export async function listLedgers() {
+  return request<{ items: any[] }>('GET', '/ledgers')
+}
+
+export async function getLedgerDetail(id: string) {
+  return request<{ ledger: any; members: any[]; records: any[] }>('GET', `/ledgers/${id}`)
+}
+
+export async function addLedgerMember(id: string, payload: { nickname: string; avatarUrl?: string }) {
+  return request<{ member: any }>('POST', `/ledgers/${id}/members`, payload)
+}
+
+export async function updateLedgerMember(
+  id: string,
+  memberId: string,
+  payload: { nickname: string; avatarUrl?: string },
+) {
+  return request<{ member: any }>('PATCH', `/ledgers/${id}/members/${memberId}`, payload)
+}
+
+export async function addLedgerRecord(id: string, payload: { memberId: string; type: 'income' | 'expense'; amount: number; note?: string }) {
+  return request<{ record: any }>('POST', `/ledgers/${id}/records`, payload)
+}
+
+export async function endLedger(id: string) {
+  return request<{ ledger: any }>('POST', `/ledgers/${id}/end`)
 }
 
 export async function connectScorebookWS(scorebookId: string, onEvent: (evt: any) => void) {

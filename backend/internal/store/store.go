@@ -87,7 +87,7 @@ RETURNING id, wechat_openid, wechat_nickname, wechat_avatar_url, created_at, upd
 	return u, nil
 }
 
-func (s *Store) CreateScorebook(ctx context.Context, user User, name, locationText string) (Scorebook, Member, error) {
+func (s *Store) CreateScorebook(ctx context.Context, user User, name, locationText, bookType string) (Scorebook, Member, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return Scorebook{}, Member{}, err
@@ -100,16 +100,17 @@ func (s *Store) CreateScorebook(ctx context.Context, user User, name, locationTe
 	for i := 0; i < 5; i++ {
 		invite := randomInviteCode(8)
 		err = tx.QueryRow(ctx, `
-INSERT INTO scorebooks (name, location_text, created_by_user_id, invite_code, updated_at)
-VALUES ($1, $2, $3, $4, NOW())
-RETURNING id::text, name, location_text, start_time, updated_at, status::text, created_by_user_id, ended_at, invite_code
-`, name, locationText, user.ID, invite).Scan(
+INSERT INTO scorebooks (name, location_text, book_type, created_by_user_id, invite_code, updated_at)
+VALUES ($1, $2, $3, $4, $5, NOW())
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
+`, name, locationText, bookType, user.ID, invite).Scan(
 			&sb.ID,
 			&sb.Name,
 			&sb.LocationText,
 			&sb.StartTime,
 			&sb.UpdatedAt,
 			&sb.Status,
+			&sb.BookType,
 			&sb.CreatedByUserID,
 			&sb.EndedAt,
 			&sb.InviteCode,
@@ -165,6 +166,7 @@ SELECT
   s.start_time,
   s.updated_at,
   s.status::text,
+  s.book_type,
   s.ended_at,
   s.invite_code,
   m.id::text AS my_member_id,
@@ -172,6 +174,7 @@ SELECT
   (SELECT COUNT(*) FROM scorebook_members mm WHERE mm.scorebook_id = s.id) AS member_count
 FROM scorebooks s
 JOIN scorebook_members m ON m.scorebook_id = s.id AND m.user_id = $1
+WHERE s.book_type = 'scorebook'
 ORDER BY s.updated_at DESC
 `, userID)
 	if err != nil {
@@ -189,6 +192,7 @@ ORDER BY s.updated_at DESC
 			&it.StartTime,
 			&it.UpdatedAt,
 			&it.Status,
+			&it.BookType,
 			&it.EndedAt,
 			&it.InviteCode,
 			&it.MyMemberID,
@@ -214,6 +218,7 @@ SELECT
   s.start_time,
   s.updated_at,
   s.status::text,
+  s.book_type,
   s.created_by_user_id,
   s.ended_at,
   s.invite_code,
@@ -221,7 +226,7 @@ SELECT
   m.role::text AS my_role
 FROM scorebooks s
 JOIN scorebook_members m ON m.scorebook_id = s.id AND m.user_id = $2
-WHERE s.id = $1::uuid
+WHERE s.id = $1::uuid AND s.book_type = 'scorebook'
 `, scorebookID, userID).Scan(
 		&sb.ID,
 		&sb.Name,
@@ -229,6 +234,7 @@ WHERE s.id = $1::uuid
 		&sb.StartTime,
 		&sb.UpdatedAt,
 		&sb.Status,
+		&sb.BookType,
 		&sb.CreatedByUserID,
 		&sb.EndedAt,
 		&sb.InviteCode,
@@ -293,11 +299,12 @@ func (s *Store) UpdateScorebookName(ctx context.Context, scorebookID string, use
 UPDATE scorebooks s
 SET name = $3, updated_at = NOW()
 WHERE s.id = $1::uuid
+  AND s.book_type = 'scorebook'
   AND EXISTS (
     SELECT 1 FROM scorebook_members m
     WHERE m.scorebook_id = s.id AND m.user_id = $2 AND m.role = 'owner'
   )
-RETURNING id::text, name, location_text, start_time, updated_at, status::text, created_by_user_id, ended_at, invite_code
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
 `, scorebookID, userID, name).Scan(
 		&sb.ID,
 		&sb.Name,
@@ -305,6 +312,7 @@ RETURNING id::text, name, location_text, start_time, updated_at, status::text, c
 		&sb.StartTime,
 		&sb.UpdatedAt,
 		&sb.Status,
+		&sb.BookType,
 		&sb.CreatedByUserID,
 		&sb.EndedAt,
 		&sb.InviteCode,
@@ -324,12 +332,13 @@ func (s *Store) EndScorebook(ctx context.Context, scorebookID string, userID int
 UPDATE scorebooks s
 SET status = 'ended', ended_at = NOW(), updated_at = NOW()
 WHERE s.id = $1::uuid
+  AND s.book_type = 'scorebook'
   AND s.status = 'recording'
   AND EXISTS (
     SELECT 1 FROM scorebook_members m
     WHERE m.scorebook_id = s.id AND m.user_id = $2 AND m.role = 'owner'
   )
-RETURNING id::text, name, location_text, start_time, updated_at, status::text, created_by_user_id, ended_at, invite_code
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
 `, scorebookID, userID).Scan(
 		&sb.ID,
 		&sb.Name,
@@ -337,6 +346,7 @@ RETURNING id::text, name, location_text, start_time, updated_at, status::text, c
 		&sb.StartTime,
 		&sb.UpdatedAt,
 		&sb.Status,
+		&sb.BookType,
 		&sb.CreatedByUserID,
 		&sb.EndedAt,
 		&sb.InviteCode,
@@ -364,6 +374,7 @@ func (s *Store) AutoEndInactiveScorebooks(ctx context.Context, inactiveFor time.
 UPDATE scorebooks s
 SET status = 'ended', ended_at = NOW(), updated_at = NOW()
 WHERE s.status = 'recording'
+  AND s.book_type = 'scorebook'
   AND COALESCE(
     (
       SELECT r.created_at
@@ -374,7 +385,7 @@ WHERE s.status = 'recording'
     ),
     s.start_time
   ) < $1
-RETURNING id::text, name, location_text, start_time, updated_at, status::text, created_by_user_id, ended_at, invite_code
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
 `, threshold)
 	if err != nil {
 		return nil, err
@@ -391,6 +402,7 @@ RETURNING id::text, name, location_text, start_time, updated_at, status::text, c
 			&sb.StartTime,
 			&sb.UpdatedAt,
 			&sb.Status,
+			&sb.BookType,
 			&sb.CreatedByUserID,
 			&sb.EndedAt,
 			&sb.InviteCode,
@@ -452,7 +464,7 @@ WHERE scorebook_id = $1::uuid AND user_id = $2
 
 	// 未加入过：仅允许进行中的得分簿加入。
 	var status string
-	err = tx.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid`, scorebookID).Scan(&status)
+	err = tx.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook'`, scorebookID).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Member{}, ErrNotFound
@@ -528,7 +540,7 @@ func (s *Store) CreateRecord(ctx context.Context, scorebookID string, userID int
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var status string
-	err = tx.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid FOR UPDATE`, scorebookID).Scan(&status)
+	err = tx.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook' FOR UPDATE`, scorebookID).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ScoreRecord{}, ErrNotFound
@@ -696,7 +708,7 @@ func (s *Store) GetInviteInfo(ctx context.Context, code string) (InviteInfo, err
 	err := s.pool.QueryRow(ctx, `
 SELECT id::text, name, status::text, updated_at
 FROM scorebooks
-WHERE invite_code = $1
+WHERE invite_code = $1 AND book_type = 'scorebook'
 `, code).Scan(&info.ScorebookID, &info.Name, &info.Status, &info.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -709,7 +721,7 @@ WHERE invite_code = $1
 
 func (s *Store) ScorebookIDByInviteCode(ctx context.Context, code string) (string, error) {
 	var id string
-	err := s.pool.QueryRow(ctx, `SELECT id::text FROM scorebooks WHERE invite_code = $1`, code).Scan(&id)
+	err := s.pool.QueryRow(ctx, `SELECT id::text FROM scorebooks WHERE invite_code = $1 AND book_type = 'scorebook'`, code).Scan(&id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrNotFound
@@ -806,7 +818,7 @@ SELECT EXISTS(SELECT 1 FROM scorebook_members WHERE scorebook_id = $1::uuid AND 
 
 func (s *Store) GetScorebookStatus(ctx context.Context, scorebookID string) (string, error) {
 	var status string
-	err := s.pool.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid`, scorebookID).Scan(&status)
+	err := s.pool.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook'`, scorebookID).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrNotFound
@@ -819,9 +831,9 @@ func (s *Store) GetScorebookStatus(ctx context.Context, scorebookID string) (str
 func (s *Store) GetScorebook(ctx context.Context, scorebookID string) (Scorebook, error) {
 	var sb Scorebook
 	err := s.pool.QueryRow(ctx, `
-SELECT id::text, name, location_text, start_time, updated_at, status::text, created_by_user_id, ended_at, invite_code
+SELECT id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
 FROM scorebooks
-WHERE id = $1::uuid
+WHERE id = $1::uuid AND book_type = 'scorebook'
 `, scorebookID).Scan(
 		&sb.ID,
 		&sb.Name,
@@ -829,6 +841,7 @@ WHERE id = $1::uuid
 		&sb.StartTime,
 		&sb.UpdatedAt,
 		&sb.Status,
+		&sb.BookType,
 		&sb.CreatedByUserID,
 		&sb.EndedAt,
 		&sb.InviteCode,
@@ -836,6 +849,526 @@ WHERE id = $1::uuid
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Scorebook{}, ErrNotFound
+		}
+		return Scorebook{}, err
+	}
+	return sb, nil
+}
+
+func (s *Store) CreateLedger(ctx context.Context, user User, name string) (Scorebook, LedgerMember, error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return Scorebook{}, LedgerMember{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var sb Scorebook
+	var member LedgerMember
+
+	for i := 0; i < 5; i++ {
+		invite := randomInviteCode(8)
+		err = tx.QueryRow(ctx, `
+INSERT INTO scorebooks (name, location_text, book_type, created_by_user_id, invite_code, updated_at)
+VALUES ($1, '', 'ledger', $2, $3, NOW())
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
+`, name, user.ID, invite).Scan(
+			&sb.ID,
+			&sb.Name,
+			&sb.LocationText,
+			&sb.StartTime,
+			&sb.UpdatedAt,
+			&sb.Status,
+			&sb.BookType,
+			&sb.CreatedByUserID,
+			&sb.EndedAt,
+			&sb.InviteCode,
+		)
+		if err == nil {
+			break
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			continue
+		}
+		return Scorebook{}, LedgerMember{}, err
+	}
+	if err != nil {
+		return Scorebook{}, LedgerMember{}, err
+	}
+
+	nickname := strings.TrimSpace(user.WeChatNickname)
+	if nickname == "" {
+		nickname = "我"
+	}
+	avatarURL := strings.TrimSpace(user.WeChatAvatarURL)
+
+	err = tx.QueryRow(ctx, `
+INSERT INTO scorebook_members (scorebook_id, user_id, role, nickname, avatar_url, updated_at)
+VALUES ($1::uuid, NULL, 'owner', $2, $3, NOW())
+RETURNING id::text, scorebook_id::text, role, nickname, avatar_url, score, joined_at, updated_at
+`, sb.ID, nickname, avatarURL).Scan(
+		&member.ID,
+		&member.LedgerID,
+		&member.Role,
+		&member.Nickname,
+		&member.AvatarURL,
+		&member.Score,
+		&member.CreatedAt,
+		&member.UpdatedAt,
+	)
+	if err != nil {
+		return Scorebook{}, LedgerMember{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Scorebook{}, LedgerMember{}, err
+	}
+	return sb, member, nil
+}
+
+func (s *Store) ListLedgersForUser(ctx context.Context, userID int64) ([]LedgerListItem, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT
+  s.id::text,
+  s.name,
+  s.start_time,
+  s.updated_at,
+  s.status::text,
+  s.ended_at,
+  (SELECT COUNT(*) FROM scorebook_members m WHERE m.scorebook_id = s.id) AS member_count,
+  (SELECT COUNT(*) FROM score_records r WHERE r.scorebook_id = s.id) AS record_count
+FROM scorebooks s
+WHERE s.created_by_user_id = $1 AND s.book_type = 'ledger'
+ORDER BY s.updated_at DESC
+`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []LedgerListItem
+	for rows.Next() {
+		var it LedgerListItem
+		if err := rows.Scan(
+			&it.LedgerID,
+			&it.Name,
+			&it.StartTime,
+			&it.UpdatedAt,
+			&it.Status,
+			&it.EndedAt,
+			&it.MemberCount,
+			&it.RecordCount,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetLedgerDetail(ctx context.Context, ledgerID string) (Scorebook, []LedgerMember, []LedgerRecord, error) {
+	var sb Scorebook
+	err := s.pool.QueryRow(ctx, `
+SELECT id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
+FROM scorebooks
+WHERE id = $1::uuid AND book_type = 'ledger'
+`, ledgerID).Scan(
+		&sb.ID,
+		&sb.Name,
+		&sb.LocationText,
+		&sb.StartTime,
+		&sb.UpdatedAt,
+		&sb.Status,
+		&sb.BookType,
+		&sb.CreatedByUserID,
+		&sb.EndedAt,
+		&sb.InviteCode,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Scorebook{}, nil, nil, ErrNotFound
+		}
+		return Scorebook{}, nil, nil, err
+	}
+
+	memRows, err := s.pool.Query(ctx, `
+SELECT id::text, scorebook_id::text, role::text, nickname, avatar_url, score, joined_at, updated_at
+FROM scorebook_members
+WHERE scorebook_id = $1::uuid
+ORDER BY joined_at ASC
+`, ledgerID)
+	if err != nil {
+		return Scorebook{}, nil, nil, err
+	}
+	defer memRows.Close()
+
+	var members []LedgerMember
+	ownerID := ""
+	for memRows.Next() {
+		var m LedgerMember
+		if err := memRows.Scan(
+			&m.ID,
+			&m.LedgerID,
+			&m.Role,
+			&m.Nickname,
+			&m.AvatarURL,
+			&m.Score,
+			&m.CreatedAt,
+			&m.UpdatedAt,
+		); err != nil {
+			return Scorebook{}, nil, nil, err
+		}
+		if ownerID == "" && m.Role == "owner" {
+			ownerID = m.ID
+		}
+		members = append(members, m)
+	}
+	if err := memRows.Err(); err != nil {
+		return Scorebook{}, nil, nil, err
+	}
+	if ownerID == "" && len(members) > 0 {
+		ownerID = members[0].ID
+		members[0].Role = "owner"
+	}
+
+	recRows, err := s.pool.Query(ctx, `
+SELECT id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta, note, created_at
+FROM score_records
+WHERE scorebook_id = $1::uuid
+ORDER BY created_at DESC
+`, ledgerID)
+	if err != nil {
+		return Scorebook{}, nil, nil, err
+	}
+	defer recRows.Close()
+
+	var records []LedgerRecord
+	for recRows.Next() {
+		var r LedgerRecord
+		var delta int64
+		if err := recRows.Scan(
+			&r.ID,
+			&r.LedgerID,
+			&r.FromMemberID,
+			&r.ToMemberID,
+			&delta,
+			&r.Note,
+			&r.CreatedAt,
+		); err != nil {
+			return Scorebook{}, nil, nil, err
+		}
+		if delta < 0 {
+			r.Amount = float64(-delta)
+		} else {
+			r.Amount = float64(delta)
+		}
+		if ownerID != "" {
+			if r.FromMemberID == ownerID {
+				r.Type = "expense"
+				r.MemberID = r.ToMemberID
+			} else if r.ToMemberID == ownerID {
+				r.Type = "income"
+				r.MemberID = r.FromMemberID
+			}
+		}
+		if r.Type == "" {
+			if delta < 0 {
+				r.Type = "expense"
+			} else {
+				r.Type = "income"
+			}
+			if r.MemberID == "" {
+				r.MemberID = r.ToMemberID
+			}
+		}
+		records = append(records, r)
+	}
+	if err := recRows.Err(); err != nil {
+		return Scorebook{}, nil, nil, err
+	}
+
+	return sb, members, records, nil
+}
+
+func (s *Store) AddLedgerMember(ctx context.Context, ledgerID string, userID int64, nickname, avatarURL string) (LedgerMember, error) {
+	if strings.TrimSpace(nickname) == "" {
+		return LedgerMember{}, ErrInvalidArgument
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return LedgerMember{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var status string
+	var ownerID int64
+	err = tx.QueryRow(ctx, `
+SELECT status::text, created_by_user_id
+FROM scorebooks
+WHERE id = $1::uuid AND book_type = 'ledger'
+FOR UPDATE
+`, ledgerID).Scan(&status, &ownerID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return LedgerMember{}, ErrNotFound
+		}
+		return LedgerMember{}, err
+	}
+	if ownerID != userID {
+		return LedgerMember{}, ErrForbidden
+	}
+	if status == "ended" {
+		return LedgerMember{}, ErrScorebookEnded
+	}
+
+	var member LedgerMember
+	err = tx.QueryRow(ctx, `
+INSERT INTO scorebook_members (scorebook_id, user_id, role, nickname, avatar_url, updated_at)
+VALUES ($1::uuid, NULL, 'member', $2, $3, NOW())
+RETURNING id::text, scorebook_id::text, role, nickname, avatar_url, score, joined_at, updated_at
+`, ledgerID, strings.TrimSpace(nickname), strings.TrimSpace(avatarURL)).Scan(
+		&member.ID,
+		&member.LedgerID,
+		&member.Role,
+		&member.Nickname,
+		&member.AvatarURL,
+		&member.Score,
+		&member.CreatedAt,
+		&member.UpdatedAt,
+	)
+	if err != nil {
+		return LedgerMember{}, err
+	}
+
+	_, _ = tx.Exec(ctx, `UPDATE scorebooks SET updated_at = NOW() WHERE id = $1::uuid`, ledgerID)
+
+	if err := tx.Commit(ctx); err != nil {
+		return LedgerMember{}, err
+	}
+	return member, nil
+}
+
+func (s *Store) UpdateLedgerMember(ctx context.Context, ledgerID string, userID int64, memberID string, nickname, avatarURL string) (LedgerMember, error) {
+	if strings.TrimSpace(nickname) == "" {
+		return LedgerMember{}, ErrInvalidArgument
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return LedgerMember{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var status string
+	var ownerID int64
+	err = tx.QueryRow(ctx, `
+SELECT status::text, created_by_user_id
+FROM scorebooks
+WHERE id = $1::uuid AND book_type = 'ledger'
+FOR UPDATE
+`, ledgerID).Scan(&status, &ownerID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return LedgerMember{}, ErrNotFound
+		}
+		return LedgerMember{}, err
+	}
+	if ownerID != userID {
+		return LedgerMember{}, ErrForbidden
+	}
+	if status == "ended" {
+		return LedgerMember{}, ErrScorebookEnded
+	}
+
+	var member LedgerMember
+	err = tx.QueryRow(ctx, `
+UPDATE scorebook_members
+SET nickname = $3, avatar_url = $4, updated_at = NOW()
+WHERE scorebook_id = $1::uuid AND id = $2::uuid
+RETURNING id::text, scorebook_id::text, role::text, nickname, avatar_url, score, joined_at, updated_at
+`, ledgerID, memberID, strings.TrimSpace(nickname), strings.TrimSpace(avatarURL)).Scan(
+		&member.ID,
+		&member.LedgerID,
+		&member.Role,
+		&member.Nickname,
+		&member.AvatarURL,
+		&member.Score,
+		&member.CreatedAt,
+		&member.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return LedgerMember{}, ErrNotFound
+		}
+		return LedgerMember{}, err
+	}
+
+	_, _ = tx.Exec(ctx, `UPDATE scorebooks SET updated_at = NOW() WHERE id = $1::uuid`, ledgerID)
+
+	if err := tx.Commit(ctx); err != nil {
+		return LedgerMember{}, err
+	}
+	return member, nil
+}
+
+func (s *Store) AddLedgerRecord(ctx context.Context, ledgerID string, userID int64, memberID string, recordType string, amount int64, note string) (LedgerRecord, error) {
+	if amount <= 0 {
+		return LedgerRecord{}, ErrInvalidArgument
+	}
+	recordType = strings.ToLower(strings.TrimSpace(recordType))
+	if recordType != "expense" && recordType != "income" {
+		return LedgerRecord{}, ErrInvalidArgument
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return LedgerRecord{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var status string
+	var ownerID int64
+	err = tx.QueryRow(ctx, `
+SELECT status::text, created_by_user_id
+FROM scorebooks
+WHERE id = $1::uuid AND book_type = 'ledger'
+FOR UPDATE
+`, ledgerID).Scan(&status, &ownerID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return LedgerRecord{}, ErrNotFound
+		}
+		return LedgerRecord{}, err
+	}
+	if ownerID != userID {
+		return LedgerRecord{}, ErrForbidden
+	}
+	if status == "ended" {
+		return LedgerRecord{}, ErrScorebookEnded
+	}
+
+	var ownerMemberID string
+	err = tx.QueryRow(ctx, `
+SELECT id::text
+FROM scorebook_members
+WHERE scorebook_id = $1::uuid AND role = 'owner'
+LIMIT 1
+`, ledgerID).Scan(&ownerMemberID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = tx.QueryRow(ctx, `
+SELECT id::text
+FROM scorebook_members
+WHERE scorebook_id = $1::uuid
+ORDER BY joined_at ASC
+LIMIT 1
+`, ledgerID).Scan(&ownerMemberID)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return LedgerRecord{}, ErrInvalidArgument
+				}
+				return LedgerRecord{}, err
+			}
+			_, _ = tx.Exec(ctx, `
+UPDATE scorebook_members
+SET role = 'owner', updated_at = NOW()
+WHERE id = $1::uuid AND role <> 'owner'
+`, ownerMemberID)
+		} else {
+			return LedgerRecord{}, err
+		}
+	}
+	if ownerMemberID == memberID {
+		return LedgerRecord{}, ErrInvalidArgument
+	}
+
+	var tmp string
+	err = tx.QueryRow(ctx, `
+SELECT id::text
+FROM scorebook_members
+WHERE scorebook_id = $1::uuid AND id = $2::uuid
+`, ledgerID, memberID).Scan(&tmp)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return LedgerRecord{}, ErrInvalidArgument
+		}
+		return LedgerRecord{}, err
+	}
+
+	fromMemberID := ownerMemberID
+	toMemberID := memberID
+	if recordType == "income" {
+		fromMemberID = memberID
+		toMemberID = ownerMemberID
+	}
+
+	var record LedgerRecord
+	err = tx.QueryRow(ctx, `
+INSERT INTO score_records (scorebook_id, from_member_id, to_member_id, delta, note)
+VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5)
+RETURNING id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta, note, created_at
+`, ledgerID, fromMemberID, toMemberID, amount, strings.TrimSpace(note)).Scan(
+		&record.ID,
+		&record.LedgerID,
+		&record.FromMemberID,
+		&record.ToMemberID,
+		&amount,
+		&record.Note,
+		&record.CreatedAt,
+	)
+	if err != nil {
+		return LedgerRecord{}, err
+	}
+	record.Type = recordType
+	record.Amount = float64(amount)
+	record.MemberID = memberID
+
+	_, _ = tx.Exec(ctx, `
+UPDATE scorebook_members
+SET score = score + $1, updated_at = NOW()
+WHERE scorebook_id = $2::uuid AND id = $3::uuid
+`, amount, ledgerID, toMemberID)
+
+	_, _ = tx.Exec(ctx, `
+UPDATE scorebook_members
+SET score = score - $1, updated_at = NOW()
+WHERE scorebook_id = $2::uuid AND id = $3::uuid
+`, amount, ledgerID, fromMemberID)
+
+	_, _ = tx.Exec(ctx, `UPDATE scorebooks SET updated_at = NOW() WHERE id = $1::uuid`, ledgerID)
+
+	if err := tx.Commit(ctx); err != nil {
+		return LedgerRecord{}, err
+	}
+	return record, nil
+}
+
+func (s *Store) EndLedger(ctx context.Context, ledgerID string, userID int64) (Scorebook, error) {
+	var sb Scorebook
+	err := s.pool.QueryRow(ctx, `
+UPDATE scorebooks s
+SET status = 'ended', ended_at = NOW(), updated_at = NOW()
+WHERE s.id = $1::uuid
+  AND s.book_type = 'ledger'
+  AND s.status = 'recording'
+  AND s.created_by_user_id = $2
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
+`, ledgerID, userID).Scan(
+		&sb.ID,
+		&sb.Name,
+		&sb.LocationText,
+		&sb.StartTime,
+		&sb.UpdatedAt,
+		&sb.Status,
+		&sb.BookType,
+		&sb.CreatedByUserID,
+		&sb.EndedAt,
+		&sb.InviteCode,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Scorebook{}, ErrForbidden
 		}
 		return Scorebook{}, err
 	}

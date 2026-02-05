@@ -172,7 +172,7 @@
 
 	      <view class="modal-actions">
 	        <button size="mini" @click="closeScoreModal">取消</button>
-	        <button size="mini" class="primary" :disabled="scoreSubmitting" @click="submitScore">
+	        <button size="mini" :disabled="scoreSubmitting" @click="submitScore">
 	          {{ scoreSubmitting ? '提交中…' : '确认记分' }}
 	        </button>
 	      </view>
