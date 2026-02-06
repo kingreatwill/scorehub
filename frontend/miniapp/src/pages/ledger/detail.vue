@@ -30,24 +30,6 @@
         <view class="pill warn" v-if="ledger.shareDisabled">已禁止分享</view>
         <view class="pill readonly" v-if="shareMode">分享只读</view>
       </view>
-      <view class="actions">
-        <button
-          size="mini"
-          class="action-btn"
-          v-if="isOwner && ledger.status !== 'ended' && !ledger.shareDisabled"
-          @click="openQRCode"
-        >
-          小程序码
-        </button>
-        <!-- #ifdef MP-WEIXIN -->
-        <button size="mini" class="action-btn" v-if="isOwner && !ledger.shareDisabled" open-type="share">分享</button>
-        <!-- #endif -->
-        <button size="mini" class="action-btn" v-if="isOwner && ledger.status !== 'ended'" @click="renameLedger">改名</button>
-        <button size="mini" class="action-btn" v-if="isOwner && ledger.status !== 'ended'" @click="toggleShare">
-          {{ ledger.shareDisabled ? '允许分享' : '禁止分享' }}
-        </button>
-        <button size="mini" class="action-btn danger" v-if="isOwner && ledger.status !== 'ended'" @click="endCurrent">结束</button>
-      </view>
     </view>
 
     <view class="card member-card">
@@ -237,6 +219,38 @@
         <button size="mini" @click="closeInviteCodeQR">关闭</button>
       </view>
     </view>
+
+    <view class="fab-mask" v-if="actionMenuOpen && hasActions" @click="closeActionMenu" />
+    <view class="fab" v-if="hasActions">
+      <view class="fab-panel" :class="{ open: actionMenuOpen }">
+        <button size="mini" class="action-btn" v-if="canOpenQRCode" @click="closeActionMenu(); openQRCode()">
+          小程序码
+        </button>
+        <!-- #ifdef MP-WEIXIN -->
+        <button
+          size="mini"
+          class="action-btn"
+          v-if="canShare"
+          open-type="share"
+          @click="closeActionMenu"
+        >
+          分享
+        </button>
+        <!-- #endif -->
+        <button size="mini" class="action-btn" v-if="canManageLedger" @click="closeActionMenu(); renameLedger()">
+          改名
+        </button>
+        <button size="mini" class="action-btn" v-if="canManageLedger" @click="closeActionMenu(); toggleShare()">
+          {{ ledger.shareDisabled ? '允许分享' : '禁止分享' }}
+        </button>
+        <button size="mini" class="action-btn danger" v-if="canManageLedger" @click="closeActionMenu(); endCurrent()">
+          结束
+        </button>
+      </view>
+      <button class="fab-toggle" :class="{ active: actionMenuOpen }" @click="toggleActionMenu">
+        <image class="fab-icon" :src="actionMenuOpen ? closeIcon : moreIcon" mode="aspectFit" />
+      </button>
+    </view>
   </view>
 
   <view class="page" v-else-if="loading">
@@ -290,6 +304,7 @@ const memberRemark = ref('')
 const memberSubmitting = ref(false)
 const memberModalMode = ref<'add' | 'edit'>('add')
 const editingMember = ref<any | null>(null)
+const actionMenuOpen = ref(false)
 
 const recordModalOpen = ref(false)
 const recordTarget = ref<any | null>(null)
@@ -315,6 +330,10 @@ const addIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
 const editIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
+const moreIcon =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'
+const closeIcon =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>'
 
 const isOwner = computed(() => {
   if (!currentUserId.value) return false
@@ -326,6 +345,12 @@ const isOwner = computed(() => {
   return String(owner?.userId || '') === currentUserId.value
 })
 const isReadonly = computed(() => shareMode.value || ledger.value?.status === 'ended' || !isOwner.value)
+const canOpenQRCode = computed(
+  () => !!ledger.value && isOwner.value && ledger.value.status !== 'ended' && !ledger.value.shareDisabled,
+)
+const canShare = computed(() => !!ledger.value && isOwner.value && !ledger.value.shareDisabled)
+const canManageLedger = computed(() => !!ledger.value && isOwner.value && ledger.value.status !== 'ended')
+const hasActions = computed(() => canOpenQRCode.value || canShare.value || canManageLedger.value)
 const canShowInvite = computed(() => {
   if (!ledger.value?.inviteCode) return false
   if (isOwner.value) return true
@@ -653,6 +678,15 @@ async function openQRCode() {
 
 function closeQRCode() {
   qrModalOpen.value = false
+}
+
+function toggleActionMenu() {
+  if (!hasActions.value) return
+  actionMenuOpen.value = !actionMenuOpen.value
+}
+
+function closeActionMenu() {
+  actionMenuOpen.value = false
 }
 
 function previewQRCode() {
@@ -1203,23 +1237,98 @@ async function onChooseAvatar(e: any) {
   background: rgba(255, 255, 255, 0.22);
   border-color: rgba(255, 255, 255, 0.2);
 }
-.actions {
-  margin-top: 16rpx;
+.fab-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 40;
+}
+.fab {
+  position: fixed;
+  right: 24rpx;
+  bottom: calc(28rpx + env(safe-area-inset-bottom));
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 12rpx;
-  position: relative;
-  z-index: 1;
+  z-index: 41;
+}
+.fab-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 6rpx 0;
+  border-radius: 14rpx;
+  background: #fff;
+  border: 1rpx solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 10rpx 26rpx rgba(0, 0, 0, 0.12);
+  transform: translateY(10rpx);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+.fab-panel.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.fab-panel .action-btn {
+  width: 200rpx;
+  text-align: left;
+}
+.fab-toggle {
+  width: 70rpx;
+  height: 70rpx;
+  border-radius: 999rpx;
+  background: rgba(120, 120, 120, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.16);
+  transition: all 0.2s ease;
+}
+.fab-toggle::after {
+  border: none;
+}
+.fab-toggle.active {
+  background: rgba(120, 120, 120, 0.6);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.2);
+}
+.fab-toggle:active {
+  transform: scale(0.98);
+}
+.fab-icon {
+  width: 28rpx;
+  height: 28rpx;
 }
 .action-btn {
-  background: #f6f7fb;
-  color: #111;
-  border-radius: 12rpx;
+  position: relative;
+  background: transparent;
+  color: #444;
+  border-radius: 0;
   height: 64rpx;
   line-height: 64rpx;
-  padding: 0 18rpx;
+  padding: 0 12rpx;
   font-size: 26rpx;
-  font-weight: 600;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.fab-panel .action-btn {
+  background-image: linear-gradient(#eee, #eee);
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: 60% 1rpx;
+}
+.fab-panel .action-btn:last-child {
+  background-image: none;
 }
 .action-btn::after {
   border: none;
@@ -1228,8 +1337,8 @@ async function onChooseAvatar(e: any) {
   opacity: 0.85;
 }
 .action-btn.danger {
-  background: #111;
-  color: #fff;
+  background: transparent;
+  color: #d92d20;
 }
 .hero .action-btn {
   background: rgba(255, 255, 255, 0.14);

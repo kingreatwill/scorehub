@@ -28,14 +28,6 @@
           </view>
         </view>
       </view>
-      <view class="actions">
-        <button size="mini" class="action-btn" v-if="me?.memberId && scorebook.status !== 'ended'" @click="openQRCode">小程序码</button>
-        <!-- #ifdef MP-WEIXIN -->
-        <button size="mini" class="action-btn" open-type="share">分享</button>
-        <!-- #endif -->
-        <button size="mini" class="action-btn" v-if="me?.isOwner" @click="rename">改名</button>
-        <button size="mini" class="action-btn danger" v-if="me?.isOwner && scorebook.status !== 'ended'" @click="end">结束</button>
-      </view>
     </view>
 
     <view class="card" v-if="scorebook.status === 'ended' && (computedWinners.champion || computedWinners.runnerUp || computedWinners.third)">
@@ -229,6 +221,23 @@
         <button size="mini" @click="closeEndModal">关闭</button>
       </view>
     </view>
+
+    <view class="fab-mask" v-if="actionMenuOpen && hasActions" @click="closeActionMenu" />
+    <view class="fab" v-if="hasActions">
+      <view class="fab-panel" :class="{ open: actionMenuOpen }">
+        <button size="mini" class="action-btn" v-if="canOpenQRCode" @click="closeActionMenu(); openQRCode()">
+          小程序码
+        </button>
+        <!-- #ifdef MP-WEIXIN -->
+        <button size="mini" class="action-btn" v-if="canShare" open-type="share" @click="closeActionMenu">分享</button>
+        <!-- #endif -->
+        <button size="mini" class="action-btn" v-if="canRename" @click="closeActionMenu(); rename()">改名</button>
+        <button size="mini" class="action-btn danger" v-if="canEnd" @click="closeActionMenu(); end()">结束</button>
+      </view>
+      <button class="fab-toggle" :class="{ active: actionMenuOpen }" @click="toggleActionMenu">
+        <image class="fab-icon" :src="actionMenuOpen ? closeIcon : moreIcon" mode="aspectFit" />
+      </button>
+    </view>
   </view>
 
   <view class="page" v-else>
@@ -262,9 +271,17 @@ const me = ref<{ memberId: string; isOwner: boolean } | null>(null)
 const members = ref<any[]>([])
 const socketTask = ref<UniApp.SocketTask | null>(null)
 const loadError = ref('')
+const isMpWeixin = ref(false)
+// #ifdef MP-WEIXIN
+isMpWeixin.value = true
+// #endif
 
 const fallbackAvatar =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="%23ddd"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23666" font-size="14">avatar</text></svg>'
+const moreIcon =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'
+const closeIcon =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>'
 
 const scoreModalOpen = ref(false)
 const scoreTarget = ref<any>(null)
@@ -287,6 +304,7 @@ const inviteQRLoading = ref(false)
 const inviteQRSize = 232
 const endModalOpen = ref(false)
 const endWinners = ref<any>(null)
+const actionMenuOpen = ref(false)
 
 const refreshing = ref(false)
 const refreshQueued = ref(false)
@@ -367,6 +385,13 @@ const myMember = computed(() => members.value.find((m) => m.id === me.value?.mem
 const myScore = computed(() => Number(myMember.value?.score || 0))
 const targetAfter = computed(() => Number(scoreTarget.value?.score || 0) + deltaValue.value)
 const myAfter = computed(() => myScore.value - deltaValue.value)
+const canOpenQRCode = computed(() => !!me.value?.memberId && scorebook.value?.status !== 'ended')
+const canShare = computed(() => isMpWeixin.value)
+const canRename = computed(() => !!me.value?.isOwner)
+const canEnd = computed(() => !!me.value?.isOwner && scorebook.value?.status !== 'ended')
+const hasActions = computed(
+  () => canOpenQRCode.value || canShare.value || canRename.value || canEnd.value,
+)
 
 function addDelta(v: number) {
   const next = parseAmountSafe(scoreDelta.value) + v
@@ -805,6 +830,15 @@ function closeQRCode() {
   qrModalOpen.value = false
 }
 
+function toggleActionMenu() {
+  if (!hasActions.value) return
+  actionMenuOpen.value = !actionMenuOpen.value
+}
+
+function closeActionMenu() {
+  actionMenuOpen.value = false
+}
+
 function previewQRCode() {
   if (!qrSrc.value) return
   uni.previewImage({ urls: [qrSrc.value] })
@@ -1117,23 +1151,98 @@ async function submitScore() {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   letter-spacing: 1rpx;
 }
-.actions {
-  margin-top: 16rpx;
+.fab-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 40;
+}
+.fab {
+  position: fixed;
+  right: 24rpx;
+  bottom: calc(28rpx + env(safe-area-inset-bottom));
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 12rpx;
-  position: relative;
-  z-index: 1;
+  z-index: 41;
+}
+.fab-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 6rpx 0;
+  border-radius: 14rpx;
+  background: #fff;
+  border: 1rpx solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 10rpx 26rpx rgba(0, 0, 0, 0.12);
+  transform: translateY(10rpx);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+.fab-panel.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.fab-panel .action-btn {
+  width: 200rpx;
+  text-align: left;
+}
+.fab-toggle {
+  width: 70rpx;
+  height: 70rpx;
+  border-radius: 999rpx;
+  background: rgba(120, 120, 120, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.16);
+  transition: all 0.2s ease;
+}
+.fab-toggle::after {
+  border: none;
+}
+.fab-toggle.active {
+  background: rgba(120, 120, 120, 0.6);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.2);
+}
+.fab-toggle:active {
+  transform: scale(0.98);
+}
+.fab-icon {
+  width: 28rpx;
+  height: 28rpx;
 }
 .action-btn {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  border-radius: 12rpx;
+  position: relative;
+  background: transparent;
+  color: #444;
+  border-radius: 0;
   height: 64rpx;
   line-height: 64rpx;
-  padding: 0 18rpx;
+  padding: 0 12rpx;
   font-size: 26rpx;
-  font-weight: 600;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.fab-panel .action-btn {
+  background-image: linear-gradient(#eee, #eee);
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: 60% 1rpx;
+}
+.fab-panel .action-btn:last-child {
+  background-image: none;
 }
 .action-btn::after {
   border: none;
@@ -1142,8 +1251,8 @@ async function submitScore() {
   opacity: 0.85;
 }
 .action-btn.danger {
-  background: rgba(255, 77, 79, 0.2);
-  color: #ffd1d1;
+  background: transparent;
+  color: #d92d20;
 }
 .title {
   font-size: 30rpx;
