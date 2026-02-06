@@ -12,6 +12,21 @@
         <view class="pill" v-if="ledger.createdAt">{{ formatTime(ledger.createdAt) }}</view>
         <view class="pill">成员 {{ members.length }}</view>
         <view class="pill">记录 {{ records.length }}</view>
+        <view class="pill code" v-if="ledger.inviteCode" @click="copyInvite">
+          邀请码: <text class="mono">{{ ledger.inviteCode }}</text>
+          <view class="qr-icon" @click.stop="openInviteCodeQR">
+            <view class="qr-finder tl"><view class="qr-finder-inner" /></view>
+            <view class="qr-finder tr"><view class="qr-finder-inner" /></view>
+            <view class="qr-finder bl"><view class="qr-finder-inner" /></view>
+            <view class="qr-dot d1" />
+            <view class="qr-dot d2" />
+            <view class="qr-dot d3" />
+            <view class="qr-dot d4" />
+            <view class="qr-dot d5" />
+            <view class="qr-dot d6" />
+            <view class="qr-dot d7" />
+          </view>
+        </view>
         <view class="pill readonly" v-if="shareMode">分享只读</view>
       </view>
       <view class="actions">
@@ -152,6 +167,24 @@
         </button>
       </view>
     </view>
+
+    <view class="modal-mask" v-if="inviteQRModalOpen" @click="closeInviteCodeQR" />
+    <view class="modal" v-if="inviteQRModalOpen">
+      <view class="modal-title">邀请码二维码</view>
+      <view v-if="inviteQRLoading" class="hint">生成中…</view>
+      <canvas
+        class="invite-qr-canvas"
+        canvas-id="inviteQrCanvas"
+        id="inviteQrCanvas"
+        :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px` }"
+        :width="inviteQRSize"
+        :height="inviteQRSize"
+      />
+      <view class="hint">在首页点「扫码加入」即可识别</view>
+      <view class="modal-actions">
+        <button size="mini" @click="closeInviteCodeQR">关闭</button>
+      </view>
+    </view>
   </view>
 
   <view class="page" v-else-if="loading">
@@ -171,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, getCurrentInstance, nextTick, ref } from 'vue'
 import { onLoad, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import {
   addLedgerMember,
@@ -181,6 +214,7 @@ import {
   updateLedgerMember,
   updateLedgerName,
 } from '../../utils/api'
+import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
 
 const id = ref('')
 const ledger = ref<any>(null)
@@ -208,6 +242,9 @@ const recordAmount = ref('')
 const recordNote = ref('')
 const recordSubmitting = ref(false)
 const filterMemberId = ref('')
+const inviteQRModalOpen = ref(false)
+const inviteQRLoading = ref(false)
+const inviteQRSize = 232
 
 const fallbackAvatar =
   'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
@@ -551,6 +588,70 @@ function formatTime(v: any): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
+function copyInvite() {
+  if (!ledger.value?.inviteCode) return
+  uni.setClipboardData({ data: ledger.value.inviteCode })
+}
+
+async function openInviteCodeQR() {
+  const code = String(ledger.value?.inviteCode || '').trim()
+  if (!code) return
+
+  // #ifndef MP-WEIXIN
+  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
+  return
+  // #endif
+
+  // #ifdef MP-WEIXIN
+  inviteQRModalOpen.value = true
+  inviteQRLoading.value = true
+
+  try {
+    await nextTick()
+    await drawInviteCodeQR(code)
+  } catch (e: any) {
+    inviteQRModalOpen.value = false
+    const raw = String(e?.message || '')
+    const msg = raw || '生成二维码失败'
+    uni.showToast({ title: msg, icon: 'none' })
+  } finally {
+    inviteQRLoading.value = false
+  }
+  // #endif
+}
+
+function closeInviteCodeQR() {
+  inviteQRModalOpen.value = false
+}
+
+function drawInviteCodeQR(code: string): Promise<void> {
+  const instance = getCurrentInstance()
+  const proxy = (instance?.proxy as any) || undefined
+  const matrix = makeInviteCodeQRMatrix(code)
+
+  const n = matrix.length
+  const margin = 4
+  const moduleSize = Math.max(1, Math.floor(inviteQRSize / (n + margin * 2)))
+  const drawSize = moduleSize * (n + margin * 2)
+
+  const ctx = uni.createCanvasContext('inviteQrCanvas', proxy)
+  ctx.setFillStyle('#ffffff')
+  ctx.fillRect(0, 0, drawSize, drawSize)
+  ctx.setFillStyle('#000000')
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!matrix[r][c]) continue
+      const x = (c + margin) * moduleSize
+      const y = (r + margin) * moduleSize
+      ctx.fillRect(x, y, moduleSize, moduleSize)
+    }
+  }
+
+  return new Promise((resolve) => {
+    ctx.draw(false, resolve)
+  })
+}
+
 async function onChooseAvatar(e: any) {
   // #ifndef MP-WEIXIN
   return
@@ -708,6 +809,100 @@ async function onChooseAvatar(e: any) {
   background: rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.92);
   border: 1rpx solid rgba(255, 255, 255, 0.12);
+}
+.pill.code:active {
+  opacity: 0.85;
+}
+.pill.code {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.qr-icon {
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 8rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+.qr-icon:active {
+  opacity: 0.85;
+}
+.qr-finder {
+  position: absolute;
+  width: 10rpx;
+  height: 10rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.92);
+  border-radius: 3rpx;
+  box-sizing: border-box;
+}
+.qr-finder-inner {
+  position: absolute;
+  left: 2rpx;
+  top: 2rpx;
+  width: 4rpx;
+  height: 4rpx;
+  border-radius: 2rpx;
+  background: rgba(255, 255, 255, 0.92);
+}
+.qr-finder.tl {
+  left: 4rpx;
+  top: 4rpx;
+}
+.qr-finder.tr {
+  right: 4rpx;
+  top: 4rpx;
+}
+.qr-finder.bl {
+  left: 4rpx;
+  bottom: 4rpx;
+}
+.qr-dot {
+  position: absolute;
+  width: 4rpx;
+  height: 4rpx;
+  border-radius: 2rpx;
+  background: rgba(255, 255, 255, 0.92);
+}
+.qr-dot.d1 {
+  left: 16rpx;
+  top: 8rpx;
+}
+.qr-dot.d2 {
+  left: 22rpx;
+  top: 14rpx;
+}
+.qr-dot.d3 {
+  left: 16rpx;
+  top: 18rpx;
+}
+.qr-dot.d4 {
+  left: 22rpx;
+  top: 22rpx;
+}
+.qr-dot.d5 {
+  left: 12rpx;
+  top: 14rpx;
+}
+.qr-dot.d6 {
+  left: 20rpx;
+  top: 10rpx;
+}
+.qr-dot.d7 {
+  left: 14rpx;
+  top: 24rpx;
+}
+.invite-qr-canvas {
+  margin: 16rpx auto 10rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.08);
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  letter-spacing: 1rpx;
 }
 .pill.readonly {
   color: #fff;

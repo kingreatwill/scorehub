@@ -380,12 +380,13 @@ func (h *LedgerHandlers) EndLedger(ctx context.Context, c *app.RequestContext) {
 
 func toLedgerDTO(sb store.Scorebook) map[string]any {
 	return map[string]any{
-		"id":        sb.ID,
-		"name":      sb.Name,
-		"createdAt": sb.StartTime,
-		"updatedAt": sb.UpdatedAt,
-		"status":    sb.Status,
-		"endedAt":   sb.EndedAt,
+		"id":         sb.ID,
+		"name":       sb.Name,
+		"createdAt":  sb.StartTime,
+		"updatedAt":  sb.UpdatedAt,
+		"status":     sb.Status,
+		"endedAt":    sb.EndedAt,
+		"inviteCode": sb.InviteCode,
 	}
 }
 
