@@ -177,7 +177,7 @@ SELECT
   (SELECT COUNT(*) FROM scorebook_members mm WHERE mm.scorebook_id = s.id) AS member_count
 FROM scorebooks s
 JOIN scorebook_members m ON m.scorebook_id = s.id AND m.user_id = $1
-WHERE s.book_type = 'scorebook'
+WHERE s.book_type = 'scorebook' AND s.deleted_at IS NULL
 ORDER BY s.updated_at DESC
 `, userID)
 	if err != nil {
@@ -230,7 +230,7 @@ SELECT
   m.role::text AS my_role
 FROM scorebooks s
 JOIN scorebook_members m ON m.scorebook_id = s.id AND m.user_id = $2
-WHERE s.id = $1::uuid AND s.book_type = 'scorebook'
+WHERE s.id = $1::uuid AND s.book_type = 'scorebook' AND s.deleted_at IS NULL
 `, scorebookID, userID).Scan(
 		&sb.ID,
 		&sb.Name,
@@ -305,6 +305,7 @@ UPDATE scorebooks s
 SET name = $3, updated_at = NOW()
 WHERE s.id = $1::uuid
   AND s.book_type = 'scorebook'
+  AND s.deleted_at IS NULL
   AND EXISTS (
     SELECT 1 FROM scorebook_members m
     WHERE m.scorebook_id = s.id AND m.user_id = $2 AND m.role = 'owner'
@@ -340,6 +341,7 @@ SET status = 'ended', ended_at = NOW(), updated_at = NOW()
 WHERE s.id = $1::uuid
   AND s.book_type = 'scorebook'
   AND s.status = 'recording'
+  AND s.deleted_at IS NULL
   AND EXISTS (
     SELECT 1 FROM scorebook_members m
     WHERE m.scorebook_id = s.id AND m.user_id = $2 AND m.role = 'owner'
@@ -367,6 +369,69 @@ RETURNING id::text, name, location_text, start_time, updated_at, status::text, b
 	return sb, nil
 }
 
+func (s *Store) DeleteScorebook(ctx context.Context, scorebookID string, userID int64) (Scorebook, error) {
+	var status string
+	var deletedAt sql.NullTime
+	err := s.pool.QueryRow(ctx, `
+SELECT status::text, deleted_at
+FROM scorebooks
+WHERE id = $1::uuid AND book_type = 'scorebook'
+`, scorebookID).Scan(&status, &deletedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Scorebook{}, ErrNotFound
+		}
+		return Scorebook{}, err
+	}
+	if deletedAt.Valid {
+		return Scorebook{}, ErrNotFound
+	}
+
+	var isOwner bool
+	err = s.pool.QueryRow(ctx, `
+SELECT EXISTS(
+  SELECT 1 FROM scorebook_members m
+  WHERE m.scorebook_id = $1::uuid AND m.user_id = $2 AND m.role = 'owner'
+)
+`, scorebookID, userID).Scan(&isOwner)
+	if err != nil {
+		return Scorebook{}, err
+	}
+	if !isOwner {
+		return Scorebook{}, ErrForbidden
+	}
+	if status != "ended" {
+		return Scorebook{}, ErrScorebookNotEnded
+	}
+
+	var sb Scorebook
+	err = s.pool.QueryRow(ctx, `
+UPDATE scorebooks
+SET deleted_at = NOW(), updated_at = NOW()
+WHERE id = $1::uuid AND book_type = 'scorebook' AND status = 'ended' AND deleted_at IS NULL
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code, share_disabled
+`, scorebookID).Scan(
+		&sb.ID,
+		&sb.Name,
+		&sb.LocationText,
+		&sb.StartTime,
+		&sb.UpdatedAt,
+		&sb.Status,
+		&sb.BookType,
+		&sb.CreatedByUserID,
+		&sb.EndedAt,
+		&sb.InviteCode,
+		&sb.ShareDisabled,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Scorebook{}, ErrNotFound
+		}
+		return Scorebook{}, err
+	}
+	return sb, nil
+}
+
 // AutoEndInactiveScorebooks ends scorebooks that are still "recording" but have had
 // no new score record for the given duration (or since creation if there are no records).
 //
@@ -382,6 +447,7 @@ UPDATE scorebooks s
 SET status = 'ended', ended_at = NOW(), updated_at = NOW()
 WHERE s.status = 'recording'
   AND s.book_type = 'scorebook'
+  AND s.deleted_at IS NULL
   AND COALESCE(
     (
       SELECT r.created_at
@@ -472,7 +538,7 @@ WHERE scorebook_id = $1::uuid AND user_id = $2
 
 	// 未加入过：仅允许进行中的得分簿加入。
 	var status string
-	err = tx.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook'`, scorebookID).Scan(&status)
+	err = tx.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook' AND deleted_at IS NULL`, scorebookID).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Member{}, ErrNotFound
@@ -515,6 +581,10 @@ func (s *Store) UpdateMyProfile(ctx context.Context, scorebookID string, userID 
 UPDATE scorebook_members
 SET nickname = $3, avatar_url = $4, updated_at = NOW()
 WHERE scorebook_id = $1::uuid AND user_id = $2
+  AND EXISTS (
+    SELECT 1 FROM scorebooks s
+    WHERE s.id = $1::uuid AND s.book_type = 'scorebook' AND s.deleted_at IS NULL
+  )
 RETURNING id::text, scorebook_id::text, user_id, role::text, nickname, avatar_url, joined_at, updated_at
 `, scorebookID, userID, nickname, avatarURL).Scan(
 		&m.ID,
@@ -550,7 +620,7 @@ func (s *Store) CreateRecord(ctx context.Context, scorebookID string, userID int
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var status string
-	err = tx.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook' FOR UPDATE`, scorebookID).Scan(&status)
+	err = tx.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook' AND deleted_at IS NULL FOR UPDATE`, scorebookID).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ScoreRecord{}, ErrNotFound
@@ -679,6 +749,19 @@ LIMIT 3
 }
 
 func (s *Store) ListRecords(ctx context.Context, scorebookID string, userID int64, limit, offset int32) ([]ScoreRecord, error) {
+	var active bool
+	if err := s.pool.QueryRow(ctx, `
+SELECT EXISTS (
+  SELECT 1 FROM scorebooks
+  WHERE id = $1::uuid AND book_type = 'scorebook' AND deleted_at IS NULL
+)
+`, scorebookID).Scan(&active); err != nil {
+		return nil, err
+	}
+	if !active {
+		return nil, ErrNotFound
+	}
+
 	var ok bool
 	err := s.pool.QueryRow(ctx, `
 SELECT EXISTS (SELECT 1 FROM scorebook_members WHERE scorebook_id = $1::uuid AND user_id = $2)
@@ -718,7 +801,7 @@ func (s *Store) GetInviteInfo(ctx context.Context, code string) (InviteInfo, err
 	err := s.pool.QueryRow(ctx, `
 SELECT id::text, book_type, name, status::text, share_disabled, updated_at
 FROM scorebooks
-WHERE invite_code = $1
+WHERE invite_code = $1 AND deleted_at IS NULL
 `, code).Scan(&info.BookID, &info.BookType, &info.Name, &info.Status, &info.ShareDisabled, &info.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -734,7 +817,7 @@ func (s *Store) GetLedger(ctx context.Context, ledgerID string) (Scorebook, erro
 	err := s.pool.QueryRow(ctx, `
 SELECT id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code, share_disabled
 FROM scorebooks
-WHERE id = $1::uuid AND book_type = 'ledger'
+WHERE id = $1::uuid AND book_type = 'ledger' AND deleted_at IS NULL
 `, ledgerID).Scan(
 		&sb.ID,
 		&sb.Name,
@@ -759,7 +842,7 @@ WHERE id = $1::uuid AND book_type = 'ledger'
 
 func (s *Store) ScorebookIDByInviteCode(ctx context.Context, code string) (string, error) {
 	var id string
-	err := s.pool.QueryRow(ctx, `SELECT id::text FROM scorebooks WHERE invite_code = $1 AND book_type = 'scorebook'`, code).Scan(&id)
+	err := s.pool.QueryRow(ctx, `SELECT id::text FROM scorebooks WHERE invite_code = $1 AND book_type = 'scorebook' AND deleted_at IS NULL`, code).Scan(&id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrNotFound
@@ -810,7 +893,7 @@ WHERE id = $1
 }
 
 func (s *Store) TouchScorebookUpdatedAt(ctx context.Context, scorebookID string) {
-	_, _ = s.pool.Exec(ctx, `UPDATE scorebooks SET updated_at = NOW() WHERE id = $1::uuid`, scorebookID)
+	_, _ = s.pool.Exec(ctx, `UPDATE scorebooks SET updated_at = NOW() WHERE id = $1::uuid AND deleted_at IS NULL`, scorebookID)
 }
 
 func (s *Store) EnsureMember(ctx context.Context, scorebookID string, userID int64) (Member, error) {
@@ -819,6 +902,10 @@ func (s *Store) EnsureMember(ctx context.Context, scorebookID string, userID int
 SELECT id::text, scorebook_id::text, user_id, role::text, nickname, avatar_url, joined_at, updated_at
 FROM scorebook_members
 WHERE scorebook_id = $1::uuid AND user_id = $2
+  AND EXISTS (
+    SELECT 1 FROM scorebooks s
+    WHERE s.id = $1::uuid AND s.deleted_at IS NULL
+  )
 `, scorebookID, userID).Scan(
 		&m.ID,
 		&m.ScorebookID,
@@ -841,7 +928,12 @@ WHERE scorebook_id = $1::uuid AND user_id = $2
 func (s *Store) IsMember(ctx context.Context, scorebookID string, userID int64) (bool, error) {
 	var ok bool
 	err := s.pool.QueryRow(ctx, `
-SELECT EXISTS(SELECT 1 FROM scorebook_members WHERE scorebook_id = $1::uuid AND user_id = $2)
+SELECT EXISTS(
+  SELECT 1
+  FROM scorebook_members m
+  JOIN scorebooks s ON s.id = m.scorebook_id
+  WHERE m.scorebook_id = $1::uuid AND m.user_id = $2 AND s.deleted_at IS NULL
+)
 `, scorebookID, userID).Scan(&ok)
 	return ok, err
 }
@@ -849,14 +941,19 @@ SELECT EXISTS(SELECT 1 FROM scorebook_members WHERE scorebook_id = $1::uuid AND 
 func (s *Store) IsOwner(ctx context.Context, scorebookID string, userID int64) (bool, error) {
 	var ok bool
 	err := s.pool.QueryRow(ctx, `
-SELECT EXISTS(SELECT 1 FROM scorebook_members WHERE scorebook_id = $1::uuid AND user_id = $2 AND role = 'owner')
+SELECT EXISTS(
+  SELECT 1
+  FROM scorebook_members m
+  JOIN scorebooks s ON s.id = m.scorebook_id
+  WHERE m.scorebook_id = $1::uuid AND m.user_id = $2 AND m.role = 'owner' AND s.deleted_at IS NULL
+)
 `, scorebookID, userID).Scan(&ok)
 	return ok, err
 }
 
 func (s *Store) GetScorebookStatus(ctx context.Context, scorebookID string) (string, error) {
 	var status string
-	err := s.pool.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook'`, scorebookID).Scan(&status)
+	err := s.pool.QueryRow(ctx, `SELECT status::text FROM scorebooks WHERE id = $1::uuid AND book_type = 'scorebook' AND deleted_at IS NULL`, scorebookID).Scan(&status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrNotFound
@@ -871,7 +968,7 @@ func (s *Store) GetScorebook(ctx context.Context, scorebookID string) (Scorebook
 	err := s.pool.QueryRow(ctx, `
 SELECT id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code, share_disabled
 FROM scorebooks
-WHERE id = $1::uuid AND book_type = 'scorebook'
+WHERE id = $1::uuid AND book_type = 'scorebook' AND deleted_at IS NULL
 `, scorebookID).Scan(
 		&sb.ID,
 		&sb.Name,
@@ -984,7 +1081,7 @@ SELECT
   (SELECT COUNT(*) FROM scorebook_members m WHERE m.scorebook_id = s.id) AS member_count,
   (SELECT COUNT(*) FROM score_records r WHERE r.scorebook_id = s.id) AS record_count
 FROM scorebooks s
-WHERE s.book_type = 'ledger'
+WHERE s.book_type = 'ledger' AND s.deleted_at IS NULL
   AND (
     s.created_by_user_id = $1
     OR EXISTS (
@@ -1025,7 +1122,7 @@ func (s *Store) GetLedgerDetail(ctx context.Context, ledgerID string) (Scorebook
 	err := s.pool.QueryRow(ctx, `
 SELECT id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code, share_disabled
 FROM scorebooks
-WHERE id = $1::uuid AND book_type = 'ledger'
+WHERE id = $1::uuid AND book_type = 'ledger' AND deleted_at IS NULL
 `, ledgerID).Scan(
 		&sb.ID,
 		&sb.Name,
@@ -1188,6 +1285,7 @@ SET name = COALESCE(NULLIF($3, ''), name),
 WHERE s.id = $1::uuid
   AND s.book_type = 'ledger'
   AND s.created_by_user_id = $2
+  AND s.deleted_at IS NULL
 RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code, share_disabled
 `, ledgerID, userID, nameVal, shareVal).Scan(
 		&sb.ID,
@@ -1227,7 +1325,7 @@ func (s *Store) AddLedgerMember(ctx context.Context, ledgerID string, userID int
 	err = tx.QueryRow(ctx, `
 SELECT status::text, created_by_user_id
 FROM scorebooks
-WHERE id = $1::uuid AND book_type = 'ledger'
+WHERE id = $1::uuid AND book_type = 'ledger' AND deleted_at IS NULL
 FOR UPDATE
 `, ledgerID).Scan(&status, &ownerID)
 	if err != nil {
@@ -1292,7 +1390,7 @@ func (s *Store) UpdateLedgerMember(ctx context.Context, ledgerID string, userID 
 	err = tx.QueryRow(ctx, `
 SELECT status::text, created_by_user_id
 FROM scorebooks
-WHERE id = $1::uuid AND book_type = 'ledger'
+WHERE id = $1::uuid AND book_type = 'ledger' AND deleted_at IS NULL
 FOR UPDATE
 `, ledgerID).Scan(&status, &ownerID)
 	if err != nil {
@@ -1446,7 +1544,7 @@ func (s *Store) BindLedgerMember(ctx context.Context, ledgerID string, userID in
 	err = tx.QueryRow(ctx, `
 SELECT status::text, share_disabled
 FROM scorebooks
-WHERE id = $1::uuid AND book_type = 'ledger'
+WHERE id = $1::uuid AND book_type = 'ledger' AND deleted_at IS NULL
 FOR UPDATE
 `, ledgerID).Scan(&status, &shareDisabled)
 	if err != nil {
@@ -1570,7 +1668,7 @@ func (s *Store) AddLedgerRecord(ctx context.Context, ledgerID string, userID int
 	err = tx.QueryRow(ctx, `
 SELECT status::text, created_by_user_id
 FROM scorebooks
-WHERE id = $1::uuid AND book_type = 'ledger'
+WHERE id = $1::uuid AND book_type = 'ledger' AND deleted_at IS NULL
 FOR UPDATE
 `, ledgerID).Scan(&status, &ownerID)
 	if err != nil {
@@ -1697,6 +1795,7 @@ WHERE s.id = $1::uuid
   AND s.book_type = 'ledger'
   AND s.status = 'recording'
   AND s.created_by_user_id = $2
+  AND s.deleted_at IS NULL
 RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code, share_disabled
 `, ledgerID, userID).Scan(
 		&sb.ID,
@@ -1714,6 +1813,59 @@ RETURNING id::text, name, location_text, start_time, updated_at, status::text, b
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Scorebook{}, ErrForbidden
+		}
+		return Scorebook{}, err
+	}
+	return sb, nil
+}
+
+func (s *Store) DeleteLedger(ctx context.Context, ledgerID string, userID int64) (Scorebook, error) {
+	var status string
+	var ownerID int64
+	var deletedAt sql.NullTime
+	err := s.pool.QueryRow(ctx, `
+SELECT status::text, created_by_user_id, deleted_at
+FROM scorebooks
+WHERE id = $1::uuid AND book_type = 'ledger'
+`, ledgerID).Scan(&status, &ownerID, &deletedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Scorebook{}, ErrNotFound
+		}
+		return Scorebook{}, err
+	}
+	if deletedAt.Valid {
+		return Scorebook{}, ErrNotFound
+	}
+	if ownerID != userID {
+		return Scorebook{}, ErrForbidden
+	}
+	if status != "ended" {
+		return Scorebook{}, ErrScorebookNotEnded
+	}
+
+	var sb Scorebook
+	err = s.pool.QueryRow(ctx, `
+UPDATE scorebooks
+SET deleted_at = NOW(), updated_at = NOW()
+WHERE id = $1::uuid AND book_type = 'ledger' AND status = 'ended' AND deleted_at IS NULL
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code, share_disabled
+`, ledgerID).Scan(
+		&sb.ID,
+		&sb.Name,
+		&sb.LocationText,
+		&sb.StartTime,
+		&sb.UpdatedAt,
+		&sb.Status,
+		&sb.BookType,
+		&sb.CreatedByUserID,
+		&sb.EndedAt,
+		&sb.InviteCode,
+		&sb.ShareDisabled,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Scorebook{}, ErrNotFound
 		}
 		return Scorebook{}, err
 	}

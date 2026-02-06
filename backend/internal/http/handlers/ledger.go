@@ -572,6 +572,38 @@ func (h *LedgerHandlers) EndLedger(ctx context.Context, c *app.RequestContext) {
 	c.JSON(http.StatusOK, map[string]any{"ledger": toLedgerDTO(ledger)})
 }
 
+func (h *LedgerHandlers) DeleteLedger(ctx context.Context, c *app.RequestContext) {
+	uid, ok := middleware.UserID(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized", "missing user")
+		return
+	}
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "bad_request", "id required")
+		return
+	}
+
+	ledger, err := h.st.DeleteLedger(ctx, id, uid)
+	if err != nil {
+		switch err {
+		case store.ErrNotFound:
+			writeError(c, http.StatusNotFound, "not_found", "ledger not found")
+			return
+		case store.ErrForbidden:
+			writeError(c, http.StatusForbidden, "forbidden", "not owner")
+			return
+		case store.ErrScorebookNotEnded:
+			writeError(c, http.StatusBadRequest, "not_ended", "ledger not ended")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, map[string]any{"ledger": toLedgerDTO(ledger)})
+}
+
 func toLedgerDTO(sb store.Scorebook) map[string]any {
 	return map[string]any{
 		"id":              sb.ID,

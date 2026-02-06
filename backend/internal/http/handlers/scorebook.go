@@ -286,6 +286,38 @@ func (h *ScorebookHandlers) EndScorebook(ctx context.Context, c *app.RequestCont
 	c.JSON(http.StatusOK, map[string]any{"scorebook": toScorebookDTO(sb), "winners": winners})
 }
 
+func (h *ScorebookHandlers) DeleteScorebook(ctx context.Context, c *app.RequestContext) {
+	uid, ok := middleware.UserID(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized", "missing user")
+		return
+	}
+	scorebookID := strings.TrimSpace(c.Param("id"))
+	if scorebookID == "" {
+		writeError(c, http.StatusBadRequest, "bad_request", "id required")
+		return
+	}
+
+	sb, err := h.st.DeleteScorebook(ctx, scorebookID, uid)
+	if err != nil {
+		switch err {
+		case store.ErrNotFound:
+			writeError(c, http.StatusNotFound, "not_found", "scorebook not found")
+			return
+		case store.ErrForbidden:
+			writeError(c, http.StatusForbidden, "forbidden", "not owner")
+			return
+		case store.ErrScorebookNotEnded:
+			writeError(c, http.StatusBadRequest, "not_ended", "scorebook not ended")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, map[string]any{"scorebook": toScorebookDTO(sb)})
+}
+
 type joinScorebookRequest struct {
 	Nickname  string `json:"nickname"`
 	AvatarURL string `json:"avatarUrl"`
@@ -512,6 +544,10 @@ func (h *ScorebookHandlers) ListRecords(ctx context.Context, c *app.RequestConte
 
 	items, err := h.st.ListRecords(ctx, scorebookID, uid, limit, offset)
 	if err != nil {
+		if err == store.ErrNotFound {
+			writeError(c, http.StatusNotFound, "not_found", "scorebook not found")
+			return
+		}
 		if err == store.ErrForbidden {
 			writeError(c, http.StatusForbidden, "forbidden", "not a member")
 			return

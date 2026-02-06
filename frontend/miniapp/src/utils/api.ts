@@ -78,6 +78,10 @@ export async function endScorebook(id: string) {
   return request<{ scorebook: any; winners?: any }>('POST', `/scorebooks/${id}/end`)
 }
 
+export async function deleteScorebook(id: string) {
+  return request<{ scorebook: any }>('DELETE', `/scorebooks/${id}`)
+}
+
 export async function joinScorebook(id: string, payload: { nickname?: string; avatarUrl?: string }) {
   return request<{ member: any }>('POST', `/scorebooks/${id}/join`, payload)
 }
@@ -209,6 +213,10 @@ export async function addLedgerRecord(id: string, payload: { memberId: string; t
 
 export async function endLedger(id: string) {
   return request<{ ledger: any }>('POST', `/ledgers/${id}/end`)
+}
+
+export async function deleteLedger(id: string) {
+  return request<{ ledger: any }>('DELETE', `/ledgers/${id}`)
 }
 
 export async function connectScorebookWS(scorebookId: string, onEvent: (evt: any) => void) {

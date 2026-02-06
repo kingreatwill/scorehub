@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS scorebooks (
   created_by_user_id BIGINT NOT NULL REFERENCES users(id),
   ended_at           TIMESTAMPTZ NULL,
   invite_code        TEXT NOT NULL UNIQUE,
-  share_disabled     BOOLEAN NOT NULL DEFAULT FALSE
+  share_disabled     BOOLEAN NOT NULL DEFAULT FALSE,
+  deleted_at         TIMESTAMPTZ NULL
 );
 
 ALTER TABLE scorebooks
@@ -33,8 +34,12 @@ ALTER TABLE scorebooks
 ALTER TABLE scorebooks
   ADD COLUMN IF NOT EXISTS share_disabled BOOLEAN NOT NULL DEFAULT FALSE;
 
+ALTER TABLE scorebooks
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
+
 CREATE INDEX IF NOT EXISTS idx_scorebooks_updated_at ON scorebooks(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_scorebooks_created_by ON scorebooks(created_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_scorebooks_deleted_at ON scorebooks(deleted_at);
 
 CREATE TABLE IF NOT EXISTS scorebook_members (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),

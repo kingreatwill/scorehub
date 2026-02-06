@@ -23,19 +23,30 @@
         <view class="hint" v-else-if="items.length === 0">暂无记账簿</view>
         <view class="hint" v-else-if="filteredItems.length === 0">没有匹配结果</view>
         <view v-else class="list">
-          <view class="item" v-for="it in filteredItems" :key="it.id" @click="openLedger(it.id)">
-          <view class="row">
-            <text class="name">{{ it.name }}</text>
-            <text class="status">{{ it.status === 'ended' ? '已结束' : '记录中' }}</text>
-          </view>
-          <view class="sub">
-            <view class="sub-left">
-              <text v-if="it.createdAt">{{ formatTime(it.createdAt) }}</text>
-              <text>记录 {{ it.recordCount || 0 }}</text>
+          <view class="swipe-item" :class="{ open: openId === it.id }" v-for="it in filteredItems" :key="it.id">
+            <view class="swipe-actions">
+              <button class="swipe-btn" :class="{ disabled: !canDelete(it) }" @click.stop="confirmDelete(it)">删除</button>
             </view>
-            <text class="sub-right">成员 {{ it.memberCount || 0 }}</text>
+            <view
+              class="item swipe-main"
+              :class="{ open: openId === it.id }"
+              @touchstart="onTouchStart($event, it.id)"
+              @touchend="onTouchEnd($event, it.id)"
+              @click="onItemTap(it)"
+            >
+              <view class="row">
+                <text class="name">{{ it.name }}</text>
+                <text class="status">{{ it.status === 'ended' ? '已结束' : '记录中' }}</text>
+              </view>
+              <view class="sub">
+                <view class="sub-left">
+                  <text v-if="it.createdAt">{{ formatTime(it.createdAt) }}</text>
+                  <text>记录 {{ it.recordCount || 0 }}</text>
+                </view>
+                <text class="sub-right">成员 {{ it.memberCount || 0 }}</text>
+              </view>
+            </view>
           </view>
-        </view>
         </view>
       </template>
     </view>
@@ -45,13 +56,18 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { listLedgers } from '../../utils/api'
+import { deleteLedger, listLedgers } from '../../utils/api'
 
 const items = ref<any[]>([])
 const token = ref('')
 const loading = ref(false)
 const keyword = ref('')
 const searchFocused = ref(false)
+const openId = ref('')
+const touchStartX = ref(0)
+const touchStartY = ref(0)
+const touchItemId = ref('')
+const swipeJustFinished = ref(false)
 const searchIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'
 
@@ -77,6 +93,7 @@ async function load() {
   try {
     const res = await listLedgers()
     items.value = res.items || []
+    openId.value = ''
   } catch (e: any) {
     if (items.value.length === 0) {
       uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
@@ -88,6 +105,70 @@ async function load() {
 
 function openLedger(id: string) {
   uni.navigateTo({ url: `/pages/ledger/detail?id=${id}` })
+}
+
+function onItemTap(it: any) {
+  if (swipeJustFinished.value) return
+  if (openId.value === it.id) {
+    openId.value = ''
+    return
+  }
+  openLedger(it.id)
+}
+
+function onTouchStart(e: any, id: string) {
+  const t = e?.touches?.[0]
+  if (!t) return
+  touchStartX.value = t.clientX
+  touchStartY.value = t.clientY
+  touchItemId.value = id
+}
+
+function onTouchEnd(e: any, id: string) {
+  if (touchItemId.value !== id) return
+  const t = e?.changedTouches?.[0]
+  if (!t) {
+    touchItemId.value = ''
+    return
+  }
+  const dx = t.clientX - touchStartX.value
+  const dy = t.clientY - touchStartY.value
+  if (Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy)) {
+    touchItemId.value = ''
+    return
+  }
+  if (dx < 0) {
+    openId.value = id
+  } else {
+    openId.value = ''
+  }
+  swipeJustFinished.value = true
+  setTimeout(() => {
+    swipeJustFinished.value = false
+  }, 200)
+  touchItemId.value = ''
+}
+
+function canDelete(it: any): boolean {
+  return String(it?.status || '') === 'ended'
+}
+
+async function confirmDelete(it: any) {
+  if (!canDelete(it)) {
+    uni.showToast({ title: '请先结束', icon: 'none' })
+    return
+  }
+  const res = await new Promise<UniApp.ShowModalRes>((resolve) => {
+    uni.showModal({ title: '确认删除', content: `确定删除「${it.name}」？`, success: resolve })
+  })
+  if (!res.confirm) return
+  try {
+    await deleteLedger(String(it.id))
+    items.value = items.value.filter((x) => x.id !== it.id)
+    openId.value = ''
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '删除失败', icon: 'none' })
+  }
 }
 
 function goLogin() {
@@ -195,11 +276,62 @@ function formatTime(v: any): string {
   gap: 16rpx;
   margin-top: 12rpx;
 }
-.item {
-  background: #fff;
+.swipe-item {
+  position: relative;
+  overflow: hidden;
   border-radius: 16rpx;
-  padding: 20rpx;
+  background: #fff;
   box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
+}
+.swipe-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 140rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.swipe-item.open .swipe-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.swipe-btn {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: 0;
+  background: #ef4444;
+  color: #fff;
+  font-size: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border: 0;
+}
+.swipe-btn.disabled {
+  background: #c7c7c7;
+}
+.swipe-main {
+  position: relative;
+  z-index: 1;
+  transform: translateX(0);
+  transition: transform 0.2s ease;
+}
+.swipe-main.open {
+  transform: translateX(-140rpx);
+}
+.item {
+  background: transparent;
+  border-radius: 0;
+  padding: 20rpx;
+  box-shadow: none;
 }
 .row {
   display: flex;
