@@ -18,6 +18,7 @@
         <!-- #ifdef MP-WEIXIN -->
         <button size="mini" class="action-btn" open-type="share">分享</button>
         <!-- #endif -->
+        <button size="mini" class="action-btn" v-if="!isReadonly" @click="renameLedger">改名</button>
         <button size="mini" class="action-btn danger" v-if="!isReadonly" @click="endCurrent">结束</button>
       </view>
     </view>
@@ -178,6 +179,7 @@ import {
   endLedger,
   getLedgerDetail,
   updateLedgerMember,
+  updateLedgerName,
 } from '../../utils/api'
 
 const id = ref('')
@@ -427,6 +429,26 @@ async function endCurrent() {
   } catch (e: any) {
     uni.showToast({ title: e?.message || '结束失败', icon: 'none' })
   }
+}
+
+async function renameLedger() {
+  const current = ledger.value?.name || ''
+  uni.showModal({
+    title: '修改名称',
+    editable: true,
+    placeholderText: current,
+    success: async (res) => {
+      if (!res.confirm) return
+      const name = String((res as any).content || '').trim()
+      if (!name) return
+      try {
+        const updated = await updateLedgerName(id.value, name)
+        if (updated?.ledger) ledger.value = updated.ledger
+      } catch (e: any) {
+        uni.showToast({ title: e?.message || '修改失败', icon: 'none' })
+      }
+    },
+  } as any)
 }
 
 function goList() {

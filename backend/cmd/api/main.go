@@ -62,6 +62,7 @@ func main() {
 	authed.POST("/invites/:code/join", scorebookHandlers.JoinByInviteCode)
 	authed.POST("/ledgers", ledgerHandlers.CreateLedger)
 	authed.GET("/ledgers", ledgerHandlers.ListLedgers)
+	authed.PATCH("/ledgers/:id", ledgerHandlers.UpdateLedger)
 	authed.POST("/ledgers/:id/members", ledgerHandlers.AddLedgerMember)
 	authed.PATCH("/ledgers/:id/members/:memberId", ledgerHandlers.UpdateLedgerMember)
 	authed.POST("/ledgers/:id/records", ledgerHandlers.AddLedgerRecord)

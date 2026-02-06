@@ -25,6 +25,10 @@ type createLedgerRequest struct {
 	Name string `json:"name"`
 }
 
+type updateLedgerRequest struct {
+	Name string `json:"name"`
+}
+
 func (h *LedgerHandlers) CreateLedger(ctx context.Context, c *app.RequestContext) {
 	uid, ok := middleware.UserID(c)
 	if !ok {
@@ -127,6 +131,52 @@ func (h *LedgerHandlers) GetLedgerDetail(ctx context.Context, c *app.RequestCont
 		"members": memOut,
 		"records": recOut,
 	})
+}
+
+func (h *LedgerHandlers) UpdateLedger(ctx context.Context, c *app.RequestContext) {
+	uid, ok := middleware.UserID(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized", "missing user")
+		return
+	}
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "bad_request", "id required")
+		return
+	}
+
+	var req updateLedgerRequest
+	body, err := c.Body()
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "bad_request", "read body failed")
+		return
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(c, http.StatusBadRequest, "bad_request", "invalid json")
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		writeError(c, http.StatusBadRequest, "bad_request", "name required")
+		return
+	}
+
+	ledger, err := h.st.UpdateLedgerName(ctx, id, uid, name)
+	if err != nil {
+		switch err {
+		case store.ErrForbidden:
+			writeError(c, http.StatusForbidden, "forbidden", "no permission")
+			return
+		case store.ErrNotFound:
+			writeError(c, http.StatusNotFound, "not_found", "ledger not found")
+			return
+		default:
+			writeError(c, http.StatusInternalServerError, "internal", "db error", err)
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, map[string]any{"ledger": toLedgerDTO(ledger)})
 }
 
 func (h *LedgerHandlers) AddLedgerMember(ctx context.Context, c *app.RequestContext) {

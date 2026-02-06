@@ -1093,6 +1093,36 @@ ORDER BY created_at DESC
 	return sb, members, records, nil
 }
 
+func (s *Store) UpdateLedgerName(ctx context.Context, ledgerID string, userID int64, name string) (Scorebook, error) {
+	var sb Scorebook
+	err := s.pool.QueryRow(ctx, `
+UPDATE scorebooks s
+SET name = $3, updated_at = NOW()
+WHERE s.id = $1::uuid
+  AND s.book_type = 'ledger'
+  AND s.created_by_user_id = $2
+RETURNING id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code
+`, ledgerID, userID, name).Scan(
+		&sb.ID,
+		&sb.Name,
+		&sb.LocationText,
+		&sb.StartTime,
+		&sb.UpdatedAt,
+		&sb.Status,
+		&sb.BookType,
+		&sb.CreatedByUserID,
+		&sb.EndedAt,
+		&sb.InviteCode,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Scorebook{}, ErrForbidden
+		}
+		return Scorebook{}, err
+	}
+	return sb, nil
+}
+
 func (s *Store) AddLedgerMember(ctx context.Context, ledgerID string, userID int64, nickname, avatarURL string) (LedgerMember, error) {
 	if strings.TrimSpace(nickname) == "" {
 		return LedgerMember{}, ErrInvalidArgument

@@ -148,6 +148,10 @@ export async function getLedgerDetail(id: string) {
   return request<{ ledger: any; members: any[]; records: any[] }>('GET', `/ledgers/${id}`)
 }
 
+export async function updateLedgerName(id: string, name: string) {
+  return request<{ ledger: any }>('PATCH', `/ledgers/${id}`, { name })
+}
+
 export async function addLedgerMember(id: string, payload: { nickname: string; avatarUrl?: string }) {
   return request<{ member: any }>('POST', `/ledgers/${id}/members`, payload)
 }
