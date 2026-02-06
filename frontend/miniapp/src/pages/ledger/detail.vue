@@ -50,7 +50,6 @@
     <view class="card">
       <view class="title-row">
         <view class="title">记录</view>
-        <button class="record-btn" v-if="!isReadonly && filterMember" @click="openRecordModal(filterMember)">记账</button>
       </view>
       <view class="filter-panel" v-if="filterOptions.length">
         <view class="filter-title">筛选人员</view>
@@ -64,6 +63,9 @@
             @click="setFilter(m.id)"
           >
             {{ displayNickname(m.nickname) }}
+          </view>
+          <view class="filter-chip" v-if="!isReadonly && filterMember" @click="openRecordModal(filterMember)">
+            给他记账
           </view>
         </scroll-view>
       </view>
