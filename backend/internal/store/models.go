@@ -37,7 +37,7 @@ type Member struct {
 
 type MemberWithScore struct {
 	Member
-	Score int64
+	Score float64
 }
 
 type ScoreRecord struct {
@@ -45,7 +45,7 @@ type ScoreRecord struct {
 	ScorebookID  string
 	FromMemberID string
 	ToMemberID   string
-	Delta        int64
+	Delta        float64
 	Note         string
 	CreatedAt    time.Time
 }
@@ -71,7 +71,7 @@ type LedgerMember struct {
 	Role      string
 	Nickname  string
 	AvatarURL string
-	Score     int64
+	Score     float64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

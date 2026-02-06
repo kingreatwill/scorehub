@@ -40,14 +40,17 @@ CREATE TABLE IF NOT EXISTS scorebook_members (
                CONSTRAINT scorebook_members_role_check CHECK (role IN ('owner', 'member')),
   nickname     TEXT NOT NULL,
   avatar_url   TEXT NOT NULL DEFAULT '',
-  score        BIGINT NOT NULL DEFAULT 0,
+  score        NUMERIC(12,2) NOT NULL DEFAULT 0,
   joined_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(scorebook_id, user_id)
 );
 
 ALTER TABLE scorebook_members
-  ADD COLUMN IF NOT EXISTS score BIGINT NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS score NUMERIC(12,2) NOT NULL DEFAULT 0;
+
+ALTER TABLE scorebook_members
+  ALTER COLUMN score TYPE NUMERIC(12,2) USING score::numeric(12,2);
 
 ALTER TABLE scorebook_members
   ALTER COLUMN user_id DROP NOT NULL;
@@ -60,7 +63,7 @@ CREATE TABLE IF NOT EXISTS score_records (
   scorebook_id   UUID NOT NULL REFERENCES scorebooks(id) ON DELETE CASCADE,
   from_member_id UUID NOT NULL REFERENCES scorebook_members(id),
   to_member_id   UUID NOT NULL REFERENCES scorebook_members(id),
-  delta          INT NOT NULL CHECK (delta <> 0),
+  delta          NUMERIC(12,2) NOT NULL CHECK (delta <> 0),
   note           TEXT NOT NULL DEFAULT '',
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -70,4 +73,8 @@ CREATE INDEX IF NOT EXISTS idx_records_to_member ON score_records(to_member_id);
 CREATE INDEX IF NOT EXISTS idx_records_from_member ON score_records(from_member_id);
 
 ALTER TABLE score_records DROP CONSTRAINT IF EXISTS score_records_delta_check;
+
+ALTER TABLE score_records
+  ALTER COLUMN delta TYPE NUMERIC(12,2) USING delta::numeric(12,2);
+
 ALTER TABLE score_records ADD CONSTRAINT score_records_delta_check CHECK (delta <> 0);

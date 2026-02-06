@@ -140,7 +140,7 @@
         </view>
       </view>
 
-      <input class="input" type="number" v-model="recordAmount" placeholder="金额" />
+      <input class="input" type="digit" v-model="recordAmount" placeholder="金额" />
       <input class="input" v-model="recordNote" placeholder="备注（可选）" />
 
       <view class="modal-actions">
@@ -383,11 +383,16 @@ function setRecordType(type: 'income' | 'expense') {
 
 async function submitRecord() {
   if (!ledger.value || recordSubmitting.value || !recordTarget.value) return
-  const amount = Number(recordAmount.value)
-  if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
-    uni.showToast({ title: '请输入整数金额', icon: 'none' })
+  const rawAmount = Number(recordAmount.value)
+  if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
+    uni.showToast({ title: '请输入有效金额', icon: 'none' })
     return
   }
+  if (!isTwoDecimals(rawAmount)) {
+    uni.showToast({ title: '最多两位小数', icon: 'none' })
+    return
+  }
+  const amount = roundToTwo(rawAmount)
   recordSubmitting.value = true
   try {
     const res = await addLedgerRecord(id.value, {
@@ -486,6 +491,15 @@ function formatAmount(v: any): string {
   const n = Number(v || 0)
   if (!Number.isFinite(n)) return '0'
   return n.toFixed(2).replace(/\.00$/, '')
+}
+
+function roundToTwo(v: number): number {
+  return Math.round(v * 100) / 100
+}
+
+function isTwoDecimals(v: number): boolean {
+  if (!Number.isFinite(v)) return false
+  return Math.abs(v * 100 - Math.round(v * 100)) < 1e-6
 }
 
 function formatRecordAmount(r: any): string {

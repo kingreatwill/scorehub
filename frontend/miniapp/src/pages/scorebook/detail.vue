@@ -140,7 +140,7 @@
 	      </view>
 
 	      <view class="delta-input-row">
-	        <input class="delta-input" type="number" v-model="scoreDelta" placeholder="输入分数" />
+	        <input class="delta-input" type="digit" v-model="scoreDelta" placeholder="输入分数" />
 	        <button size="mini" class="chip" @click="clearDelta">清零</button>
 	      </view>
 
@@ -303,7 +303,11 @@ function scoreTone(v: any): string {
 function formatScore(v: any): string {
   const n = Number(v || 0)
   if (!Number.isFinite(n)) return String(v ?? '')
-  return n > 0 ? `+${n}` : String(n)
+  const abs = Math.abs(n)
+  const text = abs.toFixed(2).replace(/\.00$/, '')
+  if (n > 0) return `+${text}`
+  if (n < 0) return `-${text}`
+  return '0'
 }
 
 function formatTime(v: any): string {
@@ -347,21 +351,26 @@ function deltaTone(v: any): string {
   return 'zero'
 }
 
-function parseIntSafe(v: any): number {
+function parseAmountSafe(v: any): number {
   const n = Number(v)
   if (!Number.isFinite(n)) return 0
-  return Math.trunc(n)
+  return Math.round(n * 100) / 100
 }
 
-const deltaValue = computed(() => parseIntSafe(scoreDelta.value))
+function isTwoDecimals(v: number): boolean {
+  if (!Number.isFinite(v)) return false
+  return Math.abs(v * 100 - Math.round(v * 100)) < 1e-6
+}
+
+const deltaValue = computed(() => parseAmountSafe(scoreDelta.value))
 const myMember = computed(() => members.value.find((m) => m.id === me.value?.memberId) || members.value.find((m) => m.isMe))
 const myScore = computed(() => Number(myMember.value?.score || 0))
 const targetAfter = computed(() => Number(scoreTarget.value?.score || 0) + deltaValue.value)
 const myAfter = computed(() => myScore.value - deltaValue.value)
 
 function addDelta(v: number) {
-  const next = parseIntSafe(scoreDelta.value) + v
-  scoreDelta.value = next === 0 ? '' : String(next)
+  const next = parseAmountSafe(scoreDelta.value) + v
+  scoreDelta.value = next === 0 ? '' : String(parseAmountSafe(next))
 }
 
 function clearDelta() {
@@ -873,9 +882,11 @@ function closeEndModal() {
 }
 
 async function submitScore() {
+  const rawDelta = Number(scoreDelta.value)
   const delta = deltaValue.value
   if (!scoreTarget.value?.id) return
-  if (!Number.isFinite(delta) || delta <= 0) return uni.showToast({ title: '请输入正分数', icon: 'none' })
+  if (!Number.isFinite(rawDelta) || rawDelta <= 0) return uni.showToast({ title: '请输入正分数', icon: 'none' })
+  if (!isTwoDecimals(rawDelta)) return uni.showToast({ title: '最多两位小数', icon: 'none' })
   if (scoreSubmitting.value) return
   try {
     scoreSubmitting.value = true

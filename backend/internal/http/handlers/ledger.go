@@ -216,8 +216,8 @@ func (h *LedgerHandlers) AddLedgerRecord(ctx context.Context, c *app.RequestCont
 	}
 
 	amount := req.Amount
-	if amount <= 0 || amount != float64(int64(amount)) {
-		writeError(c, http.StatusBadRequest, "bad_request", "invalid amount")
+	if !validTwoDecimals(amount) {
+		writeError(c, http.StatusBadRequest, "bad_request", "amount must have at most 2 decimals")
 		return
 	}
 	t := strings.ToLower(strings.TrimSpace(req.Type))
@@ -226,7 +226,7 @@ func (h *LedgerHandlers) AddLedgerRecord(ctx context.Context, c *app.RequestCont
 		return
 	}
 
-	r, err := h.st.AddLedgerRecord(ctx, id, uid, strings.TrimSpace(req.MemberID), t, int64(amount), strings.TrimSpace(req.Note))
+	r, err := h.st.AddLedgerRecord(ctx, id, uid, strings.TrimSpace(req.MemberID), t, amount, strings.TrimSpace(req.Note))
 	if err != nil {
 		switch err {
 		case store.ErrForbidden:

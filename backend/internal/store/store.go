@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 	"time"
@@ -258,7 +259,7 @@ SELECT
   m.avatar_url,
   m.joined_at,
   m.updated_at,
-  m.score
+  m.score::float8
 FROM scorebook_members m
 WHERE m.scorebook_id = $1::uuid
 ORDER BY m.joined_at ASC
@@ -528,8 +529,10 @@ RETURNING id::text, scorebook_id::text, user_id, role::text, nickname, avatar_ur
 	return m, nil
 }
 
-func (s *Store) CreateRecord(ctx context.Context, scorebookID string, userID int64, toMemberID string, delta int64, note string) (ScoreRecord, error) {
-	if delta <= 0 {
+func (s *Store) CreateRecord(ctx context.Context, scorebookID string, userID int64, toMemberID string, delta float64, note string) (ScoreRecord, error) {
+	var ok bool
+	delta, ok = normalizeAmount(delta)
+	if !ok {
 		return ScoreRecord{}, ErrInvalidDelta
 	}
 
@@ -584,7 +587,7 @@ WHERE scorebook_id = $1::uuid AND id = $2::uuid
 	err = tx.QueryRow(ctx, `
 INSERT INTO score_records (scorebook_id, from_member_id, to_member_id, delta, note)
 VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5)
-RETURNING id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta, note, created_at
+RETURNING id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta::float8, note, created_at
 `, scorebookID, fromMemberID, toMemberID, delta, note).Scan(
 		&r.ID,
 		&r.ScorebookID,
@@ -632,7 +635,7 @@ SELECT
   m.avatar_url,
   m.joined_at,
   m.updated_at,
-  m.score
+  m.score::float8
 FROM scorebook_members m
 WHERE m.scorebook_id = $1::uuid
   AND m.score > 0
@@ -681,7 +684,7 @@ SELECT EXISTS (SELECT 1 FROM scorebook_members WHERE scorebook_id = $1::uuid AND
 	}
 
 	rows, err := s.pool.Query(ctx, `
-SELECT id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta, note, created_at
+SELECT id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta::float8, note, created_at
 FROM score_records
 WHERE scorebook_id = $1::uuid
 ORDER BY created_at DESC
@@ -905,7 +908,7 @@ RETURNING id::text, name, location_text, start_time, updated_at, status::text, b
 	err = tx.QueryRow(ctx, `
 INSERT INTO scorebook_members (scorebook_id, user_id, role, nickname, avatar_url, updated_at)
 VALUES ($1::uuid, NULL, 'owner', $2, $3, NOW())
-RETURNING id::text, scorebook_id::text, role, nickname, avatar_url, score, joined_at, updated_at
+RETURNING id::text, scorebook_id::text, role, nickname, avatar_url, score::float8, joined_at, updated_at
 `, sb.ID, nickname, avatarURL).Scan(
 		&member.ID,
 		&member.LedgerID,
@@ -992,7 +995,7 @@ WHERE id = $1::uuid AND book_type = 'ledger'
 	}
 
 	memRows, err := s.pool.Query(ctx, `
-SELECT id::text, scorebook_id::text, role::text, nickname, avatar_url, score, joined_at, updated_at
+SELECT id::text, scorebook_id::text, role::text, nickname, avatar_url, score::float8, joined_at, updated_at
 FROM scorebook_members
 WHERE scorebook_id = $1::uuid
 ORDER BY joined_at ASC
@@ -1032,7 +1035,7 @@ ORDER BY joined_at ASC
 	}
 
 	recRows, err := s.pool.Query(ctx, `
-SELECT id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta, note, created_at
+SELECT id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta::float8, note, created_at
 FROM score_records
 WHERE scorebook_id = $1::uuid
 ORDER BY created_at DESC
@@ -1045,7 +1048,7 @@ ORDER BY created_at DESC
 	var records []LedgerRecord
 	for recRows.Next() {
 		var r LedgerRecord
-		var delta int64
+		var delta float64
 		if err := recRows.Scan(
 			&r.ID,
 			&r.LedgerID,
@@ -1126,7 +1129,7 @@ FOR UPDATE
 	err = tx.QueryRow(ctx, `
 INSERT INTO scorebook_members (scorebook_id, user_id, role, nickname, avatar_url, updated_at)
 VALUES ($1::uuid, NULL, 'member', $2, $3, NOW())
-RETURNING id::text, scorebook_id::text, role, nickname, avatar_url, score, joined_at, updated_at
+RETURNING id::text, scorebook_id::text, role, nickname, avatar_url, score::float8, joined_at, updated_at
 `, ledgerID, strings.TrimSpace(nickname), strings.TrimSpace(avatarURL)).Scan(
 		&member.ID,
 		&member.LedgerID,
@@ -1186,7 +1189,7 @@ FOR UPDATE
 UPDATE scorebook_members
 SET nickname = $3, avatar_url = $4, updated_at = NOW()
 WHERE scorebook_id = $1::uuid AND id = $2::uuid
-RETURNING id::text, scorebook_id::text, role::text, nickname, avatar_url, score, joined_at, updated_at
+RETURNING id::text, scorebook_id::text, role::text, nickname, avatar_url, score::float8, joined_at, updated_at
 `, ledgerID, memberID, strings.TrimSpace(nickname), strings.TrimSpace(avatarURL)).Scan(
 		&member.ID,
 		&member.LedgerID,
@@ -1212,8 +1215,10 @@ RETURNING id::text, scorebook_id::text, role::text, nickname, avatar_url, score,
 	return member, nil
 }
 
-func (s *Store) AddLedgerRecord(ctx context.Context, ledgerID string, userID int64, memberID string, recordType string, amount int64, note string) (LedgerRecord, error) {
-	if amount <= 0 {
+func (s *Store) AddLedgerRecord(ctx context.Context, ledgerID string, userID int64, memberID string, recordType string, amount float64, note string) (LedgerRecord, error) {
+	var ok bool
+	amount, ok = normalizeAmount(amount)
+	if !ok {
 		return LedgerRecord{}, ErrInvalidArgument
 	}
 	recordType = strings.ToLower(strings.TrimSpace(recordType))
@@ -1307,7 +1312,7 @@ WHERE scorebook_id = $1::uuid AND id = $2::uuid
 	err = tx.QueryRow(ctx, `
 INSERT INTO score_records (scorebook_id, from_member_id, to_member_id, delta, note)
 VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5)
-RETURNING id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta, note, created_at
+RETURNING id::text, scorebook_id::text, from_member_id::text, to_member_id::text, delta::float8, note, created_at
 `, ledgerID, fromMemberID, toMemberID, amount, strings.TrimSpace(note)).Scan(
 		&record.ID,
 		&record.LedgerID,
@@ -1321,7 +1326,7 @@ RETURNING id::text, scorebook_id::text, from_member_id::text, to_member_id::text
 		return LedgerRecord{}, err
 	}
 	record.Type = recordType
-	record.Amount = float64(amount)
+	record.Amount = amount
 	record.MemberID = memberID
 
 	_, _ = tx.Exec(ctx, `
@@ -1373,6 +1378,17 @@ RETURNING id::text, name, location_text, start_time, updated_at, status::text, b
 		return Scorebook{}, err
 	}
 	return sb, nil
+}
+
+func normalizeAmount(v float64) (float64, bool) {
+	if v <= 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0, false
+	}
+	rounded := math.Round(v*100) / 100
+	if math.Abs(v-rounded) > 1e-6 {
+		return 0, false
+	}
+	return rounded, true
 }
 
 func (s *Store) fmtErr(err error) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -398,9 +399,9 @@ func (h *ScorebookHandlers) UpdateMyProfile(ctx context.Context, c *app.RequestC
 }
 
 type createRecordRequest struct {
-	ToMemberID string `json:"toMemberId"`
-	Delta      int64  `json:"delta"`
-	Note       string `json:"note"`
+	ToMemberID string  `json:"toMemberId"`
+	Delta      float64 `json:"delta"`
+	Note       string  `json:"note"`
 }
 
 func (h *ScorebookHandlers) CreateRecord(ctx context.Context, c *app.RequestContext) {
@@ -429,6 +430,10 @@ func (h *ScorebookHandlers) CreateRecord(ctx context.Context, c *app.RequestCont
 	req.Note = strings.TrimSpace(req.Note)
 	if req.ToMemberID == "" || req.Delta <= 0 {
 		writeError(c, http.StatusBadRequest, "bad_request", "toMemberId and positive delta required")
+		return
+	}
+	if !validTwoDecimals(req.Delta) {
+		writeError(c, http.StatusBadRequest, "bad_request", "delta must have at most 2 decimals")
 		return
 	}
 
@@ -759,7 +764,14 @@ func normalizeBookType(v string) string {
 	}
 }
 
-func toMemberDTO(m store.Member, score int64, myMemberID string) map[string]any {
+func validTwoDecimals(v float64) bool {
+	if v <= 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+		return false
+	}
+	return math.Abs(v*100-math.Round(v*100)) < 1e-6
+}
+
+func toMemberDTO(m store.Member, score float64, myMemberID string) map[string]any {
 	return map[string]any{
 		"id":        m.ID,
 		"nickname":  m.Nickname,
