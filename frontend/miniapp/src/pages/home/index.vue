@@ -31,23 +31,6 @@
       <button class="btn" @click="onCreate">开始</button>
     </view>
 
-    <view class="card">
-      <view class="invite-row">
-        <input class="input invite-input" v-model="inviteCode" placeholder="邀请码（例如 8 位码）" />
-        <button
-          size="mini"
-          class="scan-btn"
-          v-if="isMpWeixin"
-          @click="onScanInviteToInput"
-          hover-class="none"
-        >
-          <image class="scan-icon" :src="scanIcon" mode="aspectFit" />
-        </button>
-      </view>
-      <button class="btn" v-if="token" @click="onJoinByCode">邀请码加入</button>
-      <button class="btn" v-else @click="goLogin">邀请码加入</button>
-    </view>
-
     <view class="card" v-if="token">
       <view class="title-row">
         <view class="title">记录中的得分簿</view>
@@ -79,7 +62,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { createScorebook, joinByInviteCode, listMyScorebooks, reverseGeocode } from '../../utils/api'
+import { createScorebook, listMyScorebooks, reverseGeocode } from '../../utils/api'
 
 const token = ref('')
 const isMpWeixin = ref(false)
@@ -92,15 +75,12 @@ isMpWeixin.value = true
 // #endif
 
 const newName = ref('')
-const inviteCode = ref('')
 const myScorebooks = ref<any[]>([])
 const loadingScorebooks = ref(false)
 const activeScorebooks = computed(() =>
   (myScorebooks.value || []).filter((it) => isScorebook(it) && String(it?.status || '') !== 'ended'),
 )
 
-const scanIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8"/></svg>'
 const moreIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2" fill="%23111"/><circle cx="12" cy="12" r="2" fill="%23111"/><circle cx="18" cy="12" r="2" fill="%23111"/></svg>'
 
@@ -224,30 +204,6 @@ async function chooseLocationFromMap() {
   // #endif
 }
 
-async function onScanInviteToInput() {
-  // #ifndef MP-WEIXIN
-  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
-  return
-  // #endif
-
-  // #ifdef MP-WEIXIN
-  try {
-    const res = await new Promise<any>((resolve, reject) => {
-      uni.scanCode({ success: resolve, fail: reject })
-    })
-    const raw = String(res?.path || res?.result || '').trim()
-    const code = normalizeCode(raw)
-    if (!code) {
-      uni.showToast({ title: '未识别到邀请码', icon: 'none' })
-      return
-    }
-    inviteCode.value = code
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '扫码失败', icon: 'none' })
-  }
-  // #endif
-}
-
 function normalizeCode(v: string): string {
   const raw = decodeURIComponent(String(v || '')).trim()
   if (!raw) return ''
@@ -270,22 +226,6 @@ async function onCreate() {
     uni.navigateTo({ url: `/pages/scorebook/detail?id=${res.scorebook.id}` })
   } catch (e: any) {
     uni.showToast({ title: e?.message || '创建失败', icon: 'none' })
-  }
-}
-
-async function onJoinByCode() {
-  const code = inviteCode.value.trim()
-  if (!code) return uni.showToast({ title: '请输入邀请码', icon: 'none' })
-  if (!token.value) {
-    uni.showToast({ title: '请先登录', icon: 'none' })
-    goLogin()
-    return
-  }
-  try {
-    const res = await joinByInviteCode(code, {})
-    uni.navigateTo({ url: `/pages/scorebook/detail?id=${res.scorebookId}` })
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '加入失败', icon: 'none' })
   }
 }
 
@@ -469,35 +409,6 @@ function isScorebook(item: any): boolean {
   background: #111;
   color: #fff;
 }
-.invite-row {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-}
-.invite-input {
-  flex: 1;
-  min-width: 0;
-}
-.scan-btn {
-  width: 72rpx;
-  height: 72rpx;
-  padding: 0;
-  border-radius: 18rpx;
-  background: #f6f7fb;
-  color: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-}
-.scan-btn::after {
-  border: none;
-}
-.scan-icon {
-  width: 36rpx;
-  height: 36rpx;
-}
-
 .list {
   display: flex;
   flex-direction: column;

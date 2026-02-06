@@ -12,9 +12,9 @@
         <view class="pill" v-if="ledger.createdAt">{{ formatTime(ledger.createdAt) }}</view>
         <view class="pill">成员 {{ members.length }}</view>
         <view class="pill">记录 {{ records.length }}</view>
-        <view class="pill code" v-if="ledger.inviteCode" @click="copyInvite">
+        <view class="pill code" v-if="canShowInvite" @click="copyInvite">
           邀请码: <text class="mono">{{ ledger.inviteCode }}</text>
-          <view class="qr-icon" @click.stop="openInviteCodeQR">
+          <view class="qr-icon" v-if="canShowInvite" @click.stop="openInviteCodeQR">
             <view class="qr-finder tl"><view class="qr-finder-inner" /></view>
             <view class="qr-finder tr"><view class="qr-finder-inner" /></view>
             <view class="qr-finder bl"><view class="qr-finder-inner" /></view>
@@ -27,14 +27,26 @@
             <view class="qr-dot d7" />
           </view>
         </view>
+        <view class="pill warn" v-if="ledger.shareDisabled">已禁止分享</view>
         <view class="pill readonly" v-if="shareMode">分享只读</view>
       </view>
       <view class="actions">
+        <button
+          size="mini"
+          class="action-btn"
+          v-if="isOwner && ledger.status !== 'ended' && !ledger.shareDisabled"
+          @click="openQRCode"
+        >
+          小程序码
+        </button>
         <!-- #ifdef MP-WEIXIN -->
-        <button size="mini" class="action-btn" open-type="share">分享</button>
+        <button size="mini" class="action-btn" v-if="isOwner && !ledger.shareDisabled" open-type="share">分享</button>
         <!-- #endif -->
-        <button size="mini" class="action-btn" v-if="!isReadonly" @click="renameLedger">改名</button>
-        <button size="mini" class="action-btn danger" v-if="!isReadonly" @click="endCurrent">结束</button>
+        <button size="mini" class="action-btn" v-if="isOwner && ledger.status !== 'ended'" @click="renameLedger">改名</button>
+        <button size="mini" class="action-btn" v-if="isOwner && ledger.status !== 'ended'" @click="toggleShare">
+          {{ ledger.shareDisabled ? '允许分享' : '禁止分享' }}
+        </button>
+        <button size="mini" class="action-btn danger" v-if="isOwner && ledger.status !== 'ended'" @click="endCurrent">结束</button>
       </view>
     </view>
 
@@ -47,13 +59,19 @@
           </button>
         </view>
       </view>
-      <view class="tip" v-if="!isReadonly">点成员记账，右上角可编辑</view>
+      <view class="tip" v-if="isOwner">点成员记账，右上角可编辑</view>
+      <view class="tip" v-else-if="boundMember">点自己可修改头像/昵称</view>
+      <view class="tip" v-else>仅可查看已加入的账本</view>
       <view class="hint" v-if="members.length === 0">暂无人员</view>
       <view class="member-grid" v-else>
         <view class="member" :class="{ disabled: isReadonly }" v-for="m in members" :key="m.id" @click="onClickMember(m)">
-          <button class="member-edit" v-if="!isReadonly" @click.stop="openEditMember(m)">
+          <button class="member-edit" v-if="canEditMember(m)" @click.stop="openEditMember(m)">
             <image class="icon-img small" :src="editIcon" mode="aspectFit" />
           </button>
+          <view class="member-tags" v-if="isOwnerMember(m) || isMeMember(m)">
+            <view class="tag owner-tag" v-if="isOwnerMember(m)">账主</view>
+            <view class="tag me-tag" v-if="isMeMember(m)">我</view>
+          </view>
           <view class="avatar-wrap">
             <image class="avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
           </view>
@@ -94,8 +112,8 @@
               <text class="record-name">{{ nicknameOf(recordMemberId(r)) }}</text>
             </view>
             <view class="record-meta">
-              <text class="record-type" :class="r.type === 'income' ? 'pos' : 'neg'">{{ r.type === 'income' ? '收入' : '支出' }}</text>
-              <text class="record-amount" :class="r.type === 'income' ? 'pos' : 'neg'">{{ formatRecordAmount(r) }}</text>
+              <text class="record-type" :class="recordTypeClass(r)">{{ recordTypeLabel(r) }}</text>
+              <text class="record-amount" v-if="r.type !== 'remark'" :class="recordTypeClass(r)">{{ formatRecordAmount(r) }}</text>
               <text class="record-time">{{ formatTime(r.createdAt) }}</text>
             </view>
           </view>
@@ -126,6 +144,7 @@
           <input class="input" v-model="memberAvatar" placeholder="头像 URL（可选）" />
         </template>
         <input class="input" v-model="memberNickname" placeholder="昵称" />
+        <input class="input" v-if="isOwner" v-model="memberRemark" placeholder="备注（可选）" />
         <button class="btn" :disabled="memberSubmitting" @click="submitMember">
           {{ memberSubmitting ? '提交中…' : '保存' }}
         </button>
@@ -165,6 +184,39 @@
         <button class="confirm-btn" :disabled="recordSubmitting" @click="submitRecord">
           {{ recordSubmitting ? '提交中…' : '确认记账' }}
         </button>
+      </view>
+    </view>
+
+    <view class="modal-mask" v-if="bindModalOpen" @click="closeBindModal" />
+    <view class="modal" v-if="bindModalOpen">
+      <view class="modal-head">
+        <view class="modal-title">绑定人员</view>
+        <view class="modal-close" @click="closeBindModal">×</view>
+      </view>
+      <view class="hint">请选择一个已有人员进行绑定（仅限未绑定的成员）。</view>
+      <view class="bind-list" v-if="bindCandidates.length">
+        <view class="bind-item" v-for="m in bindCandidates" :key="m.id">
+          <image class="bind-avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
+          <view class="bind-info">
+            <view class="bind-name">{{ displayNickname(m.nickname) }}</view>
+            <view class="bind-sub">未绑定</view>
+          </view>
+          <button size="mini" class="bind-btn" :disabled="binding" @click="submitBind(m)">绑定</button>
+        </view>
+      </view>
+      <view class="hint" v-else>暂无可绑定人员</view>
+      <view class="modal-actions">
+        <button size="mini" v-if="!currentUserId" @click="goLoginFromBind">去登录</button>
+      </view>
+    </view>
+
+    <view class="modal-mask" v-if="qrModalOpen" @click="closeQRCode" />
+    <view class="modal" v-if="qrModalOpen">
+      <view class="modal-title">小程序码</view>
+      <view v-if="qrLoading" class="hint">生成中…</view>
+      <image v-else class="qr" :src="qrSrc" mode="widthFix" @click="previewQRCode" />
+      <view class="modal-actions">
+        <button size="mini" @click="closeQRCode">关闭</button>
       </view>
     </view>
 
@@ -209,8 +261,11 @@ import { onLoad, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import {
   addLedgerMember,
   addLedgerRecord,
+  bindLedgerMember,
   endLedger,
+  getLedgerInviteQRCode,
   getLedgerDetail,
+  updateLedger,
   updateLedgerMember,
   updateLedgerName,
 } from '../../utils/api'
@@ -231,6 +286,7 @@ isMpWeixin.value = true
 const memberModalOpen = ref(false)
 const memberNickname = ref('')
 const memberAvatar = ref('')
+const memberRemark = ref('')
 const memberSubmitting = ref(false)
 const memberModalMode = ref<'add' | 'edit'>('add')
 const editingMember = ref<any | null>(null)
@@ -242,9 +298,16 @@ const recordAmount = ref('')
 const recordNote = ref('')
 const recordSubmitting = ref(false)
 const filterMemberId = ref('')
+const qrModalOpen = ref(false)
+const qrLoading = ref(false)
+const qrSrc = ref('')
 const inviteQRModalOpen = ref(false)
 const inviteQRLoading = ref(false)
 const inviteQRSize = 232
+const currentUserId = ref('')
+const bindModalOpen = ref(false)
+const binding = ref(false)
+const bindRequired = ref(false)
 
 const fallbackAvatar =
   'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
@@ -253,7 +316,22 @@ const addIcon =
 const editIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
 
-const isReadonly = computed(() => shareMode.value || ledger.value?.status === 'ended')
+const isOwner = computed(() => {
+  if (!currentUserId.value) return false
+  const createdBy = ledger.value?.createdByUserId
+  if (createdBy !== undefined && createdBy !== null && String(createdBy) !== '') {
+    return String(createdBy) === currentUserId.value
+  }
+  const owner = members.value.find((m) => String(m?.role || '') === 'owner')
+  return String(owner?.userId || '') === currentUserId.value
+})
+const isReadonly = computed(() => shareMode.value || ledger.value?.status === 'ended' || !isOwner.value)
+const canShowInvite = computed(() => {
+  if (!ledger.value?.inviteCode) return false
+  if (isOwner.value) return true
+  if (ledger.value?.shareDisabled) return false
+  return !!boundMember.value
+})
 const meMemberId = computed(() => {
   const me = members.value.find((m) => String(m?.role || '') === 'owner')
   return me?.id || ''
@@ -310,10 +388,13 @@ onLoad((q) => {
   const query = (q || {}) as any
   id.value = String(query.id || '')
   shareMode.value = String(query.share || query.readonly || '') === '1'
+  bindRequired.value = shareMode.value || String(query.bind || '') === '1'
+  syncCurrentUser()
   loadLedger()
 })
 
 onShow(() => {
+  syncCurrentUser()
   loadLedger()
 })
 
@@ -339,6 +420,7 @@ async function loadLedger() {
     ledger.value = res.ledger
     members.value = res.members || []
     records.value = res.records || []
+    maybeOpenBind()
   } catch (e: any) {
     ledger.value = null
     members.value = []
@@ -356,6 +438,7 @@ function openMemberModal() {
   editingMember.value = null
   memberNickname.value = ''
   memberAvatar.value = ''
+  memberRemark.value = ''
   memberModalOpen.value = true
 }
 
@@ -372,21 +455,38 @@ async function submitMember() {
     uni.showToast({ title: '请输入昵称', icon: 'none' })
     return
   }
+  const prevRemark =
+    memberModalMode.value === 'edit' && editingMember.value
+      ? String(editingMember.value?.remark || '').trim()
+      : ''
+  let shouldReload = false
   memberSubmitting.value = true
   try {
+    const remark = isOwner.value ? memberRemark.value.trim() : ''
     if (memberModalMode.value === 'edit' && editingMember.value) {
       const res = await updateLedgerMember(id.value, editingMember.value.id, {
         nickname,
         avatarUrl: memberAvatar.value,
+        ...(isOwner.value ? { remark } : {}),
       })
       if (res?.member) {
         members.value = members.value.map((m) => (m.id === res.member.id ? res.member : m))
+        if (isOwner.value && prevRemark !== remark) {
+          shouldReload = true
+        }
       }
     } else {
-      const res = await addLedgerMember(id.value, { nickname, avatarUrl: memberAvatar.value })
+      const res = await addLedgerMember(id.value, {
+        nickname,
+        avatarUrl: memberAvatar.value,
+        ...(isOwner.value ? { remark } : {}),
+      })
       if (res?.member) members.value = [...members.value, res.member]
     }
     memberModalOpen.value = false
+    if (shouldReload) {
+      await loadLedger()
+    }
   } catch (e: any) {
     uni.showToast({ title: e?.message || (memberModalMode.value === 'edit' ? '更新失败' : '新增失败'), icon: 'none' })
   } finally {
@@ -395,17 +495,169 @@ async function submitMember() {
 }
 
 function onClickMember(member: any) {
-  if (isReadonly.value) return
-  if (String(member?.role || '') === 'owner') {
+  if (isMeMember(member) && canEditMember(member)) {
     openEditMember(member)
     return
   }
+  if (isReadonly.value) return
   openRecordModal(member)
 }
 
 function closeRecordModal() {
   if (recordSubmitting.value) return
   recordModalOpen.value = false
+}
+
+function syncCurrentUser() {
+  const u = (uni.getStorageSync('user') as any) || null
+  currentUserId.value = u?.id ? String(u.id) : ''
+}
+
+function isMeMember(member: any): boolean {
+  if (!currentUserId.value) return false
+  return String(member?.userId || '') === currentUserId.value
+}
+
+function isOwnerMember(member: any): boolean {
+  return String(member?.role || '') === 'owner'
+}
+
+function canEditMember(member: any): boolean {
+  if (shareMode.value) return false
+  return isOwner.value || isMeMember(member)
+}
+
+const boundMember = computed(() => {
+  if (!currentUserId.value) return null
+  return members.value.find((m) => String(m?.userId || '') === currentUserId.value) || null
+})
+
+const bindCandidates = computed(() => members.value.filter((m) => !m?.userId))
+
+function maybeOpenBind() {
+  if (!bindRequired.value) return
+  if (!ledger.value) return
+  if (boundMember.value) {
+    bindModalOpen.value = false
+    return
+  }
+  if (bindCandidates.value.length === 0) {
+    bindModalOpen.value = false
+    return
+  }
+  bindModalOpen.value = true
+}
+
+function closeBindModal() {
+  if (binding.value) return
+  bindModalOpen.value = false
+}
+
+async function submitBind(member: any) {
+  if (!member || binding.value) return
+  const token = (uni.getStorageSync('token') as string) || ''
+  if (!token) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    return
+  }
+  binding.value = true
+  try {
+    const u = (uni.getStorageSync('user') as any) || null
+    const payload = {
+      memberId: String(member.id),
+      nickname: String(u?.nickname || '').trim(),
+      avatarUrl: String(u?.avatarUrl || '').trim(),
+    }
+    const res = await bindLedgerMember(id.value, payload)
+    if (res?.member) {
+      members.value = members.value.map((m) => (m.id === res.member.id ? res.member : m))
+      bindModalOpen.value = false
+    }
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '绑定失败', icon: 'none' })
+  } finally {
+    binding.value = false
+  }
+}
+
+function goLoginFromBind() {
+  uni.setStorageSync('scorehub.afterLogin', { to: 'ledger', url: `/pages/ledger/detail?id=${encodeURIComponent(id.value)}&bind=1`, ts: Date.now() })
+  uni.switchTab({ url: '/pages/my/index' })
+}
+
+function ledgerQRCodeCacheKey(ledgerID: string): string {
+  return `scorehub.ledgerInviteQRCode.${encodeURIComponent(String(ledgerID || '').trim())}`
+}
+
+function getCachedLedgerQRCode(ledgerID: string): string {
+  const key = ledgerQRCodeCacheKey(ledgerID)
+  if (!key) return ''
+  try {
+    const v: any = uni.getStorageSync(key)
+    if (!v) return ''
+    if (typeof v === 'string') return v
+    if (typeof v === 'object' && v) {
+      const src = String(v.src || '').trim()
+      return src
+    }
+    return ''
+  } catch (e) {
+    return ''
+  }
+}
+
+function setCachedLedgerQRCode(ledgerID: string, src: string) {
+  const key = ledgerQRCodeCacheKey(ledgerID)
+  if (!key) return
+  const next = String(src || '').trim()
+  if (!next) return
+  try {
+    uni.setStorageSync(key, { src: next, ts: Date.now() })
+  } catch (e) {
+    // ignore storage errors
+  }
+}
+
+async function openQRCode() {
+  if (ledger.value?.status === 'ended') {
+    uni.showToast({ title: '已结束，不能加入', icon: 'none' })
+    return
+  }
+  if (!isOwner.value) {
+    uni.showToast({ title: '仅账主可分享', icon: 'none' })
+    return
+  }
+  const token = (uni.getStorageSync('token') as string) || ''
+  if (!token) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    return
+  }
+  qrModalOpen.value = true
+  qrLoading.value = true
+  try {
+    const cached = getCachedLedgerQRCode(id.value)
+    if (cached) {
+      qrSrc.value = cached
+      return
+    }
+    const fresh = await getLedgerInviteQRCode(id.value)
+    qrSrc.value = fresh
+    setCachedLedgerQRCode(id.value, fresh)
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '生成二维码失败', icon: 'none' })
+    qrModalOpen.value = false
+  } finally {
+    qrLoading.value = false
+  }
+}
+
+function closeQRCode() {
+  qrModalOpen.value = false
+}
+
+function previewQRCode() {
+  if (!qrSrc.value) return
+  uni.previewImage({ urls: [qrSrc.value] })
 }
 
 function openRecordModal(member: any) {
@@ -436,11 +688,13 @@ async function submitRecord() {
   const amount = roundToTwo(rawAmount)
   recordSubmitting.value = true
   try {
+    const targetRemark = String(recordTarget.value?.remark || '').trim()
+    const note = recordNote.value.trim() || targetRemark
     const res = await addLedgerRecord(id.value, {
       memberId: recordTarget.value.id,
       type: recordType.value,
       amount,
-      note: recordNote.value.trim(),
+      note,
     })
     if (res?.record) {
       records.value = [res.record, ...records.value]
@@ -488,6 +742,23 @@ async function renameLedger() {
   } as any)
 }
 
+async function toggleShare() {
+  if (!ledger.value || !isOwner.value) return
+  const next = !ledger.value.shareDisabled
+  const title = next ? '禁止分享' : '允许分享'
+  const content = next ? '禁止分享后，其他人不能再加入。' : '允许分享后，其他人可通过邀请码加入。'
+  const res = await new Promise<UniApp.ShowModalRes>((resolve) => {
+    uni.showModal({ title, content, success: resolve })
+  })
+  if (!res.confirm) return
+  try {
+    const updated = await updateLedger(id.value, { shareDisabled: next })
+    if (updated?.ledger) ledger.value = updated.ledger
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '更新失败', icon: 'none' })
+  }
+}
+
 function goList() {
   uni.navigateTo({ url: '/pages/ledger/list' })
 }
@@ -508,6 +779,7 @@ function openEditMember(member: any) {
   editingMember.value = member
   memberNickname.value = String(member?.nickname || '')
   memberAvatar.value = String(member?.avatarUrl || '')
+  memberRemark.value = String(member?.remark || '')
   memberModalOpen.value = true
 }
 
@@ -563,7 +835,18 @@ function isTwoDecimals(v: number): boolean {
   return Math.abs(v * 100 - Math.round(v * 100)) < 1e-6
 }
 
+function recordTypeLabel(r: any): string {
+  if (r?.type === 'remark') return '备注'
+  return r?.type === 'income' ? '收入' : '支出'
+}
+
+function recordTypeClass(r: any): string {
+  if (r?.type === 'remark') return 'remark'
+  return r?.type === 'income' ? 'pos' : 'neg'
+}
+
 function formatRecordAmount(r: any): string {
+  if (r?.type === 'remark') return ''
   const sign = r.type === 'income' ? '+' : '-'
   return `${sign}${formatAmount(r.amount)}`
 }
@@ -589,13 +872,13 @@ function formatTime(v: any): string {
 }
 
 function copyInvite() {
-  if (!ledger.value?.inviteCode) return
+  if (!canShowInvite.value) return
   uni.setClipboardData({ data: ledger.value.inviteCode })
 }
 
 async function openInviteCodeQR() {
   const code = String(ledger.value?.inviteCode || '').trim()
-  if (!code) return
+  if (!code || !canShowInvite.value) return
 
   // #ifndef MP-WEIXIN
   uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
@@ -605,6 +888,7 @@ async function openInviteCodeQR() {
   // #ifdef MP-WEIXIN
   inviteQRModalOpen.value = true
   inviteQRLoading.value = true
+  qrModalOpen.value = false
 
   try {
     await nextTick()
@@ -810,6 +1094,11 @@ async function onChooseAvatar(e: any) {
   color: rgba(255, 255, 255, 0.92);
   border: 1rpx solid rgba(255, 255, 255, 0.12);
 }
+.pill.warn {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
 .pill.code:active {
   opacity: 0.85;
 }
@@ -899,6 +1188,11 @@ async function onChooseAvatar(e: any) {
   background: #fff;
   border-radius: 16rpx;
   box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.08);
+}
+.qr {
+  width: 100%;
+  border-radius: 12rpx;
+  background: #f6f7fb;
 }
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
@@ -1022,6 +1316,74 @@ async function onChooseAvatar(e: any) {
   overflow: hidden;
   background: #fff;
 }
+.member-tags {
+  position: absolute;
+  left: 8rpx;
+  top: 8rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  z-index: 2;
+}
+.tag {
+  padding: 0 8rpx;
+  height: 26rpx;
+  line-height: 26rpx;
+  border-radius: 8rpx;
+  font-size: 18rpx;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+}
+.tag.owner-tag {
+  background: #111;
+}
+.tag.me-tag {
+  background: #5b6bff;
+}
+.bind-list {
+  margin-top: 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+.bind-item {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 12rpx;
+  border-radius: 14rpx;
+  background: #f6f7fb;
+}
+.bind-avatar {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  background: #fff;
+  flex: none;
+}
+.bind-info {
+  flex: 1;
+  min-width: 0;
+}
+.bind-name {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.bind-sub {
+  font-size: 22rpx;
+  color: #666;
+  margin-top: 4rpx;
+}
+.bind-btn {
+  background: #111;
+  color: #fff;
+  border-radius: 999rpx;
+  padding: 0 16rpx;
+}
+.bind-btn::after {
+  border: none;
+}
 .member-edit {
   position: absolute;
   right: 6rpx;
@@ -1114,6 +1476,10 @@ async function onChooseAvatar(e: any) {
 .record-type.neg,
 .record-amount.neg {
   color: #e23d3d;
+  font-weight: 600;
+}
+.record-type.remark {
+  color: #9aa0a6;
   font-weight: 600;
 }
 .record-time {

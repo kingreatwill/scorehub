@@ -131,6 +131,34 @@ export async function getInviteQRCode(scorebookId: string) {
   return `data:image/png;base64,${base64}`
 }
 
+export async function getLedgerInviteQRCode(ledgerId: string) {
+  const token = getToken()
+  const res = await new Promise<UniApp.RequestSuccessCallbackResult>((resolve, reject) => {
+    uni.request({
+      url: `${API_BASE}/ledgers/${encodeURIComponent(ledgerId)}/invite_qrcode`,
+      method: 'GET',
+      header: token ? { Authorization: `Bearer ${token}` } : {},
+      responseType: 'arraybuffer',
+      success: resolve,
+      fail: reject,
+    })
+  })
+
+  if (res.statusCode !== 200) {
+    try {
+      const buf = new Uint8Array(res.data as ArrayBuffer)
+      const text = String.fromCharCode(...buf)
+      const body = JSON.parse(text) as any
+      throw body?.error || { message: '获取二维码失败' }
+    } catch (e: any) {
+      throw e?.message ? e : { message: '获取二维码失败' }
+    }
+  }
+
+  const base64 = uni.arrayBufferToBase64(res.data as ArrayBuffer)
+  return `data:image/png;base64,${base64}`
+}
+
 export async function reverseGeocode(lat: number, lng: number) {
   const q = `?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`
   return request<{ locationText: string; source?: string }>('GET', `/location/reverse_geocode${q}`)
@@ -152,14 +180,25 @@ export async function updateLedgerName(id: string, name: string) {
   return request<{ ledger: any }>('PATCH', `/ledgers/${id}`, { name })
 }
 
-export async function addLedgerMember(id: string, payload: { nickname: string; avatarUrl?: string }) {
+export async function updateLedger(id: string, payload: { name?: string; shareDisabled?: boolean }) {
+  return request<{ ledger: any }>('PATCH', `/ledgers/${id}`, payload)
+}
+
+export async function addLedgerMember(id: string, payload: { nickname: string; avatarUrl?: string; remark?: string }) {
   return request<{ member: any }>('POST', `/ledgers/${id}/members`, payload)
+}
+
+export async function bindLedgerMember(
+  id: string,
+  payload: { memberId: string; nickname?: string; avatarUrl?: string },
+) {
+  return request<{ member: any }>('POST', `/ledgers/${id}/bind`, payload)
 }
 
 export async function updateLedgerMember(
   id: string,
   memberId: string,
-  payload: { nickname: string; avatarUrl?: string },
+  payload: { nickname: string; avatarUrl?: string; remark?: string },
 ) {
   return request<{ member: any }>('PATCH', `/ledgers/${id}/members/${memberId}`, payload)
 }

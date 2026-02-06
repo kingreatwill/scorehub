@@ -3,22 +3,26 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
+	appauth "scorehub/internal/auth"
+	appconfig "scorehub/internal/config"
 	"scorehub/internal/http/middleware"
 	"scorehub/internal/store"
 )
 
 type LedgerHandlers struct {
-	st *store.Store
+	cfg appconfig.Config
+	st  *store.Store
 }
 
-func NewLedgerHandlers(st *store.Store) *LedgerHandlers {
-	return &LedgerHandlers{st: st}
+func NewLedgerHandlers(cfg appconfig.Config, st *store.Store) *LedgerHandlers {
+	return &LedgerHandlers{cfg: cfg, st: st}
 }
 
 type createLedgerRequest struct {
@@ -26,7 +30,14 @@ type createLedgerRequest struct {
 }
 
 type updateLedgerRequest struct {
-	Name string `json:"name"`
+	Name          *string `json:"name"`
+	ShareDisabled *bool   `json:"shareDisabled"`
+}
+
+type bindLedgerMemberRequest struct {
+	MemberID  string `json:"memberId"`
+	Nickname  string `json:"nickname"`
+	AvatarURL string `json:"avatarUrl"`
 }
 
 func (h *LedgerHandlers) CreateLedger(ctx context.Context, c *app.RequestContext) {
@@ -117,12 +128,41 @@ func (h *LedgerHandlers) GetLedgerDetail(ctx context.Context, c *app.RequestCont
 		return
 	}
 
+	uid, ok := optionalUserID(c, h.cfg)
+	isOwner := ok && ledger.CreatedByUserID == uid
+
+	remarkByMember := map[string]string{}
+	if isOwner {
+		for _, m := range members {
+			remark := strings.TrimSpace(m.Remark)
+			if remark != "" {
+				remarkByMember[m.ID] = remark
+			}
+		}
+	}
+
 	var memOut []any
 	for _, m := range members {
+		if !isOwner {
+			m.Remark = ""
+		}
 		memOut = append(memOut, toLedgerMemberDTO(m))
 	}
 	var recOut []any
 	for _, r := range records {
+		if !isOwner {
+			if r.Type == "remark" {
+				continue
+			}
+			r.Note = ""
+			recOut = append(recOut, toLedgerRecordDTO(r))
+			continue
+		}
+		if r.Note == "" {
+			if remark := remarkByMember[r.MemberID]; remark != "" {
+				r.Note = remark
+			}
+		}
 		recOut = append(recOut, toLedgerRecordDTO(r))
 	}
 
@@ -131,6 +171,29 @@ func (h *LedgerHandlers) GetLedgerDetail(ctx context.Context, c *app.RequestCont
 		"members": memOut,
 		"records": recOut,
 	})
+}
+
+func optionalUserID(c *app.RequestContext, cfg appconfig.Config) (int64, bool) {
+	if uid, ok := middleware.UserID(c); ok {
+		return uid, true
+	}
+	authHeader := strings.TrimSpace(string(c.GetHeader("Authorization")))
+	if authHeader == "" {
+		return 0, false
+	}
+	const prefix = "Bearer "
+	if !strings.HasPrefix(authHeader, prefix) {
+		return 0, false
+	}
+	token := strings.TrimSpace(authHeader[len(prefix):])
+	if token == "" {
+		return 0, false
+	}
+	uid, err := appauth.ParseToken([]byte(cfg.TokenSecret), token)
+	if err != nil {
+		return 0, false
+	}
+	return uid, true
 }
 
 func (h *LedgerHandlers) UpdateLedger(ctx context.Context, c *app.RequestContext) {
@@ -155,13 +218,20 @@ func (h *LedgerHandlers) UpdateLedger(ctx context.Context, c *app.RequestContext
 		writeError(c, http.StatusBadRequest, "bad_request", "invalid json")
 		return
 	}
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		writeError(c, http.StatusBadRequest, "bad_request", "name required")
+	if req.Name == nil && req.ShareDisabled == nil {
+		writeError(c, http.StatusBadRequest, "bad_request", "name or shareDisabled required")
 		return
 	}
+	if req.Name != nil {
+		trimmed := strings.TrimSpace(*req.Name)
+		if trimmed == "" {
+			writeError(c, http.StatusBadRequest, "bad_request", "name required")
+			return
+		}
+		req.Name = &trimmed
+	}
 
-	ledger, err := h.st.UpdateLedgerName(ctx, id, uid, name)
+	ledger, err := h.st.UpdateLedger(ctx, id, uid, req.Name, req.ShareDisabled)
 	if err != nil {
 		switch err {
 		case store.ErrForbidden:
@@ -170,6 +240,9 @@ func (h *LedgerHandlers) UpdateLedger(ctx context.Context, c *app.RequestContext
 		case store.ErrNotFound:
 			writeError(c, http.StatusNotFound, "not_found", "ledger not found")
 			return
+		case store.ErrInvalidArgument:
+			writeError(c, http.StatusBadRequest, "bad_request", "invalid payload")
+			return
 		default:
 			writeError(c, http.StatusInternalServerError, "internal", "db error", err)
 			return
@@ -177,6 +250,120 @@ func (h *LedgerHandlers) UpdateLedger(ctx context.Context, c *app.RequestContext
 	}
 
 	c.JSON(http.StatusOK, map[string]any{"ledger": toLedgerDTO(ledger)})
+}
+
+func (h *LedgerHandlers) BindLedgerMember(ctx context.Context, c *app.RequestContext) {
+	uid, ok := middleware.UserID(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized", "missing user")
+		return
+	}
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		writeError(c, http.StatusBadRequest, "bad_request", "id required")
+		return
+	}
+
+	var req bindLedgerMemberRequest
+	body, err := c.Body()
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "bad_request", "read body failed")
+		return
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeError(c, http.StatusBadRequest, "bad_request", "invalid json")
+		return
+	}
+	memberID := strings.TrimSpace(req.MemberID)
+	if memberID == "" {
+		writeError(c, http.StatusBadRequest, "bad_request", "memberId required")
+		return
+	}
+
+	member, err := h.st.BindLedgerMember(ctx, id, uid, memberID, strings.TrimSpace(req.Nickname), strings.TrimSpace(req.AvatarURL))
+	if err != nil {
+		switch err {
+		case store.ErrNotFound:
+			writeError(c, http.StatusNotFound, "not_found", "ledger member not found")
+			return
+		case store.ErrForbidden:
+			writeError(c, http.StatusForbidden, "share_disabled", "share disabled")
+			return
+		case store.ErrConflict:
+			writeError(c, http.StatusConflict, "conflict", "member already bound")
+			return
+		case store.ErrScorebookEnded:
+			writeError(c, http.StatusBadRequest, "ended", "ledger ended")
+			return
+		case store.ErrInvalidArgument:
+			writeError(c, http.StatusBadRequest, "bad_request", "invalid member")
+			return
+		default:
+			writeError(c, http.StatusInternalServerError, "internal", "db error", err)
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, map[string]any{"member": toLedgerMemberDTO(member)})
+}
+
+func (h *LedgerHandlers) GetInviteQRCode(ctx context.Context, c *app.RequestContext) {
+	uid, ok := middleware.UserID(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthorized", "missing user")
+		return
+	}
+	ledgerID := strings.TrimSpace(c.Param("id"))
+	if ledgerID == "" {
+		writeError(c, http.StatusBadRequest, "bad_request", "id required")
+		return
+	}
+
+	ledger, err := h.st.GetLedger(ctx, ledgerID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeError(c, http.StatusNotFound, "not_found", "ledger not found")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
+		return
+	}
+	if ledger.CreatedByUserID != uid {
+		writeError(c, http.StatusForbidden, "forbidden", "no permission")
+		return
+	}
+	if ledger.ShareDisabled {
+		writeError(c, http.StatusForbidden, "share_disabled", "share disabled")
+		return
+	}
+	if ledger.Status != "recording" {
+		writeError(c, http.StatusBadRequest, "ended", "ledger ended")
+		return
+	}
+
+	if strings.TrimSpace(h.cfg.WeChatAppID) == "" || strings.TrimSpace(h.cfg.WeChatSecret) == "" {
+		writeError(c, http.StatusBadRequest, "bad_request", "wechat appid/secret not configured")
+		return
+	}
+
+	accessToken, err := getWeChatAccessToken(ctx, h.cfg.WeChatAppID, h.cfg.WeChatSecret)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "internal", "wechat token failed", err)
+		return
+	}
+	img, err := getWeChatMiniProgramCode(ctx, accessToken, ledger.InviteCode, "pages/join/index")
+	if err != nil {
+		var we *wechatAPIError
+		if errors.As(err, &we) && we.Code == 41030 {
+			img, err = getWeChatMiniProgramCode(ctx, accessToken, ledger.InviteCode, "")
+		}
+	}
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "internal", "wechat qrcode failed", err)
+		return
+	}
+
+	c.Data(http.StatusOK, "image/png", img)
 }
 
 func (h *LedgerHandlers) AddLedgerMember(ctx context.Context, c *app.RequestContext) {
@@ -191,7 +378,7 @@ func (h *LedgerHandlers) AddLedgerMember(ctx context.Context, c *app.RequestCont
 		return
 	}
 
-	var req joinScorebookRequest
+	var req addLedgerMemberRequest
 	body, err := c.Body()
 	if err != nil {
 		writeError(c, http.StatusBadRequest, "bad_request", "read body failed")
@@ -202,7 +389,7 @@ func (h *LedgerHandlers) AddLedgerMember(ctx context.Context, c *app.RequestCont
 		return
 	}
 
-	m, err := h.st.AddLedgerMember(ctx, id, uid, strings.TrimSpace(req.Nickname), strings.TrimSpace(req.AvatarURL))
+	m, err := h.st.AddLedgerMember(ctx, id, uid, strings.TrimSpace(req.Nickname), strings.TrimSpace(req.AvatarURL), strings.TrimSpace(req.Remark))
 	if err != nil {
 		switch err {
 		case store.ErrForbidden:
@@ -236,6 +423,13 @@ type addLedgerRecordRequest struct {
 type updateLedgerMemberRequest struct {
 	Nickname  string `json:"nickname"`
 	AvatarURL string `json:"avatarUrl"`
+	Remark    string `json:"remark"`
+}
+
+type addLedgerMemberRequest struct {
+	Nickname  string `json:"nickname"`
+	AvatarURL string `json:"avatarUrl"`
+	Remark    string `json:"remark"`
 }
 
 func (h *LedgerHandlers) AddLedgerRecord(ctx context.Context, c *app.RequestContext) {
@@ -324,7 +518,7 @@ func (h *LedgerHandlers) UpdateLedgerMember(ctx context.Context, c *app.RequestC
 		return
 	}
 
-	m, err := h.st.UpdateLedgerMember(ctx, ledgerID, uid, memberID, strings.TrimSpace(req.Nickname), strings.TrimSpace(req.AvatarURL))
+	m, err := h.st.UpdateLedgerMember(ctx, ledgerID, uid, memberID, strings.TrimSpace(req.Nickname), strings.TrimSpace(req.AvatarURL), strings.TrimSpace(req.Remark))
 	if err != nil {
 		switch err {
 		case store.ErrForbidden:
@@ -380,22 +574,30 @@ func (h *LedgerHandlers) EndLedger(ctx context.Context, c *app.RequestContext) {
 
 func toLedgerDTO(sb store.Scorebook) map[string]any {
 	return map[string]any{
-		"id":         sb.ID,
-		"name":       sb.Name,
-		"createdAt":  sb.StartTime,
-		"updatedAt":  sb.UpdatedAt,
-		"status":     sb.Status,
-		"endedAt":    sb.EndedAt,
-		"inviteCode": sb.InviteCode,
+		"id":              sb.ID,
+		"name":            sb.Name,
+		"createdAt":       sb.StartTime,
+		"updatedAt":       sb.UpdatedAt,
+		"status":          sb.Status,
+		"endedAt":         sb.EndedAt,
+		"inviteCode":      sb.InviteCode,
+		"createdByUserId": sb.CreatedByUserID,
+		"shareDisabled":   sb.ShareDisabled,
 	}
 }
 
 func toLedgerMemberDTO(m store.LedgerMember) map[string]any {
+	var userID any
+	if m.UserID != nil {
+		userID = *m.UserID
+	}
 	return map[string]any{
 		"id":        m.ID,
+		"userId":    userID,
 		"role":      m.Role,
 		"nickname":  m.Nickname,
 		"avatarUrl": m.AvatarURL,
+		"remark":    m.Remark,
 		"score":     m.Score,
 		"createdAt": m.CreatedAt,
 		"updatedAt": m.UpdatedAt,

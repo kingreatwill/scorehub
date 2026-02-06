@@ -614,13 +614,38 @@ func (h *ScorebookHandlers) GetInviteInfo(ctx context.Context, c *app.RequestCon
 		return
 	}
 
+	bookType := strings.ToLower(strings.TrimSpace(info.BookType))
+	if bookType == "" {
+		bookType = "scorebook"
+	}
+	bookID := strings.TrimSpace(info.BookID)
+	if bookType == "ledger" && info.ShareDisabled {
+		writeError(c, http.StatusForbidden, "share_disabled", "share disabled")
+		return
+	}
+
 	c.JSON(http.StatusOK, map[string]any{
 		"invite": map[string]any{
-			"code":        code,
-			"scorebookId": info.ScorebookID,
-			"name":        info.Name,
-			"status":      info.Status,
-			"updatedAt":   info.UpdatedAt,
+			"code":      code,
+			"bookType":  bookType,
+			"bookId":    bookID,
+			"name":      info.Name,
+			"status":    info.Status,
+			"shareDisabled": info.ShareDisabled,
+			"updatedAt": info.UpdatedAt,
+			// backwards compatibility for existing clients
+			"scorebookId": func() string {
+				if bookType == "scorebook" {
+					return bookID
+				}
+				return ""
+			}(),
+			"ledgerId": func() string {
+				if bookType == "ledger" {
+					return bookID
+				}
+				return ""
+			}(),
 		},
 	})
 }

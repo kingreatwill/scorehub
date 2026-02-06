@@ -1,7 +1,7 @@
 <template>
   <view class="page">
     <view class="card">
-      <view class="title">加入得分簿</view>
+      <view class="title">加入{{ bookLabel }}</view>
       <view class="hint" v-if="loading">加载中…</view>
       <template v-else>
         <view class="sub" v-if="inviteCode">邀请码：{{ inviteCode }}</view>
@@ -13,12 +13,12 @@
 
     <view class="card">
       <view class="title">操作</view>
-      <template v-if="token">
+      <template v-if="!needsLogin">
         <view class="hint" v-if="inviteCode && !invite">邀请码无效或无权限。</view>
-        <view class="hint" v-else-if="invite?.status === 'ended'">该得分簿已结束，无法加入。</view>
+        <view class="hint" v-else-if="invite?.status === 'ended'">该{{ bookLabel }}已结束，无法加入。</view>
         <view class="hint" v-else-if="joining">正在加入…</view>
         <view class="hint" v-else>准备就绪</view>
-        <button class="btn" :disabled="!canJoin" @click="join">加入并进入</button>
+        <button class="btn" :disabled="!canJoin" @click="join">{{ actionText }}</button>
       </template>
       <template v-else>
         <view class="hint">未登录：登录后可加入并记分。</view>
@@ -39,12 +39,18 @@ const invite = ref<any>(null)
 const loading = ref(false)
 const joining = ref(false)
 
+const bookType = computed(() => String(invite.value?.bookType || 'scorebook').toLowerCase())
+const isLedger = computed(() => bookType.value === 'ledger')
+const bookLabel = computed(() => (isLedger.value ? '记账簿' : '得分簿'))
+const needsLogin = computed(() => !isLedger.value && !token.value)
+const actionText = computed(() => (isLedger.value ? '进入记账簿' : '加入并进入'))
+
 const canJoin = computed(() => {
-  if (!token.value) return false
   if (!inviteCode.value) return false
   if (!invite.value) return false
   if (loading.value || joining.value) return false
   if (invite.value?.status !== 'recording') return false
+  if (!isLedger.value && !token.value) return false
   return true
 })
 
@@ -90,6 +96,19 @@ async function join() {
   if (!canJoin.value) return
   joining.value = true
   try {
+    if (isLedger.value) {
+      const ledgerId = String(invite.value?.bookId || invite.value?.ledgerId || '').trim()
+      if (!ledgerId) {
+        uni.showToast({ title: '邀请码无效', icon: 'none' })
+        return
+      }
+      uni.redirectTo({ url: `/pages/ledger/detail?id=${encodeURIComponent(ledgerId)}&bind=1` })
+      return
+    }
+    if (!token.value) {
+      uni.showToast({ title: '请先登录', icon: 'none' })
+      return
+    }
     const res = await joinByInviteCode(inviteCode.value, {})
     uni.redirectTo({ url: `/pages/scorebook/detail?id=${res.scorebookId}` })
   } catch (e: any) {

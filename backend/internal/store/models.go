@@ -22,6 +22,7 @@ type Scorebook struct {
 	CreatedByUserID int64
 	EndedAt         *time.Time
 	InviteCode      string
+	ShareDisabled   bool
 }
 
 type Member struct {
@@ -68,9 +69,11 @@ type ScorebookListItem struct {
 type LedgerMember struct {
 	ID        string
 	LedgerID  string
+	UserID    *int64
 	Role      string
 	Nickname  string
 	AvatarURL string
+	Remark    string
 	Score     float64
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -100,8 +103,10 @@ type LedgerListItem struct {
 }
 
 type InviteInfo struct {
-	ScorebookID string
-	Name        string
-	Status      string
-	UpdatedAt   time.Time
+	BookID   string
+	BookType string
+	Name     string
+	Status   string
+	ShareDisabled bool
+	UpdatedAt time.Time
 }

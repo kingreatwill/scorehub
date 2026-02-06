@@ -56,6 +56,19 @@
       </view>
     </view>
 
+    <view class="card">
+      <view class="title">邀请码加入</view>
+      <view class="invite-row">
+        <input class="input invite-input" v-model="inviteCode" placeholder="邀请码（例如 8 位码）" />
+        <button size="mini" class="scan-btn" v-if="isMpWeixin" @click="onScanInviteToInput" hover-class="none">
+          <image class="scan-icon" :src="scanIcon" mode="aspectFit" />
+        </button>
+      </view>
+      <button class="btn" :disabled="inviteJoining" @click="onJoinByCode">
+        {{ inviteJoining ? '处理中…' : '邀请码加入' }}
+      </button>
+    </view>
+
     <view class="modal-mask" v-if="editOpen" @click="closeEdit" />
     <view class="modal" v-if="editOpen">
       <view class="modal-head">
@@ -93,7 +106,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { devLogin, updateMe, wechatLogin } from '../../utils/api'
+import { devLogin, getInviteInfo, joinByInviteCode, updateMe, wechatLogin } from '../../utils/api'
 import { clampNickname } from '../../utils/nickname'
 
 const token = ref('')
@@ -109,8 +122,12 @@ const avatarUrl = ref('')
 const editOpen = ref(false)
 const nicknameCursor = ref(0)
 const editSubmitting = ref(false)
+const inviteCode = ref('')
+const inviteJoining = ref(false)
 const ledgerIcon = '/static/tabbar/ledger.png'
 const scorebookIcon = '/static/tabbar/scorebook.png'
+const scanIcon =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8"/></svg>'
 
 const fallbackAvatar = 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
 
@@ -140,6 +157,87 @@ function openLedgerList() {
 
 function openScorebookList() {
   uni.navigateTo({ url: '/pages/scorebook/list' })
+}
+
+async function onScanInviteToInput() {
+  // #ifndef MP-WEIXIN
+  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
+  return
+  // #endif
+
+  // #ifdef MP-WEIXIN
+  try {
+    const res = await new Promise<any>((resolve, reject) => {
+      uni.scanCode({ success: resolve, fail: reject })
+    })
+    const raw = String(res?.path || res?.result || '').trim()
+    const code = normalizeCode(raw)
+    if (!code) {
+      uni.showToast({ title: '未识别到邀请码', icon: 'none' })
+      return
+    }
+    inviteCode.value = code
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '扫码失败', icon: 'none' })
+  }
+  // #endif
+}
+
+function normalizeCode(v: string): string {
+  const raw = decodeURIComponent(String(v || '')).trim()
+  if (!raw) return ''
+  if (/^[0-9A-Z]{6,12}$/.test(raw)) return raw
+  try {
+    const u = new URL(raw)
+    const code = u.searchParams.get('code') || ''
+    return decodeURIComponent(code).trim()
+  } catch (e) {}
+  const m = raw.match(/(?:^|[?&])code=([^&]+)/)
+  if (m?.[1]) return decodeURIComponent(m[1]).trim()
+  return raw
+}
+
+async function onJoinByCode() {
+  const code = normalizeCode(inviteCode.value)
+  if (!code) {
+    uni.showToast({ title: '请输入邀请码', icon: 'none' })
+    return
+  }
+  if (inviteJoining.value) return
+  inviteJoining.value = true
+  try {
+    const res = await getInviteInfo(code)
+    const invite = res?.invite
+    if (!invite) {
+      uni.showToast({ title: '邀请码无效', icon: 'none' })
+      return
+    }
+    const bookType = String(invite.bookType || 'scorebook').toLowerCase()
+    const bookId = String(invite.bookId || invite.scorebookId || invite.ledgerId || '').trim()
+    if (!bookId) {
+      uni.showToast({ title: '邀请码无效', icon: 'none' })
+      return
+    }
+    if (String(invite.status || '') === 'ended') {
+      const label = bookType === 'ledger' ? '记账簿' : '得分簿'
+      uni.showToast({ title: `${label}已结束`, icon: 'none' })
+      return
+    }
+    if (bookType === 'ledger') {
+      uni.navigateTo({ url: `/pages/ledger/detail?id=${encodeURIComponent(bookId)}&bind=1` })
+      return
+    }
+    if (!token.value) {
+      uni.showToast({ title: '请先登录', icon: 'none' })
+      return
+    }
+    const joined = await joinByInviteCode(code, {})
+    uni.navigateTo({ url: `/pages/scorebook/detail?id=${joined.scorebookId}` })
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '邀请码无效', icon: 'none' })
+  } finally {
+    inviteJoining.value = false
+  }
 }
 
 function openEdit() {
@@ -350,6 +448,35 @@ function logout() {
   border-radius: 12rpx;
   padding: 18rpx 16rpx;
   font-size: 28rpx;
+}
+.invite-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+.invite-input {
+  flex: 1;
+  min-width: 0;
+}
+.scan-btn {
+  width: 72rpx;
+  height: 72rpx;
+  padding: 0;
+  border-radius: 18rpx;
+  background: #f6f7fb;
+  color: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.scan-btn::after {
+  border: none;
+}
+.scan-icon {
+  width: 36rpx;
+  height: 36rpx;
 }
 .btn {
   margin-top: 8rpx;

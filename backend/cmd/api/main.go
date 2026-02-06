@@ -38,7 +38,7 @@ func main() {
 	authHandlers := handlers.NewAuthHandlers(cfg, st)
 	meHandlers := handlers.NewMeHandlers(st)
 	scorebookHandlers := handlers.NewScorebookHandlers(cfg, st, hub)
-	ledgerHandlers := handlers.NewLedgerHandlers(st)
+	ledgerHandlers := handlers.NewLedgerHandlers(cfg, st)
 	locationHandlers := handlers.NewLocationHandlers(cfg)
 
 	api := h.Group("/api/v1")
@@ -63,6 +63,8 @@ func main() {
 	authed.POST("/ledgers", ledgerHandlers.CreateLedger)
 	authed.GET("/ledgers", ledgerHandlers.ListLedgers)
 	authed.PATCH("/ledgers/:id", ledgerHandlers.UpdateLedger)
+	authed.GET("/ledgers/:id/invite_qrcode", ledgerHandlers.GetInviteQRCode)
+	authed.POST("/ledgers/:id/bind", ledgerHandlers.BindLedgerMember)
 	authed.POST("/ledgers/:id/members", ledgerHandlers.AddLedgerMember)
 	authed.PATCH("/ledgers/:id/members/:memberId", ledgerHandlers.UpdateLedgerMember)
 	authed.POST("/ledgers/:id/records", ledgerHandlers.AddLedgerRecord)

@@ -11,5 +11,6 @@
     "minified": true,
     "newFeature": true,
     "bigPackageSizeSupport": true
-  }
+  },
+  "simulatorPluginLibVersion": {}
 }
