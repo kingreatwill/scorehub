@@ -173,19 +173,20 @@
 
     <view class="modal-mask" v-if="qrModalOpen" @click="closeQRCode" />
     <view class="modal qr-modal" v-if="qrModalOpen">
-      <view class="modal-title">使用微信扫码加入</view>
+      <view class="modal-title">使用微信扫码加入（点击可保存）</view>
       <view v-if="qrLoading" class="hint">生成中…</view>
       <image v-else class="qr" :src="qrSrc" mode="widthFix" @click="previewQRCode" />
     </view>
 
     <view class="modal-mask" v-if="inviteQRModalOpen" @click="closeInviteCodeQR" />
     <view class="modal qr-modal" v-if="inviteQRModalOpen">
-      <view class="modal-title">邀请码二维码</view>
+      <view class="modal-title">邀请码二维码（点击可保存）</view>
       <view v-if="inviteQRLoading" class="hint">生成中…</view>
       <canvas
         class="invite-qr-canvas"
         canvas-id="inviteQrCanvas"
         id="inviteQrCanvas"
+        @click="saveInviteCodeQR"
         :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px` }"
         :width="inviteQRSize"
         :height="inviteQRSize"
@@ -901,6 +902,39 @@ function drawInviteCodeQR(code: string): Promise<void> {
   return new Promise((resolve) => {
     ctx.draw(false, resolve)
   })
+}
+
+async function saveInviteCodeQR() {
+  if (inviteQRLoading.value) return
+
+  // #ifndef MP-WEIXIN
+  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
+  return
+  // #endif
+
+  // #ifdef MP-WEIXIN
+  try {
+    const instance = getCurrentInstance()
+    const proxy = (instance?.proxy as any) || undefined
+    const tempFilePath = await new Promise<string>((resolve, reject) => {
+      uni.canvasToTempFilePath(
+        {
+          canvasId: 'inviteQrCanvas',
+          success: (res: any) => resolve(String(res?.tempFilePath || '')),
+          fail: reject,
+        },
+        proxy,
+      )
+    })
+    if (!tempFilePath) {
+      uni.showToast({ title: '预览失败', icon: 'none' })
+      return
+    }
+    uni.previewImage({ urls: [tempFilePath] })
+  } catch (e: any) {
+    uni.showToast({ title: '预览失败', icon: 'none' })
+  }
+  // #endif
 }
 
 function closeEndModal() {
