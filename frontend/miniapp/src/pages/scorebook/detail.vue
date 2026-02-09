@@ -63,7 +63,7 @@
       <view class="tip" v-if="me">点成员记分，点自己可编辑</view>
       <view class="tip" v-else>登录并加入后可记分</view>
       <view class="member-grid">
-        <view class="member" :class="{ me: m.isMe }" v-for="m in members" :key="m.id" @click="onClickMember(m)">
+        <view class="member" v-for="m in members" :key="m.id" @click="onClickMember(m)">
           <view class="avatar-wrap">
             <image class="avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
             <view class="tag avatar-tag me" v-if="m.isMe">我</view>
@@ -1314,10 +1314,6 @@ async function submitScore() {
 }
 .member:active {
   opacity: 0.92;
-}
-.member.me {
-  background: #fff;
-  border: 1rpx solid rgba(17, 17, 17, 0.16);
 }
 .avatar-wrap {
   width: 88rpx;
