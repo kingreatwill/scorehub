@@ -178,7 +178,13 @@ SELECT
 FROM scorebooks s
 JOIN scorebook_members m ON m.scorebook_id = s.id AND m.user_id = $1
 WHERE s.book_type = 'scorebook' AND s.deleted_at IS NULL
-ORDER BY s.updated_at DESC
+ORDER BY
+  CASE s.status::text
+    WHEN 'recording' THEN 0
+    WHEN 'ended' THEN 1
+    ELSE 2
+  END ASC,
+  s.updated_at DESC
 `, userID)
 	if err != nil {
 		return nil, err
@@ -1090,7 +1096,13 @@ WHERE s.book_type = 'ledger' AND s.deleted_at IS NULL
       WHERE m.scorebook_id = s.id AND m.user_id = $1
     )
   )
-ORDER BY s.updated_at DESC
+ORDER BY
+  CASE s.status::text
+    WHEN 'recording' THEN 0
+    WHEN 'ended' THEN 1
+    ELSE 2
+  END ASC,
+  s.updated_at DESC
 `, userID)
 	if err != nil {
 		return nil, err

@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :style="themeStyle">
     <view class="card">
       <view class="title">开始新的记账簿</view>
       <input class="input" v-model="newName" placeholder="名称（可空，默认 时间）" />
@@ -38,19 +38,29 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { createLedger, listLedgers } from '../../utils/api'
+import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 
 const newName = ref('')
 const ledgers = ref<any[]>([])
 const token = ref('')
 const loading = ref(false)
+const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const moreIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2" fill="%23111"/><circle cx="12" cy="12" r="2" fill="%23111"/><circle cx="18" cy="12" r="2" fill="%23111"/></svg>'
 
 const activeLedgers = computed(() => (ledgers.value || []).filter((it) => it.status !== 'ended'))
 
 onShow(() => {
+  syncTheme()
   loadLedgers()
 })
+
+function syncTheme() {
+  const base = getThemeBaseColor()
+  themeStyle.value = buildThemeVars(base)
+  applyNavigationBarTheme(base)
+  applyTabBarTheme(base)
+}
 
 async function loadLedgers() {
   token.value = (uni.getStorageSync('token') as string) || ''
@@ -127,6 +137,7 @@ function formatTime(v: any): string {
 <style scoped>
 .page {
   padding: 24rpx;
+  padding-bottom: calc(150rpx + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 24rpx;
@@ -156,7 +167,7 @@ function formatTime(v: any): string {
   width: 56rpx;
   height: 56rpx;
   border-radius: 999rpx;
-  background: #f1f2f4;
+  background: var(--brand-soft);
   display: flex;
   align-items: center;
   justify-content: center;

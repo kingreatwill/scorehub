@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :style="themeStyle">
     <view class="card" v-if="!token">
       <view class="title">登录</view>
       <view class="form">
@@ -20,7 +20,7 @@
               @input="onNicknameInput"
             />
             <button class="btn confirm-btn" form-type="submit" :disabled="wechatLoggingIn">
-              {{ wechatLoggingIn ? '处理中…' : '微信登录' }}
+              {{ wechatLoggingIn ? '提交中…' : '微信登录' }}
             </button>
           </form>
         </template>
@@ -71,17 +71,27 @@
         </button>
       </view>
       <button class="btn confirm-btn" :disabled="inviteJoining" @click="onJoinByCode">
-        {{ inviteJoining ? '处理中…' : '加入' }}
+        {{ inviteJoining ? '提交中…' : '加入' }}
       </button>
     </view>
+
+    <button class="color-dot" :style="colorDotStyle" @tap.stop="onColorDotTap" hover-class="none" />
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { devLogin, getInviteInfo, joinByInviteCode, updateMe, wechatLogin } from '../../utils/api'
 import { clampNickname } from '../../utils/nickname'
+import {
+  applyNavigationBarTheme,
+  applyTabBarTheme,
+  buildThemeVars,
+  getThemeBaseColor,
+  normalizeHexColor as normalizeThemeHex,
+  saveThemeColor,
+} from '../../utils/theme'
 
 const token = ref('')
 const user = ref<any>(null)
@@ -97,12 +107,17 @@ const nicknameCursor = ref(0)
 const wechatLoggingIn = ref(false)
 const inviteCode = ref('')
 const inviteJoining = ref(false)
-const ledgerIcon = '/static/tabbar/ledger.png'
-const scorebookIcon = '/static/tabbar/scorebook.png'
-const scanIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8"/></svg>'
-const logoutIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>'
+const colorDot = ref('#111111')
+const themeStyle = computed(() => buildThemeVars(colorDot.value))
+const colorDotStyle = computed(() => ({
+  backgroundColor: toFillColor(colorDot.value),
+  boxShadow: '0 10rpx 24rpx rgba(0, 0, 0, 0.16)',
+}))
+const presetDotColors = ['#111111', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6']
+const scorebookIcon = computed(() => iconDataUrl('scorebook', colorDot.value))
+const ledgerIcon = computed(() => iconDataUrl('ledger', colorDot.value))
+const scanIcon = computed(() => iconDataUrl('scan', colorDot.value))
+const logoutIcon = computed(() => iconDataUrl('logout', colorDot.value))
 
 const fallbackAvatar = 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
 
@@ -110,6 +125,9 @@ onShow(() => {
   token.value = (uni.getStorageSync('token') as string) || ''
   user.value = (uni.getStorageSync('user') as any) || null
   loadSavedUserDraft()
+  loadColorDot()
+  applyNavBarTheme()
+  applyTabBarTheme(colorDot.value)
 })
 
 function onNicknameInput(e: any) {
@@ -124,6 +142,91 @@ function loadSavedUserDraft() {
   if (!u) return
   if (u.nickname && !nickname.value.trim()) nickname.value = clampNickname(String(u.nickname))
   if (u.avatarUrl && !avatarUrl.value.trim()) avatarUrl.value = String(u.avatarUrl)
+}
+
+function loadColorDot() {
+  colorDot.value = getThemeBaseColor()
+}
+
+function normalizeHexColor(raw: string): string {
+  return normalizeThemeHex(raw)
+}
+
+function toFillColor(hex: string): string {
+  const normalized = normalizeHexColor(hex) || '#111111'
+  const r = Number.parseInt(normalized.slice(1, 3), 16)
+  const g = Number.parseInt(normalized.slice(3, 5), 16)
+  const b = Number.parseInt(normalized.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, 0.32)`
+}
+
+type IconKind = 'scorebook' | 'ledger' | 'scan' | 'logout'
+
+function iconDataUrl(kind: IconKind, hex: string): string {
+  const stroke = normalizeHexColor(hex) || '#111111'
+  const svg = iconSvg(kind, stroke)
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
+function iconSvg(kind: IconKind, stroke: string): string {
+  if (kind === 'scorebook') {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z"/><path d="M8 4v16"/><path d="M11 8h5"/><path d="M11 12h5"/></svg>`
+  }
+  if (kind === 'ledger') {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>`
+  }
+  if (kind === 'scan') {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8"/></svg>`
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>`
+}
+
+function applyColorDot(hex: string) {
+  const normalized = normalizeHexColor(hex)
+  if (!normalized) return false
+  colorDot.value = saveThemeColor(normalized)
+  applyNavBarTheme()
+  applyTabBarTheme(colorDot.value)
+  return true
+}
+
+function applyNavBarTheme() {
+  applyNavigationBarTheme(colorDot.value)
+}
+
+async function onColorDotTap() {
+  const labels = [...presetDotColors.map((v) => `颜色 ${v}`), '自定义 HEX']
+  try {
+    const tap = await new Promise<{ tapIndex: number }>((resolve, reject) => {
+      uni.showActionSheet({ itemList: labels, success: resolve, fail: reject })
+    })
+    if (tap.tapIndex < presetDotColors.length) {
+      applyColorDot(presetDotColors[tap.tapIndex])
+      return
+    }
+    // #ifdef MP-WEIXIN
+    const custom = await new Promise<{ confirm: boolean; content?: string }>((resolve) => {
+      uni.showModal({
+        title: '自定义颜色',
+        editable: true,
+        placeholderText: '#111111',
+        content: colorDot.value,
+        success: resolve,
+        fail: () => resolve({ confirm: false }),
+      } as any)
+    })
+    if (!custom.confirm) return
+    if (!applyColorDot(String(custom.content || ''))) {
+      uni.showToast({ title: '请输入正确 HEX 颜色', icon: 'none' })
+    }
+    // #endif
+    // #ifndef MP-WEIXIN
+    uni.showToast({ title: '请选择预设颜色', icon: 'none' })
+    // #endif
+  } catch (e: any) {
+    if (String(e?.errMsg || '').includes('cancel')) return
+    uni.showToast({ title: '打开颜色面板失败', icon: 'none' })
+  }
 }
 
 function openLedgerList() {
@@ -366,6 +469,7 @@ function logout() {
 <style scoped>
 .page {
   padding: 24rpx;
+  padding-bottom: calc(150rpx + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 24rpx;
@@ -545,5 +649,21 @@ function logout() {
   font-weight: 600;
   color: #111;
   text-align: center;
+}
+.color-dot {
+  position: fixed;
+  right: 24rpx;
+  bottom: calc(138rpx + env(safe-area-inset-bottom));
+  width: 70rpx;
+  height: 70rpx;
+  min-width: 70rpx;
+  min-height: 70rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.24);
+  z-index: 1201;
+}
+.color-dot::after {
+  border: none;
 }
 </style>

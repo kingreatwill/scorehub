@@ -67,7 +67,15 @@
       }
     }
   ],
+  "globalStyle": {
+    "backgroundColor": "#f6f7fb",
+    "backgroundColorTop": "#f6f7fb",
+    "backgroundColorBottom": "#f6f7fb",
+    "navigationBarBackgroundColor": "#111111",
+    "navigationBarTextStyle": "white"
+  },
   "tabBar": {
+    "custom": true,
     "position": "bottom",
     "color": "#8A8A8A",
     "selectedColor": "#111111",

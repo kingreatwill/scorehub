@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :style="themeStyle">
     <view class="card">
       <!-- <view class="title">我的记账簿</view> -->
       <view class="hint" v-if="!token">登录后可查看记账簿</view>
@@ -58,6 +58,7 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { deleteLedger, listLedgers } from '../../utils/api'
+import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 
 const items = ref<any[]>([])
 const token = ref('')
@@ -65,6 +66,7 @@ const loading = ref(false)
 const keyword = ref('')
 const searchFocused = ref(false)
 const openId = ref('')
+const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const touchStartX = ref(0)
 const touchStartY = ref(0)
 const touchItemId = ref('')
@@ -79,8 +81,16 @@ const filteredItems = computed(() => {
 })
 
 onShow(() => {
+  syncTheme()
   load()
 })
+
+function syncTheme() {
+  const base = getThemeBaseColor()
+  themeStyle.value = buildThemeVars(base)
+  applyNavigationBarTheme(base)
+  applyTabBarTheme(base)
+}
 
 async function load() {
   token.value = (uni.getStorageSync('token') as string) || ''
@@ -93,7 +103,7 @@ async function load() {
   loading.value = showLoading
   try {
     const res = await listLedgers()
-    items.value = res.items || []
+    items.value = sortLedgers(res.items || [])
     openId.value = ''
   } catch (e: any) {
     if (items.value.length === 0) {
@@ -200,6 +210,21 @@ function formatTime(v: any): string {
   const mi = String(d.getMinutes()).padStart(2, '0')
   if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd} ${hh}:${mi}`
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
+}
+
+function sortLedgers(list: any[]): any[] {
+  const rank = (it: any) => (String(it?.status || '') === 'ended' ? 1 : 0)
+  const ts = (it: any) => {
+    const raw = String(it?.createdAt || '')
+    const time = raw ? new Date(raw).getTime() : 0
+    return Number.isFinite(time) ? time : 0
+  }
+  return [...list].sort((a, b) => {
+    const ra = rank(a)
+    const rb = rank(b)
+    if (ra !== rb) return ra - rb
+    return ts(b) - ts(a)
+  })
 }
 </script>
 
@@ -311,7 +336,7 @@ function formatTime(v: any): string {
   height: 100%;
   padding: 0;
   border-radius: 0;
-  background: #ef4444;
+  background: var(--brand-solid);
   color: #fff;
   font-size: 26rpx;
   display: flex;

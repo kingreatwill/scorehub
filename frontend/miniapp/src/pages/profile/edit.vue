@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :style="themeStyle">
     <view class="card">
       <view class="title">{{ titleText }}</view>
       <form @submit="onSaveSubmit">
@@ -43,6 +43,7 @@ import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { addLedgerMember, getLedgerDetail, getScorebookDetail, updateLedgerMember, updateMe, updateMyProfile } from '../../utils/api'
 import { clampNickname } from '../../utils/nickname'
+import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 
 type EditMode = 'me' | 'ledger' | 'scorebook'
 type EditAction = 'edit' | 'add'
@@ -59,6 +60,7 @@ const remark = ref('')
 const nicknameCursor = ref(0)
 const submitting = ref(false)
 const allowRemark = ref(false)
+const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 
 const isMpWeixin = ref(false)
 // #ifdef MP-WEIXIN
@@ -82,6 +84,7 @@ const titleText = computed(() => {
 })
 
 onLoad(async (q) => {
+  syncTheme()
   const query = (q || {}) as any
   const nextMode = String(query.mode || 'me')
   if (nextMode === 'ledger' || nextMode === 'scorebook' || nextMode === 'me') {
@@ -101,6 +104,13 @@ onLoad(async (q) => {
   uni.setNavigationBarTitle({ title: titleText.value })
   await loadInitial()
 })
+
+function syncTheme() {
+  const base = getThemeBaseColor()
+  themeStyle.value = buildThemeVars(base)
+  applyNavigationBarTheme(base)
+  applyTabBarTheme(base)
+}
 
 function onNicknameInput(e: any) {
   const next = clampNickname(String(e?.detail?.value || ''))
@@ -381,7 +391,7 @@ function onCancel() {
   flex: 1;
 }
 .primary {
-  background: #111;
+  background: var(--brand-solid);
   color: #fff;
 }
 </style>

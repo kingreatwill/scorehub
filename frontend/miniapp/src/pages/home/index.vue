@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :style="themeStyle">
     <view class="card">
       <view class="title">开始新的得分簿</view>
       <input class="input" v-model="newName" placeholder="名称（可空，默认 时间 + 位置）" />
@@ -67,8 +67,10 @@
 import { computed, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { createScorebook, listMyScorebooks, reverseGeocode } from '../../utils/api'
+import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 
 const token = ref('')
+const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const isMpWeixin = ref(false)
 const locating = ref(false)
 const locationText = ref('')
@@ -89,10 +91,18 @@ const moreIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2" fill="%23111"/><circle cx="12" cy="12" r="2" fill="%23111"/><circle cx="18" cy="12" r="2" fill="%23111"/></svg>'
 
 onShow(() => {
+  syncTheme()
   token.value = (uni.getStorageSync('token') as string) || ''
   loadSavedLocation()
   loadMyScorebooks()
 })
+
+function syncTheme() {
+  const base = getThemeBaseColor()
+  themeStyle.value = buildThemeVars(base)
+  applyNavigationBarTheme(base)
+  applyTabBarTheme(base)
+}
 
 onLoad((q) => {
   const query = (q || {}) as any
@@ -269,6 +279,7 @@ function isScorebook(item: any): boolean {
 <style scoped>
 .page {
   padding: 24rpx;
+  padding-bottom: calc(150rpx + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 24rpx;
@@ -293,7 +304,7 @@ function isScorebook(item: any): boolean {
   width: 56rpx;
   height: 56rpx;
   border-radius: 999rpx;
-  background: #f1f2f4;
+  background: var(--brand-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -345,7 +356,7 @@ function isScorebook(item: any): boolean {
   padding: 0;
   border-radius: 18rpx;
   background: #f6f7fb;
-  color: #111;
+  color: var(--brand-strong);
 }
 .loc-clear {
   position: absolute;
@@ -389,7 +400,7 @@ function isScorebook(item: any): boolean {
 .loc-logo {
   width: 28rpx;
   height: 28rpx;
-  background: #111;
+  background: var(--brand-solid);
   border-radius: 14rpx 14rpx 14rpx 0;
   transform: rotate(-45deg);
   position: relative;
@@ -442,7 +453,7 @@ function isScorebook(item: any): boolean {
   }
 }
 .primary {
-  background: #111;
+  background: var(--brand-solid);
   color: #fff;
 }
 .list {

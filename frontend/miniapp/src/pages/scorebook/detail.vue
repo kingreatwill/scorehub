@@ -1,5 +1,5 @@
 <template>
-  <view class="page" v-if="scorebook">
+  <view class="page" v-if="scorebook" :style="themeStyle">
     <view class="card hero">
       <view class="row hero-row">
         <view class="name">{{ scorebook.name }}</view>
@@ -164,8 +164,8 @@
 	      <input class="input" v-model="scoreNote" placeholder="备注（可选）" />
 
 	      <view class="modal-actions">
-	        <button size="mini" @click="closeScoreModal">取消</button>
-	        <button size="mini" :disabled="scoreSubmitting" @click="submitScore">
+	        <button size="mini" class="confirm-btn" @click="closeScoreModal">取消</button>
+	        <button size="mini" class="confirm-btn" :disabled="scoreSubmitting" @click="submitScore">
 	          {{ scoreSubmitting ? '提交中…' : '确认记分' }}
 	        </button>
 	      </view>
@@ -227,13 +227,13 @@
         <button size="mini" class="action-btn" v-if="canRename" @click="closeActionMenu(); rename()">改名</button>
         <button size="mini" class="action-btn danger" v-if="canEnd" @click="closeActionMenu(); end()">结束</button>
       </view>
-      <button class="fab-toggle" :class="{ active: actionMenuOpen }" @click="toggleActionMenu">
+      <button class="fab-toggle" :class="{ active: actionMenuOpen }" :style="fabToggleStyle" @click="toggleActionMenu">
         <image class="fab-icon" :src="actionMenuOpen ? closeIcon : moreIcon" mode="aspectFit" />
       </button>
     </view>
   </view>
 
-  <view class="page" v-else>
+  <view class="page" v-else :style="themeStyle">
     <view class="empty" v-if="loadError">
       <view>{{ loadError }}</view>
       <button class="btn confirm-btn" v-if="!token" @click="goLogin">去「我的」登录</button>
@@ -256,10 +256,30 @@ import {
 } from '../../utils/api'
 import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
 import { clampNickname } from '../../utils/nickname'
+import { applyTabBarTheme } from '../../utils/theme'
 
 const token = ref('')
 const id = ref('')
 const scorebook = ref<any>(null)
+const themeColorKey = 'scorehub.theme.color'
+const legacyColorDotKey = 'scorehub.my.colorDot'
+const themeBaseColor = ref('#111111')
+const themeStyle = computed(() => {
+  const normalized = normalizeHexColor(themeBaseColor.value) || '#111111'
+  const { r, g, b } = hexToRgb(normalized)
+  return {
+    ...(normalized === '#111111' ? {} : { '--confirm-btn-bg-rgba': `rgba(${r}, ${g}, ${b}, 0.9)`, '--confirm-btn-color': '#FFFFFF' }),
+    '--brand-1': darkenHex(normalized, 0.26),
+    '--brand-2': lightenHex(normalized, 0.14),
+    '--brand-strong': darkenHex(normalized, 0.1),
+    '--brand-solid': normalized,
+  }
+})
+const fabToggleStyle = computed(() => {
+  const { r, g, b } = hexToRgb(themeBaseColor.value)
+  const alpha = actionMenuOpen.value ? 0.58 : 0.32
+  return { backgroundColor: `rgba(${r}, ${g}, ${b}, ${alpha})` }
+})
 const me = ref<{ memberId: string; isOwner: boolean } | null>(null)
 const members = ref<any[]>([])
 const socketTask = ref<UniApp.SocketTask | null>(null)
@@ -298,6 +318,8 @@ const inviteQRSize = 232
 const endModalOpen = ref(false)
 const endWinners = ref<any>(null)
 const actionMenuOpen = ref(false)
+let lastAppliedNavBg = ''
+let lastAppliedNavFront: '#000000' | '#ffffff' | '' = ''
 
 const refreshing = ref(false)
 const refreshQueued = ref(false)
@@ -332,6 +354,81 @@ function formatTime(v: any): string {
   const mi = String(d.getMinutes()).padStart(2, '0')
   if (d.getFullYear() === now.getFullYear()) return `${mm}-${dd} ${hh}:${mi}`
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
+}
+
+function normalizeHexColor(raw: string): string {
+  const v = String(raw || '').trim().toUpperCase()
+  if (/^#[0-9A-F]{6}$/.test(v)) return v
+  const short = v.match(/^#([0-9A-F])([0-9A-F])([0-9A-F])$/)
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`
+  return ''
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0').toUpperCase()
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = normalizeHexColor(hex) || '#111111'
+  return {
+    r: Number.parseInt(normalized.slice(1, 3), 16),
+    g: Number.parseInt(normalized.slice(3, 5), 16),
+    b: Number.parseInt(normalized.slice(5, 7), 16),
+  }
+}
+
+function mixHex(a: string, b: string, ratio: number): string {
+  const aa = normalizeHexColor(a) || '#111111'
+  const bb = normalizeHexColor(b) || '#000000'
+  const t = Math.max(0, Math.min(1, ratio))
+  const ar = Number.parseInt(aa.slice(1, 3), 16)
+  const ag = Number.parseInt(aa.slice(3, 5), 16)
+  const ab = Number.parseInt(aa.slice(5, 7), 16)
+  const br = Number.parseInt(bb.slice(1, 3), 16)
+  const bg = Number.parseInt(bb.slice(3, 5), 16)
+  const bbv = Number.parseInt(bb.slice(5, 7), 16)
+  return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bbv - ab) * t)
+}
+
+function darkenHex(hex: string, ratio: number): string {
+  return mixHex(hex, '#000000', ratio)
+}
+
+function lightenHex(hex: string, ratio: number): string {
+  return mixHex(hex, '#FFFFFF', ratio)
+}
+
+function navFrontColor(hex: string): '#000000' | '#ffffff' {
+  const normalized = normalizeHexColor(hex) || '#111111'
+  const r = Number.parseInt(normalized.slice(1, 3), 16)
+  const g = Number.parseInt(normalized.slice(3, 5), 16)
+  const b = Number.parseInt(normalized.slice(5, 7), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.62 ? '#000000' : '#ffffff'
+}
+
+function applyNavBarTheme() {
+  const bg = normalizeHexColor(themeBaseColor.value) || '#111111'
+  const front = navFrontColor(bg)
+  if (lastAppliedNavBg === bg && lastAppliedNavFront === front) return
+  lastAppliedNavBg = bg
+  lastAppliedNavFront = front
+  uni.setNavigationBarColor({
+    frontColor: front,
+    backgroundColor: bg,
+    animation: { duration: 0, timingFunc: 'linear' },
+  } as any)
+}
+
+function loadThemeColor() {
+  const saved =
+    String((uni.getStorageSync(themeColorKey) as any) || '').trim() ||
+    String((uni.getStorageSync(legacyColorDotKey) as any) || '').trim()
+  const normalized = normalizeHexColor(saved)
+  if (normalized) themeBaseColor.value = normalized
+  applyNavBarTheme()
+  applyTabBarTheme(themeBaseColor.value)
 }
 
 function memberByID(memberID: any) {
@@ -432,6 +529,7 @@ onShareAppMessage(() => {
 })
 
 onLoad(async (q) => {
+  loadThemeColor()
   token.value = (uni.getStorageSync('token') as string) || ''
 
   const query = (q || {}) as any
@@ -463,6 +561,7 @@ onLoad(async (q) => {
 })
 
 onShow(() => {
+  loadThemeColor()
   startPolling()
 })
 
@@ -970,6 +1069,10 @@ async function submitScore() {
 
 <style scoped>
 .page {
+  --brand-1: #0d0d0d;
+  --brand-2: #333333;
+  --brand-strong: #1f1f1f;
+  --brand-solid: #111111;
   padding: 24rpx;
   display: flex;
   flex-direction: column;
@@ -989,7 +1092,7 @@ async function submitScore() {
   align-items: center;
 }
 .hero {
-  background: linear-gradient(135deg, #111 0%, #2b2b2b 100%);
+  background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
   color: #fff;
   position: relative;
   overflow: hidden;
@@ -1038,7 +1141,8 @@ async function submitScore() {
   font-size: 24rpx;
   padding: 8rpx 12rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--brand-strong);
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
   color: #fff;
   white-space: nowrap;
   flex: none;
@@ -1056,8 +1160,8 @@ async function submitScore() {
   width: 12rpx;
   height: 12rpx;
   border-radius: 999rpx;
-  background: rgba(0, 200, 83, 0.95);
-  box-shadow: 0 0 0 6rpx rgba(0, 200, 83, 0.18);
+  background: #fff;
+  box-shadow: 0 0 0 6rpx rgba(255, 255, 255, 0.22);
   flex: none;
 }
 .badge-dot.ended {
@@ -1269,11 +1373,10 @@ async function submitScore() {
   width: 70rpx;
   height: 70rpx;
   border-radius: 999rpx;
-  background: rgba(120, 120, 120, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  border: 1rpx solid rgba(255, 255, 255, 0.24);
   box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.16);
   transition: all 0.2s ease;
 }
@@ -1281,7 +1384,6 @@ async function submitScore() {
   border: none;
 }
 .fab-toggle.active {
-  background: rgba(120, 120, 120, 0.6);
   border-color: rgba(255, 255, 255, 0.22);
   box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.2);
 }
@@ -1450,7 +1552,7 @@ async function submitScore() {
   font-size: 20rpx;
   padding: 2rpx 8rpx;
   border-radius: 999rpx;
-  background: #111;
+  background: var(--brand-strong);
   color: #fff;
 }
 .tag.owner {
@@ -1616,16 +1718,16 @@ async function submitScore() {
   text-align: center;
   font-size: 30rpx;
   font-weight: 800;
-  background: #fff;
-  color: #333;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
 }
 .delta-badge.pos {
-  background: rgba(0, 200, 83, 0.12);
-  color: #00c853;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
 }
 .delta-badge.neg {
-  background: rgba(255, 82, 82, 0.12);
-  color: #ff5252;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
 }
 .delta-input-row {
   margin-top: 12rpx;
@@ -1820,7 +1922,7 @@ async function submitScore() {
   font-size: 26rpx;
 }
 .primary {
-  background: #111;
+  background: var(--brand-solid);
   color: #fff;
 }
 </style>

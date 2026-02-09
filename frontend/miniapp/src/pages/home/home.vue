@@ -1,11 +1,16 @@
 <template>
-  <view class="page">跳转中…</view>
+  <view class="page" :style="themeStyle">跳转中…</view>
 </template>
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app'
+import { ref } from 'vue'
+import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
+
+const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 
 onLoad((q) => {
+  syncTheme()
   const query = (q || {}) as any
   const code = normalizeCode(String(query.scene || query.code || ''))
   if (code) {
@@ -23,6 +28,13 @@ function normalizeCode(v: string): string {
   if (m?.[1]) return decodeURIComponent(m[1]).trim()
   return raw
 }
+
+function syncTheme() {
+  const base = getThemeBaseColor()
+  themeStyle.value = buildThemeVars(base)
+  applyNavigationBarTheme(base)
+  applyTabBarTheme(base)
+}
 </script>
 
 <style scoped>
@@ -31,4 +43,3 @@ function normalizeCode(v: string): string {
   color: #666;
 }
 </style>
-

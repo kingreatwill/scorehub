@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :style="themeStyle">
     <view class="card">
       <view class="title">加入{{ bookLabel }}</view>
       <view class="hint" v-if="loading">加载中…</view>
@@ -32,12 +32,14 @@
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import { getInviteInfo, joinByInviteCode } from '../../utils/api'
+import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 
 const inviteCode = ref('')
 const token = ref('')
 const invite = ref<any>(null)
 const loading = ref(false)
 const joining = ref(false)
+const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 
 const bookType = computed(() => String(invite.value?.bookType || 'scorebook').toLowerCase())
 const isLedger = computed(() => bookType.value === 'ledger')
@@ -60,10 +62,18 @@ onLoad((q) => {
 })
 
 onShow(async () => {
+  syncTheme()
   token.value = (uni.getStorageSync('token') as string) || ''
   if (!inviteCode.value) return
   await loadInvite()
 })
+
+function syncTheme() {
+  const base = getThemeBaseColor()
+  themeStyle.value = buildThemeVars(base)
+  applyNavigationBarTheme(base)
+  applyTabBarTheme(base)
+}
 
 function normalizeCode(v: any): string {
   const raw = decodeURIComponent(String(v || '')).trim()
@@ -168,7 +178,7 @@ function goLogin() {
   margin-top: 16rpx;
 }
 .primary {
-  background: #111;
+  background: var(--brand-solid);
   color: #fff;
 }
 </style>

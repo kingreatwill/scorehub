@@ -1,5 +1,5 @@
 <template>
-  <view class="page" v-if="ledger">
+  <view class="page" v-if="ledger" :style="themeStyle">
     <view class="card hero">
       <view class="row hero-row">
         <view class="name">{{ ledger.name }}</view>
@@ -243,20 +243,20 @@
           结束
         </button>
       </view>
-      <button class="fab-toggle" :class="{ active: actionMenuOpen }" @click="toggleActionMenu">
+      <button class="fab-toggle" :class="{ active: actionMenuOpen }" :style="fabToggleStyle" @click="toggleActionMenu">
         <image class="fab-icon" :src="actionMenuOpen ? closeIcon : moreIcon" mode="aspectFit" />
       </button>
     </view>
   </view>
 
-  <view class="page" v-else-if="loading">
+  <view class="page" v-else-if="loading" :style="themeStyle">
     <view class="card">
       <view class="title">加载中…</view>
       <view class="hint">正在获取记账簿数据</view>
     </view>
   </view>
 
-  <view class="page" v-else-if="notFound">
+  <view class="page" v-else-if="notFound" :style="themeStyle">
     <view class="card">
       <view class="title">记账簿不存在</view>
       <view class="hint">该记账簿可能仅保存在创建设备中。</view>
@@ -280,9 +280,30 @@ import {
   updateLedgerName,
 } from '../../utils/api'
 import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
+import { applyTabBarTheme } from '../../utils/theme'
 
 const id = ref('')
 const ledger = ref<any>(null)
+const themeColorKey = 'scorehub.theme.color'
+const legacyColorDotKey = 'scorehub.my.colorDot'
+const themeBaseColor = ref('#111111')
+const themeStyle = computed(() => {
+  const normalized = normalizeHexColor(themeBaseColor.value) || '#111111'
+  const { r, g, b } = hexToRgb(normalized)
+  return {
+    ...(normalized === '#111111' ? {} : { '--confirm-btn-bg-rgba': `rgba(${r}, ${g}, ${b}, 0.9)`, '--confirm-btn-color': '#FFFFFF' }),
+    '--brand-1': darkenHex(normalized, 0.26),
+    '--brand-2': lightenHex(normalized, 0.14),
+    '--brand-strong': darkenHex(normalized, 0.1),
+    '--brand-solid': normalized,
+    '--brand-soft': lightenHex(normalized, 0.82),
+  }
+})
+const fabToggleStyle = computed(() => {
+  const { r, g, b } = hexToRgb(themeBaseColor.value)
+  const alpha = actionMenuOpen.value ? 0.58 : 0.32
+  return { backgroundColor: `rgba(${r}, ${g}, ${b}, ${alpha})` }
+})
 const members = ref<any[]>([])
 const records = ref<any[]>([])
 const shareMode = ref(false)
@@ -319,6 +340,8 @@ const currentUserId = ref('')
 const bindModalOpen = ref(false)
 const binding = ref(false)
 const bindRequired = ref(false)
+let lastAppliedNavBg = ''
+let lastAppliedNavFront: '#000000' | '#ffffff' | '' = ''
 
 const fallbackAvatar =
   'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
@@ -406,6 +429,7 @@ const filteredRecords = computed(() => {
 })
 
 onLoad((q) => {
+  loadThemeColor()
   const query = (q || {}) as any
   id.value = String(query.id || '')
   shareMode.value = String(query.share || query.readonly || '') === '1'
@@ -415,6 +439,7 @@ onLoad((q) => {
 })
 
 onShow(() => {
+  loadThemeColor()
   syncCurrentUser()
   loadLedger()
 })
@@ -894,6 +919,81 @@ function formatTime(v: any): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
+function normalizeHexColor(raw: string): string {
+  const v = String(raw || '').trim().toUpperCase()
+  if (/^#[0-9A-F]{6}$/.test(v)) return v
+  const short = v.match(/^#([0-9A-F])([0-9A-F])([0-9A-F])$/)
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`
+  return ''
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0').toUpperCase()
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = normalizeHexColor(hex) || '#111111'
+  return {
+    r: Number.parseInt(normalized.slice(1, 3), 16),
+    g: Number.parseInt(normalized.slice(3, 5), 16),
+    b: Number.parseInt(normalized.slice(5, 7), 16),
+  }
+}
+
+function mixHex(a: string, b: string, ratio: number): string {
+  const aa = normalizeHexColor(a) || '#111111'
+  const bb = normalizeHexColor(b) || '#000000'
+  const t = Math.max(0, Math.min(1, ratio))
+  const ar = Number.parseInt(aa.slice(1, 3), 16)
+  const ag = Number.parseInt(aa.slice(3, 5), 16)
+  const ab = Number.parseInt(aa.slice(5, 7), 16)
+  const br = Number.parseInt(bb.slice(1, 3), 16)
+  const bg = Number.parseInt(bb.slice(3, 5), 16)
+  const bbv = Number.parseInt(bb.slice(5, 7), 16)
+  return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bbv - ab) * t)
+}
+
+function darkenHex(hex: string, ratio: number): string {
+  return mixHex(hex, '#000000', ratio)
+}
+
+function lightenHex(hex: string, ratio: number): string {
+  return mixHex(hex, '#FFFFFF', ratio)
+}
+
+function navFrontColor(hex: string): '#000000' | '#ffffff' {
+  const normalized = normalizeHexColor(hex) || '#111111'
+  const r = Number.parseInt(normalized.slice(1, 3), 16)
+  const g = Number.parseInt(normalized.slice(3, 5), 16)
+  const b = Number.parseInt(normalized.slice(5, 7), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.62 ? '#000000' : '#ffffff'
+}
+
+function applyNavBarTheme() {
+  const bg = normalizeHexColor(themeBaseColor.value) || '#111111'
+  const front = navFrontColor(bg)
+  if (lastAppliedNavBg === bg && lastAppliedNavFront === front) return
+  lastAppliedNavBg = bg
+  lastAppliedNavFront = front
+  uni.setNavigationBarColor({
+    frontColor: front,
+    backgroundColor: bg,
+    animation: { duration: 0, timingFunc: 'linear' },
+  } as any)
+}
+
+function loadThemeColor() {
+  const saved =
+    String((uni.getStorageSync(themeColorKey) as any) || '').trim() ||
+    String((uni.getStorageSync(legacyColorDotKey) as any) || '').trim()
+  const normalized = normalizeHexColor(saved)
+  if (normalized) themeBaseColor.value = normalized
+  applyNavBarTheme()
+  applyTabBarTheme(themeBaseColor.value)
+}
+
 function copyInvite() {
   if (!canShowInvite.value) return
   uni.setClipboardData({ data: ledger.value.inviteCode })
@@ -1037,6 +1137,11 @@ async function onChooseAvatar(e: any) {
 
 <style scoped>
 .page {
+  --brand-1: #0d0d0d;
+  --brand-2: #333333;
+  --brand-strong: #1f1f1f;
+  --brand-solid: #111111;
+  --brand-soft: #d3d3d3;
   padding: 24rpx;
   display: flex;
   flex-direction: column;
@@ -1051,7 +1156,7 @@ async function onChooseAvatar(e: any) {
   box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.06);
 }
 .hero {
-  background: linear-gradient(135deg, #111 0%, #2b2b2b 100%);
+  background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
   color: #fff;
   position: relative;
   overflow: hidden;
@@ -1105,7 +1210,8 @@ async function onChooseAvatar(e: any) {
   font-size: 24rpx;
   padding: 8rpx 12rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--brand-strong);
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
   color: #fff;
   white-space: nowrap;
   flex: none;
@@ -1123,8 +1229,8 @@ async function onChooseAvatar(e: any) {
   width: 12rpx;
   height: 12rpx;
   border-radius: 999rpx;
-  background: rgba(0, 200, 83, 0.95);
-  box-shadow: 0 0 0 6rpx rgba(0, 200, 83, 0.18);
+  background: #fff;
+  box-shadow: 0 0 0 6rpx rgba(255, 255, 255, 0.22);
   flex: none;
 }
 .badge-dot.ended {
@@ -1359,11 +1465,10 @@ async function onChooseAvatar(e: any) {
   width: 70rpx;
   height: 70rpx;
   border-radius: 999rpx;
-  background: rgba(120, 120, 120, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  border: 1rpx solid rgba(255, 255, 255, 0.24);
   box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.16);
   transition: all 0.2s ease;
 }
@@ -1371,7 +1476,6 @@ async function onChooseAvatar(e: any) {
   border: none;
 }
 .fab-toggle.active {
-  background: rgba(120, 120, 120, 0.6);
   border-color: rgba(255, 255, 255, 0.22);
   box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.2);
 }
@@ -1451,8 +1555,8 @@ async function onChooseAvatar(e: any) {
   border: none;
 }
 .icon-btn.primary {
-  background: #e6e7ea;
-  color: #111;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
 }
 .icon-img {
   width: 28rpx;
@@ -1518,13 +1622,13 @@ async function onChooseAvatar(e: any) {
   font-size: 18rpx;
   font-weight: 600;
   color: #fff;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--brand-solid);
 }
 .tag.owner-tag {
-  background: #111;
+  background: #ff9800;
 }
 .tag.me-tag {
-  background: #5b6bff;
+  background: var(--brand-solid);
 }
 .bind-list {
   margin-top: 16rpx;
@@ -1561,7 +1665,7 @@ async function onChooseAvatar(e: any) {
   margin-top: 4rpx;
 }
 .bind-btn {
-  background: #111;
+  background: var(--brand-solid);
   color: #fff;
   border-radius: 999rpx;
   padding: 0 16rpx;
@@ -1576,9 +1680,9 @@ async function onChooseAvatar(e: any) {
   width: 44rpx;
   height: 44rpx;
   border-radius: 999rpx;
-  background: #e6e7ea;
-  color: #111;
-  border: 1rpx solid #d6d7db;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  border: 1rpx solid #bde3dc;
   font-size: 22rpx;
   display: flex;
   align-items: center;
@@ -1700,12 +1804,12 @@ async function onChooseAvatar(e: any) {
   border: 1rpx solid transparent;
 }
 .filter-chip.active {
-  background: #111;
+  background: var(--brand-solid);
   color: #fff;
-  border-color: #111;
+  border-color: var(--brand-solid);
 }
 .record-btn {
-  background: #111;
+  background: var(--brand-solid);
   color: #fff;
   border-radius: 999rpx;
   height: 60rpx;

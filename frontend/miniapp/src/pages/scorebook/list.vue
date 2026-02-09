@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view class="page" :style="themeStyle">
     <view class="card">
       <!-- <view class="title">我的得分簿</view> -->
       <view class="hint" v-if="!token">登录后可查看得分簿</view>
@@ -59,6 +59,7 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { deleteScorebook, listMyScorebooks } from '../../utils/api'
+import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 
 const token = ref('')
 const items = ref<any[]>([])
@@ -66,6 +67,7 @@ const loading = ref(false)
 const keyword = ref('')
 const searchFocused = ref(false)
 const openId = ref('')
+const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const touchStartX = ref(0)
 const touchStartY = ref(0)
 const touchItemId = ref('')
@@ -84,8 +86,16 @@ const filteredItems = computed(() => {
 })
 
 onShow(() => {
+  syncTheme()
   load()
 })
+
+function syncTheme() {
+  const base = getThemeBaseColor()
+  themeStyle.value = buildThemeVars(base)
+  applyNavigationBarTheme(base)
+  applyTabBarTheme(base)
+}
 
 async function load() {
   token.value = (uni.getStorageSync('token') as string) || ''
@@ -98,7 +108,7 @@ async function load() {
   loading.value = showLoading
   try {
     const res = await listMyScorebooks()
-    items.value = (res.items || []).filter(isScorebook)
+    items.value = sortScorebooks((res.items || []).filter(isScorebook))
     openId.value = ''
   } catch (e: any) {
     if (items.value.length === 0) {
@@ -197,6 +207,21 @@ function onSearchBlur() {
 function isScorebook(item: any): boolean {
   const t = String(item?.bookType || 'scorebook').toLowerCase()
   return t === 'scorebook'
+}
+
+function sortScorebooks(list: any[]): any[] {
+  const rank = (it: any) => (String(it?.status || '') === 'ended' ? 1 : 0)
+  const ts = (it: any) => {
+    const raw = String(it?.startTime || it?.createdAt || '')
+    const time = raw ? new Date(raw).getTime() : 0
+    return Number.isFinite(time) ? time : 0
+  }
+  return [...list].sort((a, b) => {
+    const ra = rank(a)
+    const rb = rank(b)
+    if (ra !== rb) return ra - rb
+    return ts(b) - ts(a)
+  })
 }
 
 function formatTime(v: any): string {
@@ -321,7 +346,7 @@ function formatTime(v: any): string {
   height: 100%;
   padding: 0;
   border-radius: 0;
-  background: #ef4444;
+  background: var(--brand-solid);
   color: #fff;
   font-size: 26rpx;
   display: flex;
