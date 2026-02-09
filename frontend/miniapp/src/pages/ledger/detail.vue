@@ -13,7 +13,7 @@
         <view class="pill">成员 {{ members.length }}</view>
         <view class="pill">记录 {{ records.length }}</view>
         <view class="pill code" v-if="canShowInvite" @click="copyInvite">
-          邀请码: <text class="mono">{{ ledger.inviteCode }}</text>
+          邀请码: <text class="mono">{{ ledger.inviteCode }} </text> 
           <view class="qr-icon" v-if="canShowInvite" @click.stop="openInviteCodeQR">
             <view class="qr-finder tl"><view class="qr-finder-inner" /></view>
             <view class="qr-finder tr"><view class="qr-finder-inner" /></view>
@@ -212,7 +212,7 @@
         :width="inviteQRSize"
         :height="inviteQRSize"
       />
-      <view class="hint">在首页点「扫码加入」即可识别</view>
+      <view class="hint">在我的页面点「扫码」即可识别</view>
     </view>
 
     <view class="fab-mask" v-if="actionMenuOpen && hasActions" @click="closeActionMenu" />
