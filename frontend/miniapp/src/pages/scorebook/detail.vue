@@ -175,9 +175,6 @@
       <view class="modal-title">使用微信扫码加入</view>
       <view v-if="qrLoading" class="hint">生成中…</view>
       <image v-else class="qr" :src="qrSrc" mode="widthFix" @click="previewQRCode" />
-      <view class="modal-actions">
-        <button size="mini" @click="closeQRCode">关闭</button>
-      </view>
     </view>
 
     <view class="modal-mask" v-if="inviteQRModalOpen" @click="closeInviteCodeQR" />
@@ -193,9 +190,6 @@
         :height="inviteQRSize"
       />
       <view class="hint">在首页点「扫码加入」即可识别</view>
-      <view class="modal-actions">
-        <button size="mini" @click="closeInviteCodeQR">关闭</button>
-      </view>
     </view>
 
     <view class="modal-mask" v-if="endModalOpen" @click="closeEndModal" />
@@ -216,9 +210,6 @@
         <text class="end-label">季军</text>
         <text class="end-name">{{ displayNickname(endWinners.third.nickname) }}</text>
         <text class="end-score pos">{{ formatScore(endWinners.third.score) }}</text>
-      </view>
-      <view class="modal-actions">
-        <button size="mini" @click="closeEndModal">关闭</button>
       </view>
     </view>
 

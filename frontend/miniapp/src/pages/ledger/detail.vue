@@ -197,9 +197,6 @@
       <view class="modal-title">小程序码</view>
       <view v-if="qrLoading" class="hint">生成中…</view>
       <image v-else class="qr" :src="qrSrc" mode="widthFix" @click="previewQRCode" />
-      <view class="modal-actions">
-        <button size="mini" @click="closeQRCode">关闭</button>
-      </view>
     </view>
 
     <view class="modal-mask" v-if="inviteQRModalOpen" @click="closeInviteCodeQR" />
@@ -215,9 +212,6 @@
         :height="inviteQRSize"
       />
       <view class="hint">在首页点「扫码加入」即可识别</view>
-      <view class="modal-actions">
-        <button size="mini" @click="closeInviteCodeQR">关闭</button>
-      </view>
     </view>
 
     <view class="fab-mask" v-if="actionMenuOpen && hasActions" @click="closeActionMenu" />
