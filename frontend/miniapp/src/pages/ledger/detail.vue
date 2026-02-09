@@ -1748,10 +1748,10 @@ async function onChooseAvatar(e: any) {
   color: #444;
 }
 .type-option.active {
-  border-color: #111;
-  background: #111;
-  color: #fff;
-  box-shadow: 0 8rpx 18rpx rgba(0, 0, 0, 0.15);
+  border-color: #d6d9de;
+  background: #f6f7fb;
+  color: #333;
+  box-shadow: 0 8rpx 18rpx rgba(0, 0, 0, 0.08);
 }
 .type-radio {
   width: 18rpx;
@@ -1772,9 +1772,10 @@ async function onChooseAvatar(e: any) {
   opacity: 0;
 }
 .type-option.active .type-radio {
-  border-color: #fff;
+  border-color: #666;
 }
 .type-option.active .type-radio::after {
+  background: #666;
   opacity: 1;
 }
 .type-label {
@@ -1786,15 +1787,16 @@ async function onChooseAvatar(e: any) {
   display: flex;
 }
 .confirm-btn {
-  background: #111;
-  color: #fff;
+  background: #f6f7fb;
+  color: #333;
+  border: 1rpx solid #d6d9de;
   border-radius: 14rpx;
   height: 84rpx;
   line-height: 84rpx;
   width: 100%;
   font-size: 28rpx;
   font-weight: 600;
-  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.18);
+  box-shadow: none;
 }
 .confirm-btn::after {
   border: none;
