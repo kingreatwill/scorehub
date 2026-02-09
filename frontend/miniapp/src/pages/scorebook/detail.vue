@@ -9,9 +9,10 @@
         </view>
       </view>
       <view class="sub hero-sub">
-        <view class="pill" v-if="scorebook.locationText">{{ scorebook.locationText }}</view>
-        <view class="pill" v-if="scorebook.startTime">{{ formatTime(scorebook.startTime) }}</view>
-        <view class="pill">成员 {{ members.length }}</view>
+        <view class="pill with-icon icon-location" v-if="scorebook.locationText">{{ scorebook.locationText }}</view>
+        <view class="pill with-icon icon-time" v-if="scorebook.startTime">{{ formatTime(scorebook.startTime) }}</view>
+        <view class="pill with-icon icon-member">成员 {{ members.length }}</view>
+        <view class="pill with-icon icon-record">记录 {{ records.length }}</view>
         <view class="pill code" @click="copyInvite">
           <view class="qr-icon" @click.stop="openInviteCodeQR">
             <view class="qr-finder tl"><view class="qr-finder-inner" /></view>
@@ -171,14 +172,14 @@
 	    </view>
 
     <view class="modal-mask" v-if="qrModalOpen" @click="closeQRCode" />
-    <view class="modal" v-if="qrModalOpen">
+    <view class="modal qr-modal" v-if="qrModalOpen">
       <view class="modal-title">使用微信扫码加入</view>
       <view v-if="qrLoading" class="hint">生成中…</view>
       <image v-else class="qr" :src="qrSrc" mode="widthFix" @click="previewQRCode" />
     </view>
 
     <view class="modal-mask" v-if="inviteQRModalOpen" @click="closeInviteCodeQR" />
-    <view class="modal" v-if="inviteQRModalOpen">
+    <view class="modal qr-modal" v-if="inviteQRModalOpen">
       <view class="modal-title">邀请码二维码</view>
       <view v-if="inviteQRLoading" class="hint">生成中…</view>
       <canvas
@@ -1048,6 +1049,33 @@ async function submitScore() {
   color: rgba(255, 255, 255, 0.92);
   border: 1rpx solid rgba(255, 255, 255, 0.12);
 }
+.pill.with-icon {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+}
+.pill.with-icon::before {
+  content: '';
+  width: 22rpx;
+  height: 22rpx;
+  flex: none;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+  opacity: 0.95;
+}
+.pill.icon-location::before {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10z'/><circle cx='12' cy='11' r='2.2'/></svg>");
+}
+.pill.icon-time::before {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='8'/><path d='M12 8v4l3 2'/></svg>");
+}
+.pill.icon-member::before {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2'/><circle cx='9.5' cy='7' r='3'/><path d='M17 11.5a2.7 2.7 0 1 1 0-5.4'/></svg>");
+}
+.pill.icon-record::before {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M7 6h13'/><path d='M7 12h13'/><path d='M7 18h13'/><circle cx='4' cy='6' r='1'/><circle cx='4' cy='12' r='1'/><circle cx='4' cy='18' r='1'/></svg>");
+}
 .pill.code:active {
   opacity: 0.85;
 }
@@ -1133,10 +1161,29 @@ async function submitScore() {
   top: 24rpx;
 }
 .invite-qr-canvas {
+  display: block;
   margin: 16rpx auto 10rpx;
   background: #fff;
   border-radius: 16rpx;
   box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.08);
+}
+.modal.qr-modal {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  max-height: calc(100vh - 96rpx);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.qr-modal .modal-title {
+  width: 100%;
+  text-align: center;
+}
+.qr-modal .hint {
+  width: 100%;
+  text-align: center;
 }
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
@@ -1727,7 +1774,10 @@ async function submitScore() {
   gap: 12rpx;
 }
 .qr {
-  width: 100%;
+  width: 440rpx;
+  max-width: 100%;
+  display: block;
+  margin: 16rpx auto 0;
   border-radius: 12rpx;
   background: #f6f7fb;
 }
