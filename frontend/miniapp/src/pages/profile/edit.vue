@@ -72,7 +72,7 @@ const fallbackAvatar =
 
 const showRemark = computed(() => mode.value === 'ledger' && allowRemark.value)
 const titleText = computed(() => {
-  if (mode.value === 'ledger' && action.value === 'add') return '新增人员'
+  if (mode.value === 'ledger' && action.value === 'add') return '新增成员'
   if (mode.value === 'ledger') return '修改记账资料'
   if (mode.value === 'scorebook') return '修改得分资料'
   return '修改资料'

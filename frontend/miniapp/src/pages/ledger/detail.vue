@@ -34,7 +34,7 @@
 
     <view class="card member-card">
       <view class="title-row">
-        <view class="title">人员</view>
+        <view class="title">成员</view>
         <view class="title-actions" v-if="!isReadonly">
           <button class="icon-btn primary" @click="openMemberModal">
             <image class="icon-img" :src="addIcon" mode="aspectFit" />
@@ -44,7 +44,7 @@
       <view class="tip" v-if="isOwner">点成员记账，右上角可编辑</view>
       <view class="tip" v-else-if="boundMember">点自己右上角可编辑</view>
       <view class="tip" v-else>仅可查看已加入的账本</view>
-      <view class="hint" v-if="members.length === 0">暂无人员</view>
+      <view class="hint" v-if="members.length === 0">暂无成员</view>
       <view class="member-grid" v-else>
         <view class="member" :class="{ disabled: isReadonly }" v-for="m in members" :key="m.id" @click="onClickMember(m)">
           <button class="member-edit" v-if="canEditMember(m)" @click.stop="openEditMember(m)">
@@ -68,7 +68,7 @@
         <view class="title">记录</view>
       </view>
       <view class="filter-panel" v-if="filterOptions.length">
-        <view class="filter-title">筛选人员</view>
+        <view class="filter-title">筛选成员</view>
         <scroll-view class="filter-scroll" scroll-x>
           <view class="filter-chip" :class="{ active: !filterMember }" @click="clearFilter">全部</view>
           <view
@@ -108,7 +108,7 @@
     <view class="modal-mask" v-if="memberModalOpen" @click="closeMemberModal" />
     <view class="modal" v-if="memberModalOpen">
       <view class="modal-head">
-        <view class="modal-title">{{ memberModalMode === 'edit' ? '编辑人员' : '新增人员' }}</view>
+        <view class="modal-title">{{ memberModalMode === 'edit' ? '编辑成员' : '新增成员' }}</view>
         <view class="modal-close" @click="closeMemberModal">×</view>
       </view>
 
@@ -172,10 +172,10 @@
     <view class="modal-mask" v-if="bindModalOpen" @click="closeBindModal" />
     <view class="modal" v-if="bindModalOpen">
       <view class="modal-head">
-        <view class="modal-title">绑定人员</view>
+        <view class="modal-title">绑定成员</view>
         <view class="modal-close" @click="closeBindModal">×</view>
       </view>
-      <view class="hint">请选择一个已有人员进行绑定（仅限未绑定的成员）。</view>
+      <view class="hint">请选择一个已有成员进行绑定（仅限未绑定的成员）。</view>
       <view class="bind-list" v-if="bindCandidates.length">
         <view class="bind-item" v-for="m in bindCandidates" :key="m.id">
           <image class="bind-avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
@@ -186,7 +186,7 @@
           <button size="mini" class="bind-btn" :disabled="binding" @click="submitBind(m)">绑定</button>
         </view>
       </view>
-      <view class="hint" v-else>暂无可绑定人员</view>
+      <view class="hint" v-else>暂无可绑定成员</view>
       <view class="modal-actions">
         <button size="mini" v-if="!currentUserId" @click="goLoginFromBind">去登录</button>
       </view>
