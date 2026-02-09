@@ -6,16 +6,14 @@
       <button class="btn confirm-btn" @click="onCreate">开始</button>
     </view>
 
-    <view class="card">
+    <view class="card" v-if="token">
       <view class="title-row">
         <view class="title">记录中的记账簿</view>
         <view class="more" @click="openList">
           <image class="more-icon" :src="moreIcon" mode="aspectFit" />
         </view>
       </view>
-      <view v-if="!token" class="hint">登录后可查看记账簿</view>
-      <button class="btn" v-if="!token" @click="goLogin">去登录</button>
-      <view v-else-if="loading" class="hint">加载中…</view>
+      <view v-if="loading" class="hint">加载中…</view>
       <view v-else-if="activeLedgers.length === 0" class="hint">暂无记录中的记账簿</view>
       <view v-else class="list">
         <view class="item" v-for="it in activeLedgers" :key="it.id" @click="openLedger(it.id)">
