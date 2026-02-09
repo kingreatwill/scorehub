@@ -68,38 +68,6 @@
         {{ inviteJoining ? '处理中…' : '邀请码加入' }}
       </button>
     </view>
-
-    <view class="modal-mask" v-if="editOpen" @click="closeEdit" />
-    <view class="modal" v-if="editOpen">
-      <view class="modal-head">
-        <view class="modal-title">修改资料</view>
-        <view class="modal-close" @click="closeEdit">×</view>
-      </view>
-
-      <view class="form">
-        <template v-if="isMpWeixin">
-          <button class="avatar-wrapper" open-type="chooseAvatar" @chooseavatar="onChooseAvatar" hover-class="none">
-            <image class="avatar" :src="avatarUrl || user?.avatarUrl || fallbackAvatar" mode="aspectFill" />
-            <view class="avatar-tip">点击更换头像</view>
-          </button>
-          <input
-            class="input"
-            name="nickname"
-            type="nickname"
-            :value="nickname"
-            placeholder="昵称（可选）"
-            :controlled="true"
-            :cursor="nicknameCursor"
-            @input="onNicknameInput"
-          />
-        </template>
-        <template v-else>
-          <input class="input" :value="nickname" placeholder="昵称" :controlled="true" :cursor="nicknameCursor" @input="onNicknameInput" />
-          <input class="input" v-model="avatarUrl" placeholder="头像 URL（可选）" />
-        </template>
-        <button class="btn" :disabled="editSubmitting" @click="saveProfile">保存</button>
-      </view>
-    </view>
   </view>
 </template>
 
@@ -119,9 +87,7 @@ isMpWeixin.value = true
 
 const nickname = ref('')
 const avatarUrl = ref('')
-const editOpen = ref(false)
 const nicknameCursor = ref(0)
-const editSubmitting = ref(false)
 const inviteCode = ref('')
 const inviteJoining = ref(false)
 const ledgerIcon = '/static/tabbar/ledger.png'
@@ -242,39 +208,7 @@ async function onJoinByCode() {
 
 function openEdit() {
   if (!token.value) return
-  nickname.value = clampNickname(String(user.value?.nickname || '').trim())
-  avatarUrl.value = String(user.value?.avatarUrl || '').trim()
-  editOpen.value = true
-}
-
-function closeEdit() {
-  if (editSubmitting.value) return
-  editOpen.value = false
-}
-
-async function saveProfile() {
-  if (!token.value) return
-  if (editSubmitting.value) return
-  const nextNickname = clampNickname(nickname.value.trim())
-  const nextAvatar = avatarUrl.value.trim()
-  if (!nextNickname) {
-    uni.showToast({ title: '请输入昵称', icon: 'none' })
-    return
-  }
-
-  editSubmitting.value = true
-  try {
-    const res = await updateMe({ nickname: nextNickname, avatarUrl: nextAvatar })
-    user.value = res.user
-    avatarUrl.value = String(res?.user?.avatarUrl || nextAvatar)
-    nickname.value = clampNickname(String(res?.user?.nickname || nextNickname))
-    uni.showToast({ title: '已保存', icon: 'success' })
-    editOpen.value = false
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '保存失败', icon: 'none' })
-  } finally {
-    editSubmitting.value = false
-  }
+  uni.navigateTo({ url: '/pages/profile/edit?mode=me' })
 }
 
 function getOrCreateDevOpenid(): string {
@@ -410,7 +344,6 @@ function logout() {
   user.value = null
   nickname.value = ''
   avatarUrl.value = ''
-  editOpen.value = false
   uni.showToast({ title: '已退出', icon: 'success' })
 }
 </script>
@@ -564,48 +497,5 @@ function logout() {
   font-weight: 600;
   color: #111;
   text-align: center;
-}
-.modal-mask {
-  position: fixed;
-  z-index: 1000;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
-}
-.modal {
-  position: fixed;
-  z-index: 1001;
-  left: 24rpx;
-  right: 24rpx;
-  top: 18%;
-  background: #fff;
-  border-radius: 18rpx;
-  padding: 24rpx;
-  box-shadow: 0 18rpx 48rpx rgba(0, 0, 0, 0.18);
-}
-.modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12rpx;
-}
-.modal-title {
-  font-size: 32rpx;
-  font-weight: 600;
-}
-.modal-close {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 999rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #666;
-  font-size: 38rpx;
-}
-.modal-close:active {
-  opacity: 0.85;
 }
 </style>

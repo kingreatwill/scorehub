@@ -37,6 +37,12 @@
       }
     },
     {
+      "path": "pages/profile/edit",
+      "style": {
+        "navigationBarTitleText": "修改资料"
+      }
+    },
+    {
       "path": "pages/scorebook/list",
       "style": {
         "navigationBarTitleText": "得分簿列表"

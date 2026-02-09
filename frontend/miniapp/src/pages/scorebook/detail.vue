@@ -742,7 +742,7 @@ async function end() {
 function onClickMember(m: any) {
   if (m.isMe) {
     uni.navigateTo({
-      url: `/pages/scorebook/profile?id=${encodeURIComponent(id.value)}`,
+      url: `/pages/profile/edit?mode=scorebook&id=${encodeURIComponent(id.value)}`,
     })
     return
   }

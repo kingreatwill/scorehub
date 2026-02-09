@@ -803,12 +803,10 @@ function clearFilter() {
 
 function openEditMember(member: any) {
   if (!member) return
-  memberModalMode.value = 'edit'
-  editingMember.value = member
-  memberNickname.value = String(member?.nickname || '')
-  memberAvatar.value = String(member?.avatarUrl || '')
-  memberRemark.value = String(member?.remark || '')
-  memberModalOpen.value = true
+  const memberId = String(member?.id || '')
+  uni.navigateTo({
+    url: `/pages/profile/edit?mode=ledger&id=${encodeURIComponent(id.value)}${memberId ? `&memberId=${encodeURIComponent(memberId)}` : ''}`,
+  })
 }
 
 function displayNickname(v: any): string {
