@@ -163,8 +163,8 @@
       <input class="input" v-model="recordNote" placeholder="备注（可选）" />
 
       <view class="modal-actions">
-        <button size="mini" @click="closeRecordModal">取消</button>
-        <button size="mini" :disabled="recordSubmitting" @click="submitRecord">
+        <button size="mini" class="confirm-btn" @click="closeRecordModal">取消</button>
+        <button size="mini" class="confirm-btn" :disabled="recordSubmitting" @click="submitRecord">
           {{ recordSubmitting ? '提交中…' : '确认记账' }}
         </button>
       </view>

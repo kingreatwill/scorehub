@@ -27,9 +27,12 @@
           @input="onNicknameInput"
         />
         <input class="input" v-if="showRemark" v-model="remark" placeholder="备注（可选）" />
-        <button class="btn" form-type="submit" :disabled="submitting">
-          {{ submitting ? '保存中…' : '保存' }}
-        </button>
+        <view class="form-actions">
+          <button class="btn confirm-btn" :disabled="submitting" @click.prevent="onCancel">取消</button>
+          <button class="btn confirm-btn" form-type="submit" :disabled="submitting">
+            {{ submitting ? '保存中…' : '保存' }}
+          </button>
+        </view>
       </form>
     </view>
   </view>
@@ -303,6 +306,11 @@ async function onSaveSubmit(e: any) {
   if (submittedNickname !== nickname.value.trim()) nickname.value = submittedNickname
   await save()
 }
+
+function onCancel() {
+  if (submitting.value) return
+  uni.navigateBack()
+}
 </script>
 
 <style scoped>
@@ -362,6 +370,15 @@ async function onSaveSubmit(e: any) {
 }
 .btn {
   margin-top: 20rpx;
+}
+.form-actions {
+  margin-top: 20rpx;
+  display: flex;
+  gap: 12rpx;
+}
+.form-actions .btn {
+  margin-top: 0;
+  flex: 1;
 }
 .primary {
   background: #111;

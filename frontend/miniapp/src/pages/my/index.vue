@@ -68,7 +68,7 @@
           <image class="scan-icon" :src="scanIcon" mode="aspectFit" />
         </button>
       </view>
-      <button class="btn" :disabled="inviteJoining" @click="onJoinByCode">
+      <button class="btn confirm-btn" :disabled="inviteJoining" @click="onJoinByCode">
         {{ inviteJoining ? '处理中…' : '加入' }}
       </button>
     </view>

@@ -28,7 +28,7 @@
           </view>
         </view>
       </view>
-      <button class="btn" @click="onCreate">开始</button>
+      <button class="btn confirm-btn" @click="onCreate">开始</button>
     </view>
 
     <view class="card" v-if="token">

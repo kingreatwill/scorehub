@@ -18,7 +18,7 @@
         <view class="hint" v-else-if="invite?.status === 'ended'">该{{ bookLabel }}已结束，无法加入。</view>
         <view class="hint" v-else-if="joining">正在加入…</view>
         <view class="hint" v-else>准备就绪</view>
-        <button class="btn" :disabled="!canJoin" @click="join">{{ actionText }}</button>
+        <button class="btn confirm-btn" :disabled="!canJoin" @click="join">{{ actionText }}</button>
       </template>
       <template v-else>
         <view class="hint">未登录：登录后可加入并记分。</view>
