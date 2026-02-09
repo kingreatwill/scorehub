@@ -19,7 +19,9 @@
               :cursor="nicknameCursor"
               @input="onNicknameInput"
             />
-            <button class="btn" form-type="submit">微信登录</button>
+            <button class="btn confirm-btn" form-type="submit" :disabled="wechatLoggingIn">
+              {{ wechatLoggingIn ? '处理中…' : '微信登录' }}
+            </button>
           </form>
         </template>
         <template v-else>
@@ -92,6 +94,7 @@ isMpWeixin.value = true
 const nickname = ref('')
 const avatarUrl = ref('')
 const nicknameCursor = ref(0)
+const wechatLoggingIn = ref(false)
 const inviteCode = ref('')
 const inviteJoining = ref(false)
 const ledgerIcon = '/static/tabbar/ledger.png'
@@ -323,9 +326,15 @@ async function onWechatLogin() {
 }
 
 async function onWechatLoginSubmit(e: any) {
+  if (wechatLoggingIn.value) return
+  wechatLoggingIn.value = true
   const submitted = clampNickname(String(e?.detail?.value?.nickname || '').trim())
   if (submitted !== nickname.value.trim()) nickname.value = submitted
-  await onWechatLogin()
+  try {
+    await onWechatLogin()
+  } finally {
+    wechatLoggingIn.value = false
+  }
 }
 
 async function afterLoginRedirect() {
@@ -433,6 +442,7 @@ function logout() {
   color: #fff;
 }
 .avatar-wrapper {
+  margin-bottom: 12rpx;
   padding: 18rpx 16rpx;
   border-radius: 12rpx;
   background: #f6f7fb;
@@ -457,7 +467,6 @@ function logout() {
 .user-row {
   display: flex;
   align-items: center;
-  gap: 16rpx;
 }
 .user-row:active {
   opacity: 0.9;
@@ -494,6 +503,7 @@ function logout() {
   flex: none;
 }
 .user-info {
+  margin-left: 16rpx;
   min-width: 0;
   flex: 1;
 }

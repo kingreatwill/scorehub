@@ -3,7 +3,7 @@
     <view class="card">
       <!-- <view class="title">我的得分簿</view> -->
       <view class="hint" v-if="!token">登录后可查看得分簿</view>
-      <button class="btn" v-if="!token" @click="goLogin">去登录</button>
+      <button class="btn confirm-btn" v-if="!token" @click="goLogin">去登录</button>
 
       <template v-else>
         <view class="searchbar">

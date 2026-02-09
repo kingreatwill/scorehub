@@ -22,7 +22,7 @@
       </template>
       <template v-else>
         <view class="hint">未登录：登录后可加入并记分。</view>
-        <button class="btn" @click="goLogin">去「我的」登录</button>
+        <button class="btn confirm-btn" @click="goLogin">去「我的」登录</button>
       </template>
     </view>
   </view>

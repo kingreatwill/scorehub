@@ -234,7 +234,7 @@
   <view class="page" v-else>
     <view class="empty" v-if="loadError">
       <view>{{ loadError }}</view>
-      <button class="btn" v-if="!token" @click="goLogin">去「我的」登录</button>
+      <button class="btn confirm-btn" v-if="!token" @click="goLogin">去「我的」登录</button>
     </view>
     <view class="empty" v-else>加载中…</view>
   </view>
