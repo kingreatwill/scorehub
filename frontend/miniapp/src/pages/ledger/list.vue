@@ -12,6 +12,7 @@
               class="search-input"
               v-model="keyword"
               placeholder="搜索记账簿"
+              placeholder-class="search-placeholder"
               confirm-type="search"
               @focus="onSearchFocus"
               @blur="onSearchBlur"
@@ -231,36 +232,40 @@ function formatTime(v: any): string {
   display: flex;
   align-items: center;
   gap: 12rpx;
-  padding: 0 20rpx;
-  height: 76rpx;
-  border-radius: 999rpx;
-  border: 2rpx solid #e2e2e2;
-  background: #f7f8fa;
-  box-shadow: inset 0 2rpx 6rpx rgba(0, 0, 0, 0.04);
+  padding: 0 24rpx;
+  height: 72rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid transparent;
+  background: #f2f2f2;
+  box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.06);
   transition: all 0.2s ease;
 }
 .search-input-wrap.focused {
-  border-color: #111;
+  border-color: #e3e5e8;
   background: #fff;
-  box-shadow: 0 0 0 4rpx rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10rpx 22rpx rgba(0, 0, 0, 0.08);
 }
 .search-icon {
-  width: 32rpx;
-  height: 32rpx;
+  width: 30rpx;
+  height: 30rpx;
   flex: none;
-  opacity: 0.7;
+  opacity: 0.55;
 }
 .search-input {
   flex: 1;
   min-width: 0;
   font-size: 28rpx;
+  color: #333;
+}
+.search-placeholder {
+  color: #999;
 }
 .search-clear {
   width: 40rpx;
   height: 40rpx;
   border-radius: 999rpx;
-  background: #fff;
-  border: 1rpx solid #e1e1e1;
+  background: #e7e7e7;
+  border: none;
   color: #666;
   font-size: 26rpx;
   display: flex;
