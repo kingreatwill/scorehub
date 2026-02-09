@@ -146,9 +146,13 @@ function formatTime(v: any): string {
   gap: 12rpx;
   margin-bottom: 12rpx;
 }
+.title-row .title {
+  margin-bottom: 0;
+}
 .title {
   font-size: 32rpx;
   font-weight: 600;
+  margin-bottom: 12rpx;
 }
 .more {
   width: 56rpx;
