@@ -13,7 +13,6 @@
         <view class="pill">成员 {{ members.length }}</view>
         <view class="pill">记录 {{ records.length }}</view>
         <view class="pill code" v-if="canShowInvite" @click="copyInvite">
-          邀请码: <text class="mono">{{ ledger.inviteCode }} </text> 
           <view class="qr-icon" v-if="canShowInvite" @click.stop="openInviteCodeQR">
             <view class="qr-finder tl"><view class="qr-finder-inner" /></view>
             <view class="qr-finder tr"><view class="qr-finder-inner" /></view>
@@ -26,6 +25,7 @@
             <view class="qr-dot d6" />
             <view class="qr-dot d7" />
           </view>
+          <text class="mono"> {{ ledger.inviteCode }}</text>
         </view>
         <view class="pill warn" v-if="ledger.shareDisabled">已禁止分享</view>
         <view class="pill readonly" v-if="shareMode">分享只读</view>
