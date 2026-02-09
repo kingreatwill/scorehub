@@ -1733,6 +1733,9 @@ async function onChooseAvatar(e: any) {
   border-radius: 999rpx;
   padding: 6rpx;
 }
+.record-modal .input {
+  margin-top: 12rpx;
+}
 .type-option {
   display: flex;
   align-items: center;
