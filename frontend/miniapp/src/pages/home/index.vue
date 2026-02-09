@@ -4,7 +4,12 @@
       <view class="title">开始新的得分簿</view>
       <input class="input" v-model="newName" placeholder="名称（可空，默认 时间 + 位置）" />
       <view class="loc-row">
-        <input class="input loc-input" v-model="locationText" placeholder="位置（可空）" />
+        <view class="loc-input-wrap">
+          <input class="input loc-input" v-model="locationText" placeholder="位置（可空）" />
+          <button size="mini" class="loc-clear" v-if="locationText" @click="clearLocation" hover-class="none">
+            <view class="clear-icon">×</view>
+          </button>
+        </view>
         <button
           size="mini"
           class="loc-btn"
@@ -18,7 +23,6 @@
           </view>
         </button>
         <!-- <button size="mini" class="loc-btn text" v-if="isMpWeixin" @click="chooseLocationFromMap" hover-class="none">地图</button> -->
-        <button size="mini" class="loc-btn text" v-if="locationText" @click="clearLocation" hover-class="none">清空</button>
       </view>
       <view class="loc-history" v-if="locationHistory.length">
         <view class="loc-history-title">历史</view>
@@ -324,9 +328,13 @@ function isScorebook(item: any): boolean {
   align-items: center;
   gap: 12rpx;
 }
-.loc-input {
+.loc-input-wrap {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+.loc-input {
+  padding-right: 64rpx;
 }
 .loc-btn {
   display: flex;
@@ -338,6 +346,34 @@ function isScorebook(item: any): boolean {
   border-radius: 18rpx;
   background: #f6f7fb;
   color: #111;
+}
+.loc-clear {
+  position: absolute;
+  right: 12rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40rpx;
+  height: 40rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loc-clear::after {
+  border: none;
+}
+.clear-icon {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 999rpx;
+  background: #e7e7e7;
+  color: #666;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .loc-btn.text {
   width: auto;
