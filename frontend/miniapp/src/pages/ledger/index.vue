@@ -2,8 +2,8 @@
   <view class="page">
     <view class="card">
       <view class="title">开始新的记账簿</view>
-      <input class="input" v-model="newName" placeholder="记账簿名称（可空）" />
-      <button class="btn" @click="onCreate">开始记账</button>
+      <input class="input" v-model="newName" placeholder="名称（可空，默认 时间）" />
+      <button class="btn" @click="onCreate">开始</button>
     </view>
 
     <view class="card">

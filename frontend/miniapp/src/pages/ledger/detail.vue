@@ -163,7 +163,8 @@
       <input class="input" v-model="recordNote" placeholder="备注（可选）" />
 
       <view class="modal-actions">
-        <button class="confirm-btn" :disabled="recordSubmitting" @click="submitRecord">
+        <button size="mini" @click="closeRecordModal">取消</button>
+        <button size="mini" :disabled="recordSubmitting" @click="submitRecord">
           {{ recordSubmitting ? '提交中…' : '确认记账' }}
         </button>
       </view>
@@ -1783,19 +1784,19 @@ async function onChooseAvatar(e: any) {
   margin-top: 16rpx;
   display: flex;
 }
-.confirm-btn {
-  background: #f6f7fb;
-  color: #333;
-  border: 1rpx solid #d6d9de;
-  border-radius: 14rpx;
-  height: 84rpx;
-  line-height: 84rpx;
-  width: 100%;
+.record-modal .modal-actions {
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.record-modal .modal-actions button {
+  flex: 1;
+  height: 72rpx;
+  line-height: 72rpx;
   font-size: 28rpx;
   font-weight: 600;
-  box-shadow: none;
+  border-radius: 14rpx;
 }
-.confirm-btn::after {
+.record-modal .modal-actions button::after {
   border: none;
 }
 </style>

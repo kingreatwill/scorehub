@@ -30,8 +30,13 @@
       </view>
     </view>
 
-    <view class="card" v-else>
-      <view class="title">我的</view>
+    <view class="card my-card" v-else>
+      <view class="title-row">
+        <view class="title">我的</view>
+        <button class="logout-btn" @click="logout" hover-class="none">
+          <image class="logout-icon" :src="logoutIcon" mode="aspectFit" />
+        </button>
+      </view>
       <view class="user-row" @click="openEdit">
         <image class="user-avatar" :src="user?.avatarUrl || fallbackAvatar" mode="aspectFill" />
         <view class="user-info">
@@ -39,7 +44,6 @@
           <view class="user-sub">已登录</view>
         </view>
       </view>
-      <button class="btn" @click="logout">退出登录</button>
     </view>
 
     <view class="card">
@@ -65,7 +69,7 @@
         </button>
       </view>
       <button class="btn" :disabled="inviteJoining" @click="onJoinByCode">
-        {{ inviteJoining ? '处理中…' : '邀请码加入' }}
+        {{ inviteJoining ? '处理中…' : '加入' }}
       </button>
     </view>
   </view>
@@ -94,6 +98,8 @@ const ledgerIcon = '/static/tabbar/ledger.png'
 const scorebookIcon = '/static/tabbar/scorebook.png'
 const scanIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8"/></svg>'
+const logoutIcon =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>'
 
 const fallbackAvatar = 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
 
@@ -366,6 +372,14 @@ function logout() {
   font-weight: 600;
   margin-bottom: 12rpx;
 }
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+  position: relative;
+}
 .hint {
   color: #666;
   font-size: 26rpx;
@@ -447,6 +461,30 @@ function logout() {
 }
 .user-row:active {
   opacity: 0.9;
+}
+.my-card {
+  position: relative;
+}
+.logout-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44rpx;
+  height: 44rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.logout-btn::after {
+  border: none;
+}
+.logout-icon {
+  width: 28rpx;
+  height: 28rpx;
 }
 .user-avatar {
   width: 88rpx;
