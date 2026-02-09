@@ -38,12 +38,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getLedgerDetail, getScorebookDetail, updateLedgerMember, updateMe, updateMyProfile } from '../../utils/api'
+import { addLedgerMember, getLedgerDetail, getScorebookDetail, updateLedgerMember, updateMe, updateMyProfile } from '../../utils/api'
 import { clampNickname } from '../../utils/nickname'
 
 type EditMode = 'me' | 'ledger' | 'scorebook'
+type EditAction = 'edit' | 'add'
 
 const mode = ref<EditMode>('me')
+const action = ref<EditAction>('edit')
 const ledgerId = ref('')
 const scorebookId = ref('')
 const targetMemberId = ref('')
@@ -70,6 +72,7 @@ const fallbackAvatar =
 
 const showRemark = computed(() => mode.value === 'ledger' && allowRemark.value)
 const titleText = computed(() => {
+  if (mode.value === 'ledger' && action.value === 'add') return '新增人员'
   if (mode.value === 'ledger') return '修改记账资料'
   if (mode.value === 'scorebook') return '修改得分资料'
   return '修改资料'
@@ -80,6 +83,10 @@ onLoad(async (q) => {
   const nextMode = String(query.mode || 'me')
   if (nextMode === 'ledger' || nextMode === 'scorebook' || nextMode === 'me') {
     mode.value = nextMode as EditMode
+  }
+  const nextAction = String(query.action || 'edit')
+  if (nextAction === 'add' || nextAction === 'edit') {
+    action.value = nextAction as EditAction
   }
   ledgerId.value = String(query.ledgerId || query.id || '')
   scorebookId.value = String(query.scorebookId || query.id || '')
@@ -165,22 +172,35 @@ async function loadInitial() {
     const meId = String(me?.id || '')
     const requestedId = targetMemberId.value
 
+    if (action.value === 'add' && !isOwner) {
+      uni.showToast({ title: '无权限新增成员', icon: 'none' })
+      setTimeout(() => uni.navigateBack(), 300)
+      return
+    }
+
     if (requestedId && !isOwner && requestedId !== meId) {
       uni.showToast({ title: '无权限编辑成员', icon: 'none' })
       setTimeout(() => uni.navigateBack(), 300)
       return
     }
 
-    const target = requestedId ? list.find((m: any) => String(m?.id || '') === requestedId) : me
-    if (!target?.id) {
-      uni.showToast({ title: '未找到成员信息', icon: 'none' })
-      setTimeout(() => uni.navigateBack(), 300)
-      return
+    if (action.value !== 'add') {
+      const target = requestedId ? list.find((m: any) => String(m?.id || '') === requestedId) : me
+      if (!target?.id) {
+        uni.showToast({ title: '未找到成员信息', icon: 'none' })
+        setTimeout(() => uni.navigateBack(), 300)
+        return
+      }
+      memberId.value = String(target.id)
+      if (target?.nickname) nickname.value = clampNickname(String(target.nickname))
+      if (target?.avatarUrl) avatarUrl.value = String(target.avatarUrl)
+      remark.value = String(target?.remark || '')
+    } else {
+      memberId.value = ''
+      nickname.value = ''
+      avatarUrl.value = ''
+      remark.value = ''
     }
-    memberId.value = String(target.id)
-    if (target?.nickname) nickname.value = clampNickname(String(target.nickname))
-    if (target?.avatarUrl) avatarUrl.value = String(target.avatarUrl)
-    remark.value = String(target?.remark || '')
     allowRemark.value = isOwner
   } catch (e: any) {
     uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
@@ -247,15 +267,27 @@ async function save() {
     } else if (mode.value === 'scorebook') {
       await updateMyProfile(scorebookId.value, { nickname: nextNickname, avatarUrl: nextAvatar })
     } else {
-      if (!ledgerId.value || !memberId.value) {
+      if (!ledgerId.value) {
         uni.showToast({ title: '缺少成员参数', icon: 'none' })
         return
       }
-      await updateLedgerMember(ledgerId.value, memberId.value, {
-        nickname: nextNickname,
-        avatarUrl: nextAvatar,
-        ...(showRemark.value ? { remark: remark.value.trim() } : {}),
-      })
+      if (action.value === 'add') {
+        await addLedgerMember(ledgerId.value, {
+          nickname: nextNickname,
+          avatarUrl: nextAvatar,
+          ...(showRemark.value ? { remark: remark.value.trim() } : {}),
+        })
+      } else {
+        if (!memberId.value) {
+          uni.showToast({ title: '缺少成员参数', icon: 'none' })
+          return
+        }
+        await updateLedgerMember(ledgerId.value, memberId.value, {
+          nickname: nextNickname,
+          avatarUrl: nextAvatar,
+          ...(showRemark.value ? { remark: remark.value.trim() } : {}),
+        })
+      }
     }
     uni.showToast({ title: '已保存', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 300)

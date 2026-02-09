@@ -42,7 +42,7 @@
         </view>
       </view>
       <view class="tip" v-if="isOwner">点成员记账，右上角可编辑</view>
-      <view class="tip" v-else-if="boundMember">点自己可修改头像/昵称</view>
+      <view class="tip" v-else-if="boundMember">点自己右上角可编辑</view>
       <view class="tip" v-else>仅可查看已加入的账本</view>
       <view class="hint" v-if="members.length === 0">暂无人员</view>
       <view class="member-grid" v-else>
@@ -134,7 +134,7 @@
     </view>
 
     <view class="modal-mask" v-if="recordModalOpen" @click="closeRecordModal" />
-    <view class="modal" v-if="recordModalOpen">
+    <view class="modal record-modal" v-if="recordModalOpen">
       <view class="modal-head">
         <view class="modal-title">记账</view>
         <view class="modal-close" @click="closeRecordModal">×</view>
@@ -453,12 +453,7 @@ async function loadLedger() {
 
 function openMemberModal() {
   if (isReadonly.value) return
-  memberModalMode.value = 'add'
-  editingMember.value = null
-  memberNickname.value = ''
-  memberAvatar.value = ''
-  memberRemark.value = ''
-  memberModalOpen.value = true
+  uni.navigateTo({ url: `/pages/profile/edit?mode=ledger&id=${encodeURIComponent(id.value)}&action=add` })
 }
 
 function closeMemberModal() {
@@ -1653,6 +1648,10 @@ async function onChooseAvatar(e: any) {
   border-radius: 18rpx;
   padding: 24rpx;
   box-shadow: 0 18rpx 48rpx rgba(0, 0, 0, 0.18);
+}
+.record-modal {
+  top: 50%;
+  transform: translateY(-50%);
 }
 .modal-head {
   display: flex;

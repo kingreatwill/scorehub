@@ -59,8 +59,8 @@
     </view>
 
     <view class="card">
-      <view class="title">{{ me ? '成员（点头像记分）' : '成员' }}</view>
-      <view class="tip" v-if="me">点自己可修改头像/昵称</view>
+      <view class="title">成员</view>
+      <view class="tip" v-if="me">点成员记分，点自己可编辑</view>
       <view class="tip" v-else>登录并加入后可记分</view>
       <view class="member-grid">
         <view class="member" :class="{ me: m.isMe }" v-for="m in members" :key="m.id" @click="onClickMember(m)">
