@@ -89,6 +89,7 @@ https://github.com/dcloudio/uni-app
 
 #### tdesign
 https://github.com/Tencent/tdesign-miniprogram
+https://github.com/Tencent/tdesign-miniprogram/tree/develop/packages/tdesign-uniapp
 https://tdesign.tencent.com/uniapp/getting-started
 
 #### weui
