@@ -8,6 +8,7 @@ function normalizeBase(v: string): string {
 // `dev` uses local API via env; `build` falls back to prod.
 const API_BASE = normalizeBase(import.meta.env.VITE_SCOREHUB_API_BASE || 'https://wxapi.wcoder.com/api/v1')
 const WS_BASE = normalizeBase(import.meta.env.VITE_SCOREHUB_WS_BASE || 'wss://wxapi.wcoder.com')
+const REQUEST_TIMEOUT_MS = 10_000
 
 function getToken(): string {
   return (uni.getStorageSync('token') as string) || ''
@@ -20,6 +21,7 @@ async function request<T>(method: UniApp.RequestOptions['method'], path: string,
       url: `${API_BASE}${path}`,
       method,
       data,
+      timeout: REQUEST_TIMEOUT_MS,
       header: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -113,6 +115,7 @@ export async function getInviteQRCode(scorebookId: string) {
     uni.request({
       url: `${API_BASE}/scorebooks/${encodeURIComponent(scorebookId)}/invite_qrcode`,
       method: 'GET',
+      timeout: REQUEST_TIMEOUT_MS,
       header: token ? { Authorization: `Bearer ${token}` } : {},
       responseType: 'arraybuffer',
       success: resolve,
@@ -141,6 +144,7 @@ export async function getLedgerInviteQRCode(ledgerId: string) {
     uni.request({
       url: `${API_BASE}/ledgers/${encodeURIComponent(ledgerId)}/invite_qrcode`,
       method: 'GET',
+      timeout: REQUEST_TIMEOUT_MS,
       header: token ? { Authorization: `Bearer ${token}` } : {},
       responseType: 'arraybuffer',
       success: resolve,

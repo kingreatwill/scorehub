@@ -1,10 +1,12 @@
 export const THEME_COLOR_KEY = 'scorehub.theme.color'
 export const LEGACY_THEME_COLOR_KEY = 'scorehub.my.colorDot'
+export const THEME_ALPHA_KEY = 'scorehub.theme.alpha'
 export const DEFAULT_THEME_COLOR = '#111111'
 
 const TAB_PAGE_ROUTES = ['pages/home/index', 'pages/ledger/index', 'pages/my/index']
 
 let cachedThemeBaseColor = ''
+let cachedThemeAlpha = 1
 let lastNavApplyKey = ''
 let lastTabSelectedColor = ''
 let lastCustomTabSyncKey = ''
@@ -14,15 +16,49 @@ export function normalizeHexColor(raw: string): string {
   if (/^#[0-9A-F]{6}$/.test(v)) return v
   const short = v.match(/^#([0-9A-F])([0-9A-F])([0-9A-F])$/)
   if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`
+  const longWithAlpha = v.match(/^#([0-9A-F]{8})$/)
+  if (longWithAlpha) return `#${longWithAlpha[1].slice(0, 6)}`
+  const shortWithAlpha = v.match(/^#([0-9A-F])([0-9A-F])([0-9A-F])([0-9A-F])$/)
+  if (shortWithAlpha) return `#${shortWithAlpha[1]}${shortWithAlpha[1]}${shortWithAlpha[2]}${shortWithAlpha[2]}${shortWithAlpha[3]}${shortWithAlpha[3]}`
   return ''
+}
+
+function clampAlpha(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number.parseFloat(String(raw ?? ''))
+  if (!Number.isFinite(n)) return 1
+  return Math.max(0, Math.min(1, n))
+}
+
+function alphaToHex(alpha: number): string {
+  const n = Math.round(clampAlpha(alpha) * 255)
+  return n.toString(16).padStart(2, '0').toUpperCase()
+}
+
+function extractAlphaFromColor(raw: string): number {
+  const v = String(raw || '').trim().toUpperCase()
+  const longWithAlpha = v.match(/^#([0-9A-F]{8})$/)
+  if (longWithAlpha) return Number.parseInt(longWithAlpha[1].slice(6, 8), 16) / 255
+  const shortWithAlpha = v.match(/^#([0-9A-F])([0-9A-F])([0-9A-F])([0-9A-F])$/)
+  if (shortWithAlpha) {
+    const aa = `${shortWithAlpha[4]}${shortWithAlpha[4]}`
+    return Number.parseInt(aa, 16) / 255
+  }
+  return 1
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const base = normalizeHexColor(hex) || DEFAULT_THEME_COLOR
+  const a = clampAlpha(alpha)
+  if (a >= 0.999) return base
+  return `${base}${alphaToHex(a)}`
 }
 
 export function getThemeBaseColor(): string {
   if (cachedThemeBaseColor) return cachedThemeBaseColor
-  const current =
+  const currentRaw =
     String((uni.getStorageSync(THEME_COLOR_KEY) as any) || '').trim() ||
     String((uni.getStorageSync(LEGACY_THEME_COLOR_KEY) as any) || '').trim()
-  cachedThemeBaseColor = normalizeHexColor(current) || DEFAULT_THEME_COLOR
+  cachedThemeBaseColor = normalizeHexColor(currentRaw) || DEFAULT_THEME_COLOR
   return cachedThemeBaseColor
 }
 
@@ -103,7 +139,7 @@ function tabIndexByRoute(route: string): number {
 }
 
 export function applyNavigationBarTheme(base?: string) {
-  const bg = normalizeHexColor(base || '') || getThemeBaseColor()
+  const bg = normalizeHexColor(base || '') || normalizeHexColor(getThemeBaseColor()) || DEFAULT_THEME_COLOR
   const front = navFrontColor(bg)
   const applyKey = `${currentRouteFromPages()}|${bg}|${front}`
   if (lastNavApplyKey === applyKey) return
@@ -121,7 +157,7 @@ export function syncCurrentPageCustomTabBar(base?: string, pageVm?: any) {
   const route = String(currentPage?.route || '')
   const selected = tabIndexByRoute(route)
   if (selected < 0) return
-  const themeColor = normalizeHexColor(base || '') || getThemeBaseColor()
+  const themeColor = normalizeHexColor(base || '') || normalizeHexColor(getThemeBaseColor()) || DEFAULT_THEME_COLOR
   const syncKey = `${route}|${selected}|${themeColor}`
   if (lastCustomTabSyncKey === syncKey) return
   lastCustomTabSyncKey = syncKey
@@ -137,15 +173,8 @@ export function syncCurrentPageCustomTabBar(base?: string, pageVm?: any) {
 }
 
 export function applyTabBarTheme(base?: string) {
-  const selectedColor = normalizeHexColor(base || '') || getThemeBaseColor()
-  if (lastTabSelectedColor !== selectedColor) {
-    lastTabSelectedColor = selectedColor
-    try {
-      uni.setTabBarStyle({
-        selectedColor,
-      } as any)
-    } catch (e) {}
-  }
+  const selectedColor = normalizeHexColor(base || '') || normalizeHexColor(getThemeBaseColor()) || DEFAULT_THEME_COLOR
+  lastTabSelectedColor = selectedColor
   syncCurrentPageCustomTabBar(selectedColor)
 }
 
@@ -153,6 +182,7 @@ export function saveThemeColor(base: string): string {
   const normalized = normalizeHexColor(base) || DEFAULT_THEME_COLOR
   uni.setStorageSync(THEME_COLOR_KEY, normalized)
   uni.setStorageSync(LEGACY_THEME_COLOR_KEY, normalized)
+  uni.removeStorageSync(THEME_ALPHA_KEY)
   cachedThemeBaseColor = normalized
   return normalized
 }

@@ -10,7 +10,7 @@
     "postcss": false,
     "minified": true,
     "newFeature": true,
-    "bigPackageSizeSupport": true
+    "bigPackageSizeSupport": true    
   },
   "simulatorPluginLibVersion": {}
 }

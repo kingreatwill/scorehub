@@ -81,3 +81,17 @@ npm run build:mp-weixin
 ## 说明
 MP-WEIXIN 不是项目里某个文件“手动定义”的变量，而是 uni-app 的条件编译平台标识：当构建/运行目标是微信小程序时，编译器自动认为 MP-WEIXIN 为真。
 它由构建命令的 -p mp-weixin 决定
+
+## 其他
+### 框架
+### UI组件
+https://github.com/dcloudio/uni-app
+
+#### tdesign
+https://github.com/Tencent/tdesign-miniprogram
+https://tdesign.tencent.com/uniapp/getting-started
+
+#### weui
+原生视觉体验
+https://github.com/Tencent/weui-wxss
+

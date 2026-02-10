@@ -25,14 +25,16 @@
         <view class="hint" v-else-if="items.length === 0">暂无得分簿</view>
         <view class="hint" v-else-if="filteredItems.length === 0">没有匹配结果</view>
         <view v-else class="list">
-          <view class="swipe-item" :class="{ open: openId === it.id }" v-for="it in filteredItems" :key="it.id">
+          <view class="swipe-item" :class="{ open: isSwiped(it.id) }" v-for="it in filteredItems" :key="it.id">
             <view class="swipe-actions">
               <button class="swipe-btn" :class="{ disabled: !canDelete(it) }" @click.stop="confirmDelete(it)">删除</button>
             </view>
             <view
               class="item swipe-main"
-              :class="{ open: openId === it.id }"
+              :class="{ dragging: isDragging && touchItemId === it.id }"
+              :style="swipeMainStyle(it.id)"
               @touchstart="onTouchStart($event, it.id)"
+              @touchmove.stop.prevent="onTouchMove($event, it.id)"
               @touchend="onTouchEnd($event, it.id)"
               @click="onItemTap(it)"
             >
@@ -71,7 +73,13 @@ const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor(
 const touchStartX = ref(0)
 const touchStartY = ref(0)
 const touchItemId = ref('')
+const touchLastX = ref(0)
+const touchDx = ref(0)
+const dragStartOffset = ref(0)
+const isDragging = ref(false)
 const swipeJustFinished = ref(false)
+const swipeOffsetById = ref<Record<string, number>>({})
+const SWIPE_ACTION_WIDTH = 140
 const searchIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'
 
@@ -110,6 +118,7 @@ async function load() {
     const res = await listMyScorebooks()
     items.value = sortScorebooks((res.items || []).filter(isScorebook))
     openId.value = ''
+    swipeOffsetById.value = {}
   } catch (e: any) {
     if (items.value.length === 0) {
       uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
@@ -135,9 +144,34 @@ function onItemTap(it: any) {
 function onTouchStart(e: any, id: string) {
   const t = e?.touches?.[0]
   if (!t) return
+  if (openId.value && openId.value !== id) setSwipeOffset(openId.value, 0)
   touchStartX.value = t.clientX
+  touchLastX.value = t.clientX
+  touchDx.value = 0
   touchStartY.value = t.clientY
   touchItemId.value = id
+  dragStartOffset.value = getSwipeOffset(id)
+  isDragging.value = false
+}
+
+function onTouchMove(e: any, id: string) {
+  if (touchItemId.value !== id) return
+  const t = e?.touches?.[0]
+  if (!t) return
+  const dx = t.clientX - touchStartX.value
+  const dy = t.clientY - touchStartY.value
+  touchLastX.value = t.clientX
+  touchDx.value = dx
+  if (!isDragging.value) {
+    if (Math.abs(dx) < 6) return
+    if (Math.abs(dx) <= Math.abs(dy)) {
+      touchItemId.value = ''
+      return
+    }
+    isDragging.value = true
+  }
+  const next = clampSwipeOffset(dragStartOffset.value + dx)
+  setSwipeOffset(id, next)
 }
 
 function onTouchEnd(e: any, id: string) {
@@ -149,24 +183,50 @@ function onTouchEnd(e: any, id: string) {
   }
   const dx = t.clientX - touchStartX.value
   const dy = t.clientY - touchStartY.value
-  if (Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy)) {
+  const moved = getSwipeOffset(id)
+  if (!isDragging.value || (Math.abs(dx) < 16 && Math.abs(dy) < 16)) {
     touchItemId.value = ''
+    isDragging.value = false
     return
   }
-  if (dx < 0) {
+  const shouldOpen = moved <= -SWIPE_ACTION_WIDTH * 0.45 || dx < -30
+  if (shouldOpen) {
     openId.value = id
+    setSwipeOffset(id, -SWIPE_ACTION_WIDTH)
   } else {
+    setSwipeOffset(id, 0)
     openId.value = ''
   }
   swipeJustFinished.value = true
   setTimeout(() => {
     swipeJustFinished.value = false
-  }, 200)
+  }, 240)
   touchItemId.value = ''
+  isDragging.value = false
 }
 
 function canDelete(it: any): boolean {
   return String(it?.status || '') === 'ended'
+}
+
+function swipeMainStyle(id: string) {
+  return { transform: `translateX(${getSwipeOffset(id)}rpx)` }
+}
+
+function isSwiped(id: string): boolean {
+  return getSwipeOffset(id) < 0
+}
+
+function getSwipeOffset(id: string): number {
+  return swipeOffsetById.value[id] || 0
+}
+
+function setSwipeOffset(id: string, offset: number) {
+  swipeOffsetById.value = { ...swipeOffsetById.value, [id]: clampSwipeOffset(offset) }
+}
+
+function clampSwipeOffset(v: number): number {
+  return Math.max(-SWIPE_ACTION_WIDTH, Math.min(0, Math.round(v)))
 }
 
 async function confirmDelete(it: any) {
@@ -362,10 +422,10 @@ function formatTime(v: any): string {
   position: relative;
   z-index: 1;
   transform: translateX(0);
-  transition: transform 0.2s ease;
+  transition: transform 0.28s cubic-bezier(0.22, 0.8, 0.2, 1);
 }
-.swipe-main.open {
-  transform: translateX(-140rpx);
+.swipe-main.dragging {
+  transition: none;
 }
 .item {
   background: transparent;

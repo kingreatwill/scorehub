@@ -75,7 +75,24 @@
       </button>
     </view>
 
-    <button class="color-dot" :style="colorDotStyle" @tap.stop="onColorDotTap" hover-class="none" />
+    <button class="color-dot" :style="colorDotStyle" @click.stop="onColorDotTap" hover-class="none" />
+    <t-color-picker
+      use-popup
+      :visible="colorPickerVisible"
+      :value="colorPickerDraft"
+      type="multiple"
+      format="HEX"
+      :swatch-colors="presetDotColors"
+      :auto-close="false"
+      :popup-props="colorPickerPopupProps"
+      @change="onColorPickerChange"
+      @close="onColorPickerClose"
+    >
+      <view slot="footer" class="picker-footer">
+        <button class="confirm-btn picker-btn" @click="onColorPickerCancel">取消</button>
+        <button class="confirm-btn picker-btn" @click="onColorPickerConfirm">确认</button>
+      </view>
+    </t-color-picker>
   </view>
 </template>
 
@@ -108,6 +125,18 @@ const wechatLoggingIn = ref(false)
 const inviteCode = ref('')
 const inviteJoining = ref(false)
 const colorDot = ref('#111111')
+const colorPickerVisible = ref(false)
+const colorPickerDraft = ref('#111111')
+const colorPickerOrigin = ref('#111111')
+const colorPickerCommitted = ref(false)
+const colorPickerIgnoreCloseUntil = ref(0)
+const colorPickerPopupProps = {
+  zIndex: 30000,
+  overlay: true,
+  overlayProps: {
+    style: 'z-index: 29999; background: rgba(0, 0, 0, 0.36);',
+  },
+}
 const themeStyle = computed(() => buildThemeVars(colorDot.value))
 const colorDotStyle = computed(() => ({
   backgroundColor: toFillColor(colorDot.value),
@@ -146,10 +175,22 @@ function loadSavedUserDraft() {
 
 function loadColorDot() {
   colorDot.value = getThemeBaseColor()
+  colorPickerDraft.value = colorDot.value
+  colorPickerOrigin.value = colorDot.value
 }
 
 function normalizeHexColor(raw: string): string {
-  return normalizeThemeHex(raw)
+  const v = String(raw || '').trim().toUpperCase()
+  const normalized = normalizeThemeHex(v)
+  if (normalized) return normalized
+  const hex8 = v.match(/^#([0-9A-F]{8})$/)
+  if (hex8?.[1]) return `#${hex8[1].slice(0, 6)}`
+  const hex4 = v.match(/^#([0-9A-F]{4})$/)
+  if (hex4?.[1]) {
+    const [r, g, b] = hex4[1].split('')
+    return `#${r}${r}${g}${g}${b}${b}`
+  }
+  return ''
 }
 
 function toFillColor(hex: string): string {
@@ -163,7 +204,8 @@ function toFillColor(hex: string): string {
 type IconKind = 'scorebook' | 'ledger' | 'scan' | 'logout'
 
 function iconDataUrl(kind: IconKind, hex: string): string {
-  const stroke = normalizeHexColor(hex) || '#111111'
+  const normalized = normalizeHexColor(hex) || '#111111'
+  const stroke = normalized.slice(0, 7)
   const svg = iconSvg(kind, stroke)
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
@@ -184,7 +226,8 @@ function iconSvg(kind: IconKind, stroke: string): string {
 function applyColorDot(hex: string) {
   const normalized = normalizeHexColor(hex)
   if (!normalized) return false
-  colorDot.value = saveThemeColor(normalized)
+  colorDot.value = normalized
+  saveThemeColor(normalized)
   applyNavBarTheme()
   applyTabBarTheme(colorDot.value)
   return true
@@ -194,39 +237,96 @@ function applyNavBarTheme() {
   applyNavigationBarTheme(colorDot.value)
 }
 
-async function onColorDotTap() {
-  const labels = [...presetDotColors.map((v) => `颜色 ${v}`), '自定义 HEX']
-  try {
-    const tap = await new Promise<{ tapIndex: number }>((resolve, reject) => {
-      uni.showActionSheet({ itemList: labels, success: resolve, fail: reject })
-    })
-    if (tap.tapIndex < presetDotColors.length) {
-      applyColorDot(presetDotColors[tap.tapIndex])
-      return
+function previewColorDot(hex: string) {
+  const normalized = normalizeHexColor(hex)
+  if (!normalized) return false
+  colorDot.value = normalized
+  applyNavigationBarTheme(colorDot.value)
+  return true
+}
+
+function onColorDotTap() {
+  colorPickerCommitted.value = false
+  colorPickerIgnoreCloseUntil.value = 0
+  colorPickerOrigin.value = colorDot.value
+  colorPickerDraft.value = colorDot.value
+  colorPickerVisible.value = true
+}
+
+function onColorPickerChange(e: any) {
+  const next = extractColorValue(e?.detail?.value ?? e?.detail ?? e)
+  if (!next) return
+  colorPickerDraft.value = next
+  previewColorDot(next)
+}
+
+function extractColorValue(raw: any): string {
+  const queue: any[] = [raw]
+  while (queue.length) {
+    const cur = queue.shift()
+    if (!cur) continue
+    if (typeof cur === 'string') {
+      const normalized = normalizeHexColor(cur)
+      if (normalized) return normalized
+      continue
     }
-    // #ifdef MP-WEIXIN
-    const custom = await new Promise<{ confirm: boolean; content?: string }>((resolve) => {
-      uni.showModal({
-        title: '自定义颜色',
-        editable: true,
-        placeholderText: '#111111',
-        content: colorDot.value,
-        success: resolve,
-        fail: () => resolve({ confirm: false }),
-      } as any)
-    })
-    if (!custom.confirm) return
-    if (!applyColorDot(String(custom.content || ''))) {
-      uni.showToast({ title: '请输入正确 HEX 颜色', icon: 'none' })
+    if (Array.isArray(cur)) {
+      for (const item of cur) queue.push(item)
+      continue
     }
-    // #endif
-    // #ifndef MP-WEIXIN
-    uni.showToast({ title: '请选择预设颜色', icon: 'none' })
-    // #endif
-  } catch (e: any) {
-    if (String(e?.errMsg || '').includes('cancel')) return
-    uni.showToast({ title: '打开颜色面板失败', icon: 'none' })
+    if (typeof cur === 'object') {
+      const r = pickNumber(cur, ['r', 'red'])
+      const g = pickNumber(cur, ['g', 'green'])
+      const b = pickNumber(cur, ['b', 'blue'])
+      if (r !== null && g !== null && b !== null) return rgbToHex(r, g, b)
+      queue.push(cur.value, cur.color, cur.hex, cur.current, cur.colors, cur.detail, cur.rgb, cur.rgba, cur.hsv, cur.hsv)
+    }
   }
+  return ''
+}
+
+function pickNumber(obj: Record<string, any>, keys: string[]): number | null {
+  for (const k of keys) {
+    const n = Number.parseFloat(String(obj?.[k] ?? ''))
+    if (Number.isFinite(n)) return n
+  }
+  return null
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0').toUpperCase()
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+function onColorPickerConfirm() {
+  const next = colorPickerDraft.value || ''
+  if (!applyColorDot(next)) {
+    uni.showToast({ title: '请输入正确 HEX 颜色', icon: 'none' })
+    return
+  }
+  colorPickerCommitted.value = true
+  colorPickerIgnoreCloseUntil.value = Date.now() + 600
+  colorPickerVisible.value = false
+}
+
+function onColorPickerCancel() {
+  previewColorDot(colorPickerOrigin.value)
+  colorPickerDraft.value = colorPickerOrigin.value
+  applyNavBarTheme()
+  applyTabBarTheme(colorDot.value)
+  colorPickerVisible.value = false
+}
+
+function onColorPickerClose() {
+  if (Date.now() < colorPickerIgnoreCloseUntil.value) {
+    colorPickerCommitted.value = false
+    return
+  }
+  if (colorPickerCommitted.value) {
+    colorPickerCommitted.value = false
+    return
+  }
+  onColorPickerCancel()
 }
 
 function openLedgerList() {
@@ -647,7 +747,7 @@ function logout() {
 .feature-label {
   font-size: 28rpx;
   font-weight: 600;
-  color: #111;
+  color: var(--brand-solid);
   text-align: center;
 }
 .color-dot {
@@ -665,5 +765,24 @@ function logout() {
 }
 .color-dot::after {
   border: none;
+}
+.picker-footer {
+  padding: 12rpx 0 24rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+}
+.picker-btn {
+  margin: 0;
+}
+:deep(.t-popup) {
+  z-index: 30000 !important;
+}
+:deep(.t-popup__content) {
+  z-index: 30000 !important;
+}
+:deep(.t-popup__overlay),
+:deep(.t-overlay) {
+  z-index: 29999 !important;
 }
 </style>

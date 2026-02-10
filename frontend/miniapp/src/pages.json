@@ -74,6 +74,12 @@
     "navigationBarBackgroundColor": "#111111",
     "navigationBarTextStyle": "white"
   },
+  "easycom": {
+    "autoscan": false,
+    "custom": {
+      "^t-(.*)": "@tdesign/uniapp/$1/$1.vue"
+    }
+  },
   "tabBar": {
     "custom": true,
     "position": "bottom",
