@@ -106,8 +106,8 @@
         </view>
       </view>
       <view class="records-more" v-if="recordsHasMore || recordsPaging">
-        <button size="mini" class="more-btn" v-if="recordsHasMore && !recordsPaging" @click="loadMoreRecords">加载更多</button>
-        <view class="hint" v-else>加载中…</view>
+        <button size="mini" class="more-btn confirm-btn" v-if="recordsHasMore && !recordsPaging" @click="loadMoreRecords">加载更多</button>
+        <t-loading v-else :loading="true" text="加载中…" />
       </view>
     </view>
 
@@ -215,9 +215,9 @@
       </view>
     </view>
 
-    <view class="fab-mask" v-if="actionMenuOpen && hasActions" @click="closeActionMenu" />
-    <view class="fab" v-if="hasActions">
-      <view class="fab-panel" :class="{ open: actionMenuOpen }">
+    <view class="fab-mask" v-if="actionMenuOpen && hasActions" @tap="closeActionMenu" />
+    <view class="fab" v-if="hasActions" @tap.stop>
+      <view class="fab-panel" :class="{ open: actionMenuOpen }" @tap.stop>
         <button size="mini" class="action-btn" v-if="canOpenQRCode" @click="closeActionMenu(); openQRCode()">
           小程序码
         </button>
@@ -227,7 +227,7 @@
         <button size="mini" class="action-btn" v-if="canRename" @click="closeActionMenu(); rename()">改名</button>
         <button size="mini" class="action-btn danger" v-if="canEnd" @click="closeActionMenu(); end()">结束</button>
       </view>
-      <button class="fab-toggle" :class="{ active: actionMenuOpen }" :style="fabToggleStyle" @click="toggleActionMenu">
+      <button class="fab-toggle" :class="{ active: actionMenuOpen }" :style="fabToggleStyle" @tap.stop="toggleActionMenu">
         <image class="fab-icon" :src="actionMenuOpen ? closeIcon : moreIcon" mode="aspectFit" />
       </button>
     </view>
@@ -235,10 +235,13 @@
 
   <view class="page" v-else :style="themeStyle">
     <view class="empty" v-if="loadError">
-      <view>{{ loadError }}</view>
+      <view>加载失败</view>
+      <view class="hint">{{ loadError }}</view>
       <button class="btn confirm-btn" v-if="!token" @click="goLogin">去「我的」登录</button>
     </view>
-    <view class="empty" v-else>加载中…</view>
+    <view class="empty" v-else>
+      <t-loading :loading="true" text="加载中…" />
+    </view>
   </view>
 </template>
 
@@ -324,7 +327,9 @@ let lastAppliedNavFront: '#000000' | '#ffffff' | '' = ''
 const refreshing = ref(false)
 const refreshQueued = ref(false)
 const pollTimer = ref<any>(null)
+let pollSession = 0
 const localRecordIDs = new Map<string, number>()
+const pageActive = ref(false)
 
 function scoreTone(v: any): string {
   const n = Number(v || 0)
@@ -529,6 +534,7 @@ onShareAppMessage(() => {
 })
 
 onLoad(async (q) => {
+  pageActive.value = true
   loadThemeColor()
   token.value = (uni.getStorageSync('token') as string) || ''
 
@@ -561,15 +567,18 @@ onLoad(async (q) => {
 })
 
 onShow(() => {
+  pageActive.value = true
   loadThemeColor()
   startPolling()
 })
 
 onHide(() => {
+  pageActive.value = false
   stopPolling()
 })
 
 onUnload(() => {
+  pageActive.value = false
   stopPolling()
   try {
     socketTask.value?.close({})
@@ -577,12 +586,14 @@ onUnload(() => {
 })
 
 async function refresh() {
+  if (!pageActive.value) return
   loadError.value = ''
   if (!id.value) {
     throw new Error('缺少参数')
   }
 
   const res = await getScorebookDetail(id.value)
+  if (!pageActive.value) return
   scorebook.value = res.scorebook
   me.value = res.me
   members.value = decorateMembers(res.members || [])
@@ -624,6 +635,7 @@ function mergeRecordsTop(incoming: any[]) {
 async function refreshRecordsFirstPage() {
   try {
     const r = await listScorebookRecords(id.value, recordsPageSize, 0)
+    if (!pageActive.value) return
     const items = r.items || []
     if (!recordsLoaded.value) {
       records.value = items
@@ -676,6 +688,7 @@ async function loadMoreRecords() {
 }
 
 async function safeRefresh() {
+  if (!pageActive.value) return
   if (refreshing.value) {
     refreshQueued.value = true
     return
@@ -687,7 +700,7 @@ async function safeRefresh() {
     // 后台刷新失败不弹 toast
   } finally {
     refreshing.value = false
-    if (refreshQueued.value) {
+    if (pageActive.value && refreshQueued.value) {
       refreshQueued.value = false
       safeRefresh()
     }
@@ -695,14 +708,22 @@ async function safeRefresh() {
 }
 
 function startPolling() {
+  if (!pageActive.value) return
+  pollSession += 1
+  const session = pollSession
   stopPolling()
   pollTimer.value = setInterval(() => {
+    if (!pageActive.value || session !== pollSession) {
+      stopPolling()
+      return
+    }
     if (scoreModalOpen.value || qrModalOpen.value || inviteQRModalOpen.value || endModalOpen.value || recordsPaging.value) return
-    safeRefresh()
+    void safeRefresh()
   }, 5000)
 }
 
 function stopPolling() {
+  pollSession += 1
   if (pollTimer.value) {
     clearInterval(pollTimer.value)
     pollTimer.value = null
@@ -736,6 +757,7 @@ function rememberLocalRecordID(id: string) {
 }
 
 function onEvent(evt: any) {
+  if (!pageActive.value) return
   if (!evt?.type) return
   if (evt.type === 'record.created') {
     const r = evt.data?.record
@@ -1333,7 +1355,7 @@ async function submitScore() {
   right: 0;
   top: 0;
   bottom: 0;
-  z-index: 40;
+  z-index: 1200;
 }
 .fab {
   position: fixed;
@@ -1343,7 +1365,7 @@ async function submitScore() {
   flex-direction: column;
   align-items: flex-end;
   gap: 12rpx;
-  z-index: 41;
+  z-index: 1201;
 }
 .fab-panel {
   display: flex;
@@ -1358,7 +1380,7 @@ async function submitScore() {
   transform: translateY(10rpx);
   opacity: 0;
   pointer-events: none;
-  transition: all 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .fab-panel.open {
   transform: translateY(0);
@@ -1378,7 +1400,7 @@ async function submitScore() {
   justify-content: center;
   border: 1rpx solid rgba(255, 255, 255, 0.24);
   box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.16);
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .fab-toggle::after {
   border: none;
@@ -1389,6 +1411,9 @@ async function submitScore() {
 }
 .fab-toggle:active {
   transform: scale(0.98);
+}
+.fab-toggle.dragging {
+  transition: none;
 }
 .fab-icon {
   width: 28rpx;

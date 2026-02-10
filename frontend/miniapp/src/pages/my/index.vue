@@ -75,7 +75,20 @@
       </button>
     </view>
 
-    <button class="color-dot" :style="colorDotStyle" @click.stop="onColorDotTap" hover-class="none" />
+    <t-fab
+      class="color-dot-fab"
+      t-class-button="color-dot-fab-button"
+      text="●"
+      :draggable="true"
+      :custom-style="colorDotFabCustomStyle"
+      :button-props="colorDotFabButtonProps"
+      @click.stop="onColorDotTap"
+      @touchstart="onColorDotPressStart"
+      @touchend="onColorDotPressEnd"
+      @touchcancel="onColorDotPressEnd"
+      @dragstart="onColorDotDragStart"
+      @dragend="onColorDotDragEnd"
+    />
     <t-color-picker
       use-popup
       :visible="colorPickerVisible"
@@ -125,6 +138,7 @@ const wechatLoggingIn = ref(false)
 const inviteCode = ref('')
 const inviteJoining = ref(false)
 const colorDot = ref('#111111')
+const colorDotDragging = ref(false)
 const colorPickerVisible = ref(false)
 const colorPickerDraft = ref('#111111')
 const colorPickerOrigin = ref('#111111')
@@ -141,6 +155,31 @@ const themeStyle = computed(() => buildThemeVars(colorDot.value))
 const colorDotStyle = computed(() => ({
   backgroundColor: toFillColor(colorDot.value),
   boxShadow: '0 10rpx 24rpx rgba(0, 0, 0, 0.16)',
+}))
+const colorDotFabBg = computed(() => toFillColor(colorDot.value, colorDotDragging.value ? 0.5 : 0.18))
+const colorDotFabBgActive = computed(() => toFillColor(colorDot.value, 0.5))
+const colorDotFabBorder = computed(() => toFillColor(colorDot.value, 0.32))
+const colorDotFabCustomStyle = computed(
+  () => `right: 24rpx; bottom: calc(138rpx + env(safe-area-inset-bottom)); z-index: 1201;`,
+)
+const colorDotFabButtonProps = computed(() => ({
+  shape: 'circle',
+  theme: 'default',
+  style: [
+    'width:70rpx',
+    'height:70rpx',
+    'min-width:70rpx',
+    'min-height:70rpx',
+    'padding:0',
+    'border-radius:999rpx',
+    `--td-button-default-bg-color:${colorDotFabBg.value}`,
+    `--td-button-default-border-color:${colorDotFabBorder.value}`,
+    `--td-button-default-active-bg-color:${colorDotFabBgActive.value}`,
+    `--td-button-default-active-border-color:${colorDotFabBorder.value}`,
+    '--td-button-border-width:0rpx',
+    'box-shadow:0 10rpx 24rpx rgba(0,0,0,0.16)',
+    'color:transparent',
+  ].join(';'),
 }))
 const presetDotColors = ['#111111', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6']
 const scorebookIcon = computed(() => iconDataUrl('scorebook', colorDot.value))
@@ -193,12 +232,12 @@ function normalizeHexColor(raw: string): string {
   return ''
 }
 
-function toFillColor(hex: string): string {
+function toFillColor(hex: string, alpha = 0.32): string {
   const normalized = normalizeHexColor(hex) || '#111111'
   const r = Number.parseInt(normalized.slice(1, 3), 16)
   const g = Number.parseInt(normalized.slice(3, 5), 16)
   const b = Number.parseInt(normalized.slice(5, 7), 16)
-  return `rgba(${r}, ${g}, ${b}, 0.32)`
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 type IconKind = 'scorebook' | 'ledger' | 'scan' | 'logout'
@@ -251,6 +290,22 @@ function onColorDotTap() {
   colorPickerOrigin.value = colorDot.value
   colorPickerDraft.value = colorDot.value
   colorPickerVisible.value = true
+}
+
+function onColorDotPressStart() {
+  colorDotDragging.value = true
+}
+
+function onColorDotPressEnd() {
+  colorDotDragging.value = false
+}
+
+function onColorDotDragStart() {
+  colorDotDragging.value = true
+}
+
+function onColorDotDragEnd() {
+  colorDotDragging.value = false
 }
 
 function onColorPickerChange(e: any) {
@@ -750,24 +805,51 @@ function logout() {
   color: var(--brand-solid);
   text-align: center;
 }
-.color-dot {
-  position: fixed;
-  right: 24rpx;
-  bottom: calc(138rpx + env(safe-area-inset-bottom));
-  width: 70rpx;
-  height: 70rpx;
-  min-width: 70rpx;
-  min-height: 70rpx;
-  padding: 0;
-  border-radius: 999rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.24);
-  z-index: 1201;
+:deep(.color-dot-fab .t-button) {
+  border: none !important;
 }
-.color-dot::after {
-  border: none;
+:deep(.color-dot-fab-button) {
+  background: v-bind(colorDotFabBg) !important;
+  background-color: v-bind(colorDotFabBg) !important;
+  border-color: v-bind(colorDotFabBorder) !important;
+}
+:deep(.color-dot-fab .t-button:active) {
+  background: v-bind(colorDotFabBgActive) !important;
+  background-color: v-bind(colorDotFabBgActive) !important;
+}
+:deep(.color-dot-fab-button-hover) {
+  background: v-bind(colorDotFabBgActive) !important;
+  background-color: v-bind(colorDotFabBgActive) !important;
+  border-color: v-bind(colorDotFabBorder) !important;
+  opacity: 1 !important;
+}
+:deep(.color-dot-fab-button.t-button--hover) {
+  background: v-bind(colorDotFabBgActive) !important;
+  background-color: v-bind(colorDotFabBgActive) !important;
+  border-color: v-bind(colorDotFabBorder) !important;
+}
+:deep(.color-dot-fab .t-button--active) {
+  background: v-bind(colorDotFabBgActive) !important;
+  background-color: v-bind(colorDotFabBgActive) !important;
+}
+:deep(.color-dot-fab .t-button--hover) {
+  background: v-bind(colorDotFabBgActive) !important;
+  background-color: v-bind(colorDotFabBgActive) !important;
+}
+:deep(.color-dot-fab .button-hover) {
+  background: v-bind(colorDotFabBgActive) !important;
+  background-color: v-bind(colorDotFabBgActive) !important;
+  opacity: 1 !important;
+}
+:deep(.color-dot-fab .t-button::after) {
+  border: none !important;
+}
+:deep(.color-dot-fab .t-button__content) {
+  opacity: 0;
+  font-size: 0;
 }
 .picker-footer {
-  padding: 12rpx 0 24rpx;
+  padding: 12rpx 24rpx 24rpx;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12rpx;

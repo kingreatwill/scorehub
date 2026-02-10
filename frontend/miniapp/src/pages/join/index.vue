@@ -2,7 +2,7 @@
   <view class="page" :style="themeStyle">
     <view class="card">
       <view class="title">加入{{ bookLabel }}</view>
-      <view class="hint" v-if="loading">加载中…</view>
+      <t-loading v-if="loading" :loading="true" text="加载中…" />
       <template v-else>
         <view class="sub" v-if="inviteCode">邀请码：{{ inviteCode }}</view>
         <view class="sub" v-if="invite?.name">名称：{{ invite.name }}</view>

@@ -13,7 +13,8 @@
           <image class="more-icon" :src="moreIcon" mode="aspectFit" />
         </view>
       </view>
-      <view v-if="loading" class="hint">加载中…</view>
+      <t-loading v-if="loading" :loading="true" text="加载中…" />
+      <view v-else-if="loadError" class="hint">加载失败</view>
       <view v-else-if="activeLedgers.length === 0" class="hint">暂无记录中的记账簿</view>
       <view v-else class="list">
         <view class="item" v-for="it in activeLedgers" :key="it.id" @click="openLedger(it.id)">
@@ -44,6 +45,7 @@ const newName = ref('')
 const ledgers = ref<any[]>([])
 const token = ref('')
 const loading = ref(false)
+const loadError = ref('')
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const moreIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2" fill="%23111"/><circle cx="12" cy="12" r="2" fill="%23111"/><circle cx="18" cy="12" r="2" fill="%23111"/></svg>'
@@ -64,6 +66,7 @@ function syncTheme() {
 
 async function loadLedgers() {
   token.value = (uni.getStorageSync('token') as string) || ''
+  loadError.value = ''
   if (!token.value) {
     ledgers.value = []
     loading.value = false
@@ -76,7 +79,7 @@ async function loadLedgers() {
     ledgers.value = res.items || []
   } catch (e: any) {
     if (ledgers.value.length === 0) {
-      uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
+      loadError.value = '加载失败'
     }
   } finally {
     if (showLoading) loading.value = false

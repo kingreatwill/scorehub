@@ -21,12 +21,15 @@
             <view class="search-clear" v-if="keyword" @click="clearKeyword">×</view>
           </view>
         </view>
-        <view class="hint" v-if="loading">加载中…</view>
+        <view class="list-loading" v-if="loading">
+          <t-loading :loading="true" text="加载中…" />
+        </view>
+        <view class="hint" v-else-if="loadError">加载失败</view>
         <view class="hint" v-else-if="items.length === 0">暂无得分簿</view>
         <view class="hint" v-else-if="filteredItems.length === 0">没有匹配结果</view>
         <view v-else class="list">
           <view class="swipe-item" :class="{ open: isSwiped(it.id) }" v-for="it in filteredItems" :key="it.id">
-            <view class="swipe-actions">
+            <view class="swipe-actions" :class="{ dragging: isDragging && touchItemId === it.id }" :style="swipeActionStyle(it.id)">
               <button class="swipe-btn" :class="{ disabled: !canDelete(it) }" @click.stop="confirmDelete(it)">删除</button>
             </view>
             <view
@@ -66,6 +69,7 @@ import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBase
 const token = ref('')
 const items = ref<any[]>([])
 const loading = ref(false)
+const loadError = ref('')
 const keyword = ref('')
 const searchFocused = ref(false)
 const openId = ref('')
@@ -107,6 +111,7 @@ function syncTheme() {
 
 async function load() {
   token.value = (uni.getStorageSync('token') as string) || ''
+  loadError.value = ''
   if (!token.value) {
     items.value = []
     loading.value = false
@@ -121,7 +126,7 @@ async function load() {
     swipeOffsetById.value = {}
   } catch (e: any) {
     if (items.value.length === 0) {
-      uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
+      loadError.value = '加载失败'
     }
   } finally {
     if (showLoading) loading.value = false
@@ -211,6 +216,12 @@ function canDelete(it: any): boolean {
 
 function swipeMainStyle(id: string) {
   return { transform: `translateX(${getSwipeOffset(id)}rpx)` }
+}
+
+function swipeActionStyle(id: string) {
+  const offset = getSwipeOffset(id)
+  const tx = Math.max(0, SWIPE_ACTION_WIDTH + offset)
+  return { transform: `translateX(${tx}rpx)` }
 }
 
 function isSwiped(id: string): boolean {
@@ -317,6 +328,12 @@ function formatTime(v: any): string {
   color: #666;
   font-size: 26rpx;
 }
+.list-loading {
+  margin-top: 12rpx;
+  display: flex;
+  justify-content: center;
+  padding: 20rpx 0;
+}
 .btn {
   margin-top: 12rpx;
 }
@@ -393,27 +410,30 @@ function formatTime(v: any): string {
   align-items: center;
   justify-content: center;
   background: #f3f4f6;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-.swipe-item.open .swipe-actions {
   opacity: 1;
   pointer-events: auto;
+  transform: translateX(140rpx);
+  transition: transform 0.28s cubic-bezier(0.22, 0.8, 0.2, 1);
+}
+.swipe-actions.dragging {
+  transition: none;
 }
 .swipe-btn {
   width: 100%;
   height: 100%;
   padding: 0;
   border-radius: 0;
-  background: var(--brand-solid);
-  color: #fff;
+  background: var(--confirm-btn-bg-rgba, rgba(241, 241, 244, 0.9));
+  color: var(--confirm-btn-color, #111111);
   font-size: 26rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
   border: 0;
+}
+.swipe-btn::after {
+  border: none;
 }
 .swipe-btn.disabled {
   background: #c7c7c7;

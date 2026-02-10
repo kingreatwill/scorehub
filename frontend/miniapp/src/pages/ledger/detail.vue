@@ -216,9 +216,9 @@
       <view class="hint">在我的页面点「扫码」即可识别</view>
     </view>
 
-    <view class="fab-mask" v-if="actionMenuOpen && hasActions" @click="closeActionMenu" />
-    <view class="fab" v-if="hasActions">
-      <view class="fab-panel" :class="{ open: actionMenuOpen }">
+    <view class="fab-mask" v-if="actionMenuOpen && hasActions" @tap="closeActionMenu" />
+    <view class="fab" v-if="hasActions" @tap.stop>
+      <view class="fab-panel" :class="{ open: actionMenuOpen }" @tap.stop>
         <button size="mini" class="action-btn" v-if="canOpenQRCode" @click="closeActionMenu(); openQRCode()">
           小程序码
         </button>
@@ -243,7 +243,7 @@
           结束
         </button>
       </view>
-      <button class="fab-toggle" :class="{ active: actionMenuOpen }" :style="fabToggleStyle" @click="toggleActionMenu">
+      <button class="fab-toggle" :class="{ active: actionMenuOpen }" :style="fabToggleStyle" @tap.stop="toggleActionMenu">
         <image class="fab-icon" :src="actionMenuOpen ? closeIcon : moreIcon" mode="aspectFit" />
       </button>
     </view>
@@ -251,8 +251,13 @@
 
   <view class="page" v-else-if="loading" :style="themeStyle">
     <view class="card">
-      <view class="title">加载中…</view>
-      <view class="hint">正在获取记账簿数据</view>
+      <t-loading :loading="true" text="加载中…" />
+    </view>
+  </view>
+
+  <view class="page" v-else-if="loadFailed" :style="themeStyle">
+    <view class="card">
+      <view class="hint">加载失败</view>
     </view>
   </view>
 
@@ -309,6 +314,7 @@ const records = ref<any[]>([])
 const shareMode = ref(false)
 const loading = ref(false)
 const notFound = ref(false)
+const loadFailed = ref(false)
 const isMpWeixin = ref(false)
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
@@ -461,6 +467,7 @@ async function loadLedger() {
   }
   loading.value = true
   notFound.value = false
+  loadFailed.value = false
   try {
     const res = await getLedgerDetail(id.value)
     ledger.value = res.ledger
@@ -472,6 +479,7 @@ async function loadLedger() {
     members.value = []
     records.value = []
     notFound.value = String(e?.code || '') === 'not_found'
+    loadFailed.value = !notFound.value
     uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
   } finally {
     loading.value = false
@@ -1425,7 +1433,7 @@ async function onChooseAvatar(e: any) {
   right: 0;
   top: 0;
   bottom: 0;
-  z-index: 40;
+  z-index: 1200;
 }
 .fab {
   position: fixed;
@@ -1435,7 +1443,7 @@ async function onChooseAvatar(e: any) {
   flex-direction: column;
   align-items: flex-end;
   gap: 12rpx;
-  z-index: 41;
+  z-index: 1201;
 }
 .fab-panel {
   display: flex;
@@ -1450,7 +1458,7 @@ async function onChooseAvatar(e: any) {
   transform: translateY(10rpx);
   opacity: 0;
   pointer-events: none;
-  transition: all 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .fab-panel.open {
   transform: translateY(0);
@@ -1470,7 +1478,7 @@ async function onChooseAvatar(e: any) {
   justify-content: center;
   border: 1rpx solid rgba(255, 255, 255, 0.24);
   box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.16);
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .fab-toggle::after {
   border: none;
@@ -1481,6 +1489,9 @@ async function onChooseAvatar(e: any) {
 }
 .fab-toggle:active {
   transform: scale(0.98);
+}
+.fab-toggle.dragging {
+  transition: none;
 }
 .fab-icon {
   width: 28rpx;

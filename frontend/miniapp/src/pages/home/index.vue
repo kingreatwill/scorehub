@@ -42,7 +42,8 @@
           <image class="more-icon" :src="moreIcon" mode="aspectFit" />
         </view>
       </view>
-      <view v-if="loadingScorebooks && activeScorebooks.length === 0" class="hint">加载中…</view>
+      <t-loading v-if="loadingScorebooks && activeScorebooks.length === 0" :loading="true" text="加载中…" />
+      <view v-else-if="loadScorebooksError" class="hint">加载失败</view>
       <view v-else-if="activeScorebooks.length === 0" class="hint">暂无记录中的得分簿</view>
       <view v-else class="list">
         <view class="item" v-for="it in activeScorebooks" :key="it.id" @click="openScorebook(it.id)">
@@ -83,6 +84,7 @@ isMpWeixin.value = true
 const newName = ref('')
 const myScorebooks = ref<any[]>([])
 const loadingScorebooks = ref(false)
+const loadScorebooksError = ref('')
 const activeScorebooks = computed(() =>
   (myScorebooks.value || []).filter((it) => isScorebook(it) && String(it?.status || '') !== 'ended'),
 )
@@ -244,6 +246,7 @@ async function onCreate() {
 }
 
 async function loadMyScorebooks() {
+  loadScorebooksError.value = ''
   if (!token.value) {
     myScorebooks.value = []
     loadingScorebooks.value = false
@@ -255,7 +258,9 @@ async function loadMyScorebooks() {
     const res = await listMyScorebooks()
     myScorebooks.value = res.items || []
   } catch (e: any) {
-    // 首页不打扰用户流程，静默失败即可
+    if (myScorebooks.value.length === 0) {
+      loadScorebooksError.value = '加载失败'
+    }
   } finally {
     if (showLoading) loadingScorebooks.value = false
   }
