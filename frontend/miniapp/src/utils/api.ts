@@ -219,6 +219,55 @@ export async function endLedger(id: string) {
   return request<{ ledger: any }>('POST', `/ledgers/${id}/end`)
 }
 
+export async function listBirthdays() {
+  return request<{ items: any[] }>('GET', '/birthdays')
+}
+
+export async function getBirthday(id: string) {
+  return request<{ birthday: any }>('GET', `/birthdays/${id}`)
+}
+
+export async function createBirthday(payload: {
+  name: string
+  gender?: string
+  phone?: string
+  relation?: string
+  note?: string
+  avatarUrl?: string
+  solarBirthday?: string
+  lunarBirthday?: string
+  primaryType?: 'solar' | 'lunar'
+  primaryMonth?: number
+  primaryDay?: number
+  primaryYear?: number
+}) {
+  return request<{ birthday: any }>('POST', '/birthdays', payload)
+}
+
+export async function updateBirthday(
+  id: string,
+  payload: {
+    name?: string
+    gender?: string
+    phone?: string
+    relation?: string
+    note?: string
+    avatarUrl?: string
+    solarBirthday?: string
+    lunarBirthday?: string
+    primaryType?: 'solar' | 'lunar'
+    primaryMonth?: number
+    primaryDay?: number
+    primaryYear?: number
+  },
+) {
+  return request<{ birthday: any }>('PATCH', `/birthdays/${id}`, payload)
+}
+
+export async function deleteBirthday(id: string) {
+  return request<{ ok: boolean }>('DELETE', `/birthdays/${id}`)
+}
+
 export async function deleteLedger(id: string) {
   return request<{ ledger: any }>('DELETE', `/ledgers/${id}`)
 }

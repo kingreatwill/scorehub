@@ -59,6 +59,10 @@
           <image class="feature-icon" :src="ledgerIcon" mode="aspectFit" />
           <view class="feature-label">记账簿</view>
         </view>
+        <view class="feature" @click="openBirthdayList">
+          <image class="feature-icon" :src="birthdayIcon" mode="aspectFit" />
+          <view class="feature-label">生日薄</view>
+        </view>
       </view>
     </view>
 
@@ -184,6 +188,7 @@ const colorDotFabButtonProps = computed(() => ({
 const presetDotColors = ['#111111', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6']
 const scorebookIcon = computed(() => iconDataUrl('scorebook', colorDot.value))
 const ledgerIcon = computed(() => iconDataUrl('ledger', colorDot.value))
+const birthdayIcon = computed(() => iconDataUrl('birthday', colorDot.value))
 const scanIcon = computed(() => iconDataUrl('scan', colorDot.value))
 const logoutIcon = computed(() => iconDataUrl('logout', colorDot.value))
 
@@ -240,7 +245,7 @@ function toFillColor(hex: string, alpha = 0.32): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-type IconKind = 'scorebook' | 'ledger' | 'scan' | 'logout'
+type IconKind = 'scorebook' | 'ledger' | 'birthday' | 'scan' | 'logout'
 
 function iconDataUrl(kind: IconKind, hex: string): string {
   const normalized = normalizeHexColor(hex) || '#111111'
@@ -255,6 +260,9 @@ function iconSvg(kind: IconKind, stroke: string): string {
   }
   if (kind === 'ledger') {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>`
+  }
+  if (kind === 'birthday') {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8z"/><path d="M4 10c1.5-1.2 3.5-1.2 5 0 1.5 1.2 3.5 1.2 5 0 1.5-1.2 3.5-1.2 5 0"/><path d="M12 3v4"/><path d="M9.5 5.5l5 0"/></svg>`
   }
   if (kind === 'scan') {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8"/></svg>`
@@ -390,6 +398,10 @@ function openLedgerList() {
 
 function openScorebookList() {
   uni.navigateTo({ url: '/pages/scorebook/list' })
+}
+
+function openBirthdayList() {
+  uni.navigateTo({ url: '/pages/birthday/list' })
 }
 
 async function onScanInviteToInput() {

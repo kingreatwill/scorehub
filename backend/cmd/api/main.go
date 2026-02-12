@@ -39,6 +39,7 @@ func main() {
 	meHandlers := handlers.NewMeHandlers(st)
 	scorebookHandlers := handlers.NewScorebookHandlers(cfg, st, hub)
 	ledgerHandlers := handlers.NewLedgerHandlers(cfg, st)
+	birthdayHandlers := handlers.NewBirthdayHandlers(st)
 	locationHandlers := handlers.NewLocationHandlers(cfg)
 
 	api := h.Group("/api/v1")
@@ -71,6 +72,11 @@ func main() {
 	authed.PATCH("/ledgers/:id/members/:memberId", ledgerHandlers.UpdateLedgerMember)
 	authed.POST("/ledgers/:id/records", ledgerHandlers.AddLedgerRecord)
 	authed.POST("/ledgers/:id/end", ledgerHandlers.EndLedger)
+	authed.POST("/birthdays", birthdayHandlers.CreateBirthday)
+	authed.GET("/birthdays", birthdayHandlers.ListBirthdays)
+	authed.GET("/birthdays/:id", birthdayHandlers.GetBirthday)
+	authed.PATCH("/birthdays/:id", birthdayHandlers.UpdateBirthday)
+	authed.DELETE("/birthdays/:id", birthdayHandlers.DeleteBirthday)
 
 	// Public: allow location & invite info lookup without login.
 	api.GET("/location/reverse_geocode", locationHandlers.ReverseGeocode)

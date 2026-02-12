@@ -110,3 +110,59 @@ type InviteInfo struct {
 	ShareDisabled bool
 	UpdatedAt time.Time
 }
+
+type BirthdayContact struct {
+	ID            string
+	UserID        int64
+	Name          string
+	Gender        string
+	Phone         string
+	Relation      string
+	Note          string
+	AvatarURL     string
+	SolarBirthday *time.Time
+	LunarBirthday string
+	PrimaryType   string
+	PrimaryMonth  int
+	PrimaryDay    int
+	PrimaryYear   int
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type BirthdayContactWithDays struct {
+	BirthdayContact
+	NextBirthday time.Time
+	DaysLeft     int
+}
+
+type BirthdayContactInput struct {
+	Name          string
+	Gender        string
+	Phone         string
+	Relation      string
+	Note          string
+	AvatarURL     string
+	SolarBirthday *time.Time
+	LunarBirthday string
+	PrimaryType   string
+	PrimaryMonth  int
+	PrimaryDay    int
+	PrimaryYear   int
+}
+
+type BirthdayContactUpdate struct {
+	Name          *string
+	Gender        *string
+	Phone         *string
+	Relation      *string
+	Note          *string
+	AvatarURL     *string
+	SolarBirthday *time.Time
+	SolarSetNull  bool
+	LunarBirthday *string
+	PrimaryType   *string
+	PrimaryMonth  *int
+	PrimaryDay    *int
+	PrimaryYear   *int
+}

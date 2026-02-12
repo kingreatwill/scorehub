@@ -61,6 +61,24 @@
       }
     },
     {
+      "path": "pages/birthday/list",
+      "style": {
+        "navigationBarTitleText": "生日薄"
+      }
+    },
+    {
+      "path": "pages/birthday/detail",
+      "style": {
+        "navigationBarTitleText": "生日详情"
+      }
+    },
+    {
+      "path": "pages/birthday/create",
+      "style": {
+        "navigationBarTitleText": "新增生日"
+      }
+    },
+    {
       "path": "pages/join/index",
       "style": {
         "navigationBarTitleText": "加入得分簿"

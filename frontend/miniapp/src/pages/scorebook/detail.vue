@@ -36,7 +36,8 @@
       <view class="rank-row" v-if="computedWinners.champion">
         <text class="rank-label">冠军</text>
         <view class="rank-user">
-          <image class="rank-avatar" :src="computedWinners.champion.avatarUrl || fallbackAvatar" mode="aspectFill" />
+          <image v-if="computedWinners.champion.avatarUrl" class="rank-avatar" :src="computedWinners.champion.avatarUrl" mode="aspectFill" />
+          <view v-else class="rank-avatar avatar-fallback" :style="avatarStyle(computedWinners.champion.nickname)">{{ initialFromName(computedWinners.champion.nickname) }}</view>
           <text class="rank-name">{{ displayNickname(computedWinners.champion.nickname) }}</text>
         </view>
         <text class="rank-score pos">{{ formatScore(computedWinners.champion.score) }}</text>
@@ -44,7 +45,8 @@
       <view class="rank-row" v-if="computedWinners.runnerUp">
         <text class="rank-label">亚军</text>
         <view class="rank-user">
-          <image class="rank-avatar" :src="computedWinners.runnerUp.avatarUrl || fallbackAvatar" mode="aspectFill" />
+          <image v-if="computedWinners.runnerUp.avatarUrl" class="rank-avatar" :src="computedWinners.runnerUp.avatarUrl" mode="aspectFill" />
+          <view v-else class="rank-avatar avatar-fallback" :style="avatarStyle(computedWinners.runnerUp.nickname)">{{ initialFromName(computedWinners.runnerUp.nickname) }}</view>
           <text class="rank-name">{{ displayNickname(computedWinners.runnerUp.nickname) }}</text>
         </view>
         <text class="rank-score pos">{{ formatScore(computedWinners.runnerUp.score) }}</text>
@@ -52,7 +54,8 @@
       <view class="rank-row" v-if="computedWinners.third">
         <text class="rank-label">季军</text>
         <view class="rank-user">
-          <image class="rank-avatar" :src="computedWinners.third.avatarUrl || fallbackAvatar" mode="aspectFill" />
+          <image v-if="computedWinners.third.avatarUrl" class="rank-avatar" :src="computedWinners.third.avatarUrl" mode="aspectFill" />
+          <view v-else class="rank-avatar avatar-fallback" :style="avatarStyle(computedWinners.third.nickname)">{{ initialFromName(computedWinners.third.nickname) }}</view>
           <text class="rank-name">{{ displayNickname(computedWinners.third.nickname) }}</text>
         </view>
         <text class="rank-score pos">{{ formatScore(computedWinners.third.score) }}</text>
@@ -66,7 +69,8 @@
       <view class="member-grid">
         <view class="member" v-for="m in members" :key="m.id" @click="onClickMember(m)">
           <view class="avatar-wrap">
-            <image class="avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
+            <image v-if="m.avatarUrl" class="avatar" :src="m.avatarUrl" mode="aspectFill" />
+            <view v-else class="avatar avatar-fallback" :style="avatarStyle(m.nickname)">{{ initialFromName(m.nickname) }}</view>
             <view class="tag avatar-tag me" v-if="m.isMe">我</view>
             <view class="tag avatar-tag owner" v-if="m.isOwner">掌柜</view>
           </view>
@@ -91,10 +95,12 @@
         <view class="record" v-for="r in records" :key="r.id">
           <view class="record-row">
             <view class="record-users">
-              <image class="record-avatar" :src="avatarOf(r.fromMemberId)" mode="aspectFill" />
+              <image v-if="avatarOf(r.fromMemberId)" class="record-avatar" :src="avatarOf(r.fromMemberId)" mode="aspectFill" />
+              <view v-else class="record-avatar avatar-fallback" :style="avatarStyle(nicknameOf(r.fromMemberId))">{{ initialOf(r.fromMemberId) }}</view>
               <text class="record-name">{{ nicknameOf(r.fromMemberId) }}</text>
               <text class="record-arrow">→</text>
-              <image class="record-avatar" :src="avatarOf(r.toMemberId)" mode="aspectFill" />
+              <image v-if="avatarOf(r.toMemberId)" class="record-avatar" :src="avatarOf(r.toMemberId)" mode="aspectFill" />
+              <view v-else class="record-avatar avatar-fallback" :style="avatarStyle(nicknameOf(r.toMemberId))">{{ initialOf(r.toMemberId) }}</view>
               <text class="record-name">{{ nicknameOf(r.toMemberId) }}</text>
             </view>
             <view class="record-meta">
@@ -119,7 +125,8 @@
 	      </view>
 
 	      <view class="score-target">
-	        <image class="score-target-avatar" :src="scoreTarget?.avatarUrl || fallbackAvatar" mode="aspectFill" />
+	        <image v-if="scoreTarget?.avatarUrl" class="score-target-avatar" :src="scoreTarget?.avatarUrl" mode="aspectFill" />
+	        <view v-else class="score-target-avatar avatar-fallback" :style="avatarStyle(scoreTarget?.nickname)">{{ initialFromName(scoreTarget?.nickname) }}</view>
 	        <view class="score-target-body">
 	          <view class="score-target-name">{{ displayNickname(scoreTarget?.nickname) }}</view>
 	          <view class="score-target-sub">
@@ -259,6 +266,7 @@ import {
 import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
 import { clampNickname } from '../../utils/nickname'
 import { applyTabBarTheme } from '../../utils/theme'
+import { avatarStyle } from '../../utils/avatar-color'
 
 const token = ref('')
 const id = ref('')
@@ -291,8 +299,6 @@ const isMpWeixin = ref(false)
 isMpWeixin.value = true
 // #endif
 
-const fallbackAvatar =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="%23ddd"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%23666" font-size="14">avatar</text></svg>'
 const moreIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'
 const closeIcon =
@@ -447,7 +453,17 @@ function nicknameOf(memberID: any): string {
 
 function avatarOf(memberID: any): string {
   const m = memberByID(memberID)
-  return String(m?.avatarUrl || fallbackAvatar)
+  return String(m?.avatarUrl || '').trim()
+}
+
+function initialFromName(v: any): string {
+  const s = String(v || '').trim()
+  return s ? s.slice(0, 1) : '友'
+}
+
+function initialOf(memberID: any): string {
+  const m = memberByID(memberID)
+  return initialFromName(m?.nickname)
 }
 
 function displayNickname(v: any): string {
@@ -1492,6 +1508,17 @@ async function submitScore() {
   border-radius: 12rpx;
   background: #f6f7fb;
 }
+.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-weight: 600;
+}
+.rank-avatar.avatar-fallback {
+  font-size: 22rpx;
+}
 .rank-name {
   overflow: hidden;
   white-space: nowrap;
@@ -1534,6 +1561,11 @@ async function submitScore() {
   border-radius: 16rpx;
   background: #ddd;
   flex: none;
+}
+.avatar.avatar-fallback {
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-size: 28rpx;
 }
 .tag.avatar-tag {
   position: absolute;
@@ -1713,6 +1745,11 @@ async function submitScore() {
   border-radius: 18rpx;
   background: #fff;
 }
+.score-target-avatar.avatar-fallback {
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-size: 24rpx;
+}
 .score-target-body {
   flex: 1;
   min-width: 0;
@@ -1855,6 +1892,11 @@ async function submitScore() {
   border-radius: 12rpx;
   background: #ddd;
   flex: none;
+}
+.record-avatar.avatar-fallback {
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-size: 22rpx;
 }
 .record-name {
   max-width: 180rpx;

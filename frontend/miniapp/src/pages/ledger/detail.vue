@@ -55,7 +55,8 @@
             <view class="tag me-tag" v-if="isMeMember(m)">我</view>
           </view>
           <view class="avatar-wrap">
-            <image class="avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
+            <image v-if="m.avatarUrl" class="avatar" :src="m.avatarUrl" mode="aspectFill" />
+            <view v-else class="avatar avatar-fallback" :style="avatarStyle(m.nickname)">{{ initialFromName(m.nickname) }}</view>
           </view>
           <view class="member-name">{{ displayNickname(m.nickname) }}</view>
           <view class="member-total" :class="balanceTone(memberTotals[m.id])">{{ formatAmount(memberTotals[m.id]) }}</view>
@@ -90,7 +91,8 @@
         <view class="record" v-for="r in filteredRecords" :key="r.id">
           <view class="record-row">
             <view class="record-user">
-              <image class="record-avatar" :src="avatarOf(recordMemberId(r))" mode="aspectFill" />
+              <image v-if="avatarOf(recordMemberId(r))" class="record-avatar" :src="avatarOf(recordMemberId(r))" mode="aspectFill" />
+              <view v-else class="record-avatar avatar-fallback" :style="avatarStyle(nicknameOf(recordMemberId(r)))">{{ initialOf(recordMemberId(r)) }}</view>
               <text class="record-name">{{ nicknameOf(recordMemberId(r)) }}</text>
             </view>
             <view class="record-meta">
@@ -115,13 +117,15 @@
       <view class="form">
         <template v-if="isMpWeixin">
           <button class="avatar-wrapper" open-type="chooseAvatar" @chooseavatar="onChooseAvatar" hover-class="none">
-            <image class="avatar" :src="memberAvatar || fallbackAvatar" mode="aspectFill" />
+            <image v-if="memberAvatar" class="avatar" :src="memberAvatar" mode="aspectFill" />
+            <view v-else class="avatar avatar-fallback" :style="avatarStyle(memberNickname)">{{ initialFromName(memberNickname) }}</view>
             <view class="avatar-tip">点击选择头像（可选）</view>
           </button>
         </template>
         <template v-else>
           <view class="avatar-preview">
-            <image class="avatar" :src="memberAvatar || fallbackAvatar" mode="aspectFill" />
+            <image v-if="memberAvatar" class="avatar" :src="memberAvatar" mode="aspectFill" />
+            <view v-else class="avatar avatar-fallback" :style="avatarStyle(memberNickname)">{{ initialFromName(memberNickname) }}</view>
           </view>
           <input class="input" v-model="memberAvatar" placeholder="头像 URL（可选）" />
         </template>
@@ -141,7 +145,8 @@
       </view>
 
       <view class="record-target" v-if="recordTarget">
-        <image class="record-target-avatar" :src="recordTarget.avatarUrl || fallbackAvatar" mode="aspectFill" />
+        <image v-if="recordTarget?.avatarUrl" class="record-target-avatar" :src="recordTarget.avatarUrl" mode="aspectFill" />
+        <view v-else class="record-target-avatar avatar-fallback" :style="avatarStyle(recordTarget?.nickname)">{{ initialFromName(recordTarget?.nickname) }}</view>
         <view class="record-target-body">
           <view class="record-target-name">{{ displayNickname(recordTarget.nickname) }}</view>
           <view class="record-target-sub">当前余额 {{ formatAmount(memberTotals[recordTarget.id]) }}</view>
@@ -179,7 +184,8 @@
       <view class="hint">请选择一个已有成员进行绑定（仅限未绑定的成员）。</view>
       <view class="bind-list" v-if="bindCandidates.length">
         <view class="bind-item" v-for="m in bindCandidates" :key="m.id">
-          <image class="bind-avatar" :src="m.avatarUrl || fallbackAvatar" mode="aspectFill" />
+          <image v-if="m.avatarUrl" class="bind-avatar" :src="m.avatarUrl" mode="aspectFill" />
+          <view v-else class="bind-avatar avatar-fallback" :style="avatarStyle(m.nickname)">{{ initialFromName(m.nickname) }}</view>
           <view class="bind-info">
             <view class="bind-name">{{ displayNickname(m.nickname) }}</view>
             <view class="bind-sub">未绑定</view>
@@ -286,6 +292,7 @@ import {
 } from '../../utils/api'
 import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
 import { applyTabBarTheme } from '../../utils/theme'
+import { avatarStyle } from '../../utils/avatar-color'
 
 const id = ref('')
 const ledger = ref<any>(null)
@@ -349,8 +356,6 @@ const bindRequired = ref(false)
 let lastAppliedNavBg = ''
 let lastAppliedNavFront: '#000000' | '#ffffff' | '' = ''
 
-const fallbackAvatar =
-  'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
 const addIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
 const editIcon =
@@ -844,6 +849,11 @@ function displayNickname(v: any): string {
   return s || '未命名'
 }
 
+function initialFromName(v: any): string {
+  const s = String(v || '').trim()
+  return s ? s.slice(0, 1) : '友'
+}
+
 function nicknameOf(memberId: string): string {
   const m = members.value.find((it) => it.id === memberId)
   return displayNickname(m?.nickname)
@@ -851,7 +861,12 @@ function nicknameOf(memberId: string): string {
 
 function avatarOf(memberId: string): string {
   const m = members.value.find((it) => it.id === memberId)
-  return m?.avatarUrl || fallbackAvatar
+  return String(m?.avatarUrl || '').trim()
+}
+
+function initialOf(memberId: string): string {
+  const m = members.value.find((it) => it.id === memberId)
+  return initialFromName(m?.nickname)
 }
 
 function recordMemberId(r: any): string {
@@ -1662,6 +1677,11 @@ async function onChooseAvatar(e: any) {
   background: #fff;
   flex: none;
 }
+.bind-avatar.avatar-fallback {
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-size: 24rpx;
+}
 .bind-info {
   flex: 1;
   min-width: 0;
@@ -1708,6 +1728,19 @@ async function onChooseAvatar(e: any) {
   height: 96rpx;
   border-radius: 48rpx;
   background: #fff;
+}
+.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-weight: 600;
+}
+.avatar.avatar-fallback {
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-size: 28rpx;
 }
 .member-name {
   font-size: 26rpx;
@@ -1756,6 +1789,11 @@ async function onChooseAvatar(e: any) {
   height: 44rpx;
   border-radius: 22rpx;
   background: #fff;
+}
+.record-avatar.avatar-fallback {
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-size: 22rpx;
 }
 .record-name {
   font-size: 26rpx;
@@ -1917,6 +1955,11 @@ async function onChooseAvatar(e: any) {
   height: 72rpx;
   border-radius: 36rpx;
   background: #fff;
+}
+.record-target-avatar.avatar-fallback {
+  background: var(--brand-soft);
+  color: var(--brand-solid);
+  font-size: 24rpx;
 }
 .record-target-name {
   font-size: 28rpx;
