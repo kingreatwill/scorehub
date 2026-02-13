@@ -24,41 +24,49 @@
       </view>
     </view>
 
-    <view class="card">
+    <view class="card base-card">
       <view class="section-title">基础信息</view>
       <view class="field">
         <text class="label">姓名</text>
-        <input class="input" v-model="form.name" placeholder="例如 小北" />
+        <view class="field-body">
+          <input class="input" v-model="form.name" placeholder="" />
+        </view>
       </view>
       <view class="field">
         <text class="label">性别</text>
-        <view class="gender-select">
-          <view class="gender-option" :class="{ active: form.gender === '男' }" @click="form.gender = '男'">
-            <view class="gender-radio" />
-            <view class="gender-label">男</view>
-          </view>
-          <view class="gender-option" :class="{ active: form.gender === '女' }" @click="form.gender = '女'">
-            <view class="gender-radio" />
-            <view class="gender-label">女</view>
+        <view class="field-body">
+          <view class="gender-select">
+            <view class="gender-option" :class="{ active: form.gender === '男' }" @click="form.gender = '男'">
+              <view class="gender-radio" />
+              <view class="gender-label">男</view>
+            </view>
+            <view class="gender-option" :class="{ active: form.gender === '女' }" @click="form.gender = '女'">
+              <view class="gender-radio" />
+              <view class="gender-label">女</view>
+            </view>
           </view>
         </view>
       </view>
       <view class="field">
         <text class="label">手机</text>
-        <input class="input" v-model="form.phone" placeholder="手机号（可选）" />
+        <view class="field-body">
+          <input class="input" v-model="form.phone" placeholder="（可选）" />
+        </view>
       </view>
       <view class="field">
         <text class="label">关系</text>
-        <input class="input" v-model="form.relation" placeholder="家人 / 朋友 / 同事" />
-        <view class="chips">
-          <view
-            v-for="opt in relationOptions"
-            :key="opt"
-            class="chip"
-            :class="{ active: form.relation === opt }"
-            @click="form.relation = opt"
-          >
-            {{ opt }}
+        <view class="field-body">
+          <input class="input" v-model="form.relation" placeholder="（可选）" />
+          <view class="chips">
+            <view
+              v-for="opt in relationOptions"
+              :key="opt"
+              class="chip"
+              :class="{ active: form.relation === opt }"
+              @click="form.relation = opt"
+            >
+              {{ opt }}
+            </view>
           </view>
         </view>
       </view>
@@ -78,7 +86,7 @@
 
     <view class="card">
       <view class="section-title">备注</view>
-      <textarea class="textarea" v-model="form.note" placeholder="备注 / 喜好" />
+      <textarea class="textarea" v-model="form.note" placeholder="（可选）" />
     </view>
 
     <button class="btn confirm-btn" :disabled="saving" @click="onSave">{{ saving ? '保存中…' : '保存' }}</button>
@@ -213,10 +221,11 @@ async function loadDetail(id: string) {
   try {
     const res = await getBirthday(id)
     const data = res?.birthday || {}
+    const gender = String(data.gender || '').trim() || '男'
     form.value = {
       id: String(data.id || id),
       name: String(data.name || ''),
-      gender: String(data.gender || ''),
+      gender,
       phone: String(data.phone || ''),
       relation: String(data.relation || ''),
       note: String(data.note || ''),
@@ -531,6 +540,23 @@ function calcDaysLeft(mmdd: string): number {
   padding: 24rpx;
   box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
   border: 1rpx solid rgba(0, 0, 0, 0.04);
+}
+.base-card .field {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+.base-card .label {
+  width: 120rpx;
+  flex: none;
+  padding-top: 6rpx;
+}
+.field-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
 }
 .profile-card {
   display: flex;
