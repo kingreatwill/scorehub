@@ -12,12 +12,12 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/hertz-contrib/cors"
 
+	"scorehub/assets"
 	appconfig "scorehub/internal/config"
 	"scorehub/internal/http/handlers"
 	"scorehub/internal/http/middleware"
 	"scorehub/internal/realtime"
 	"scorehub/internal/store"
-	"scorehub/assets"
 )
 
 func main() {
@@ -47,6 +47,7 @@ func main() {
 	scorebookHandlers := handlers.NewScorebookHandlers(cfg, st, hub)
 	ledgerHandlers := handlers.NewLedgerHandlers(cfg, st)
 	birthdayHandlers := handlers.NewBirthdayHandlers(st)
+	depositHandlers := handlers.NewDepositHandlers(st)
 	locationHandlers := handlers.NewLocationHandlers(cfg)
 
 	api := h.Group("/api/v1")
@@ -84,6 +85,19 @@ func main() {
 	authed.GET("/birthdays/:id", birthdayHandlers.GetBirthday)
 	authed.PATCH("/birthdays/:id", birthdayHandlers.UpdateBirthday)
 	authed.DELETE("/birthdays/:id", birthdayHandlers.DeleteBirthday)
+	authed.POST("/deposits/accounts", depositHandlers.CreateDepositAccount)
+	authed.GET("/deposits/accounts", depositHandlers.ListDepositAccounts)
+	authed.GET("/deposits/accounts/:id", depositHandlers.GetDepositAccount)
+	authed.PATCH("/deposits/accounts/:id", depositHandlers.UpdateDepositAccount)
+	authed.DELETE("/deposits/accounts/:id", depositHandlers.DeleteDepositAccount)
+	authed.POST("/deposits/accounts/:id/records", depositHandlers.CreateDepositRecord)
+	authed.GET("/deposits/accounts/:id/records", depositHandlers.ListDepositAccountRecords)
+	authed.GET("/deposits/records", depositHandlers.ListDepositRecords)
+	authed.GET("/deposits/records/:id", depositHandlers.GetDepositRecord)
+	authed.PATCH("/deposits/records/:id", depositHandlers.UpdateDepositRecord)
+	authed.DELETE("/deposits/records/:id", depositHandlers.DeleteDepositRecord)
+	authed.GET("/deposits/tags", depositHandlers.ListDepositTags)
+	authed.GET("/deposits/stats", depositHandlers.GetDepositStats)
 
 	// Public: allow location & invite info lookup without login.
 	api.GET("/location/reverse_geocode", locationHandlers.ReverseGeocode)

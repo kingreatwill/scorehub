@@ -146,6 +146,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { currencyList, getCurrencyMeta } from '../../utils/currency'
+import { createDepositRecord, getDepositAccount } from '../../utils/api'
 
 type Account = {
   id: string
@@ -171,33 +172,11 @@ type DepositForm = {
   attachments: AttachmentItem[]
 }
 
-type DepositRecord = {
-  id: string
-  accountId: string
-  currency: string
-  amount: number
-  amountUpper: string
-  termValue: number
-  termUnit: 'year' | 'month'
-  rate: number
-  receiptNo: string
-  startDate: string
-  endDate: string
-  interest: number
-  tags: string[]
-  note: string
-  attachments: AttachmentItem[]
-  status: '未到期' | '已到期' | '已支取'
-}
-
 type AttachmentItem = {
   type: 'image' | 'file'
   url: string
   name?: string
 }
-
-const ACCOUNTS_KEY = 'deposit.accounts'
-const RECORDS_KEY = 'deposit.records'
 
 const account = ref<Account | null>(null)
 const accountId = ref('')
@@ -234,9 +213,9 @@ onLoad((q) => {
   accountId.value = String(query.accountId || '')
 })
 
-onShow(() => {
+onShow(async () => {
   syncTheme()
-  loadAccount()
+  await loadAccount()
   if (!form.value.endDate) {
     form.value.endDate = calcEndDate(form.value.startDate, form.value.termValue, form.value.termUnit)
   }
@@ -257,18 +236,29 @@ function syncTheme() {
   applyTabBarTheme(base)
 }
 
-function loadAccount() {
+async function loadAccount() {
   if (!accountId.value) return
-  const list = loadAccounts()
-  const found = list.find((it) => String(it.id) === accountId.value)
-  if (!found) {
-    uni.showToast({ title: '未找到账户', icon: 'none' })
+  try {
+    const res = await getDepositAccount(accountId.value)
+    const found = res?.account
+    if (!found) {
+      throw new Error('未找到账户')
+    }
+    account.value = {
+      id: String(found.id || ''),
+      bank: String(found.bank || ''),
+      branch: String(found.branch || ''),
+      accountNo: String(found.accountNo || ''),
+      holder: String(found.holder || ''),
+      avatarUrl: String(found.avatarUrl || ''),
+      note: String(found.note || ''),
+    }
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '未找到账户', icon: 'none' })
     setTimeout(() => {
       uni.navigateBack({ delta: 1 })
     }, 400)
-    return
   }
-  account.value = found
 }
 
 function setCurrency(code: string) {
@@ -402,10 +392,7 @@ async function onSave() {
 
   saving.value = true
   try {
-    const list = loadRecords()
-    const record: DepositRecord = {
-      id: `dep_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
-      accountId: account.value.id,
+    await createDepositRecord(account.value.id, {
       currency: form.value.currency,
       amount: parseAmount(form.value.amount),
       amountUpper: amountUpper.value,
@@ -420,9 +407,7 @@ async function onSave() {
       note: form.value.note.trim(),
       attachments: form.value.attachments,
       status: '未到期',
-    }
-    list.push(record)
-    saveRecords(list)
+    })
     uni.showToast({ title: '已保存', icon: 'success' })
     setTimeout(() => {
       uni.navigateBack({ delta: 1 })
@@ -430,32 +415,6 @@ async function onSave() {
   } finally {
     saving.value = false
   }
-}
-
-function loadAccounts(): Account[] {
-  try {
-    const raw = uni.getStorageSync(ACCOUNTS_KEY)
-    if (!raw) return []
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(parsed) ? parsed : []
-  } catch (e) {
-    return []
-  }
-}
-
-function loadRecords(): DepositRecord[] {
-  try {
-    const raw = uni.getStorageSync(RECORDS_KEY)
-    if (!raw) return []
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(parsed) ? parsed : []
-  } catch (e) {
-    return []
-  }
-}
-
-function saveRecords(list: DepositRecord[]) {
-  uni.setStorageSync(RECORDS_KEY, JSON.stringify(list))
 }
 
 function initialOf(name: string): string {

@@ -14,7 +14,7 @@
           <view class="stat-value" v-for="(line, idx) in depositLines" :key="`deposit-${idx}`">{{ line }}</view>
         </view>
         <view class="stat stat-right">
-          <view class="stat-label">年收益</view>
+          <view class="stat-label">本年收益</view>
           <view class="stat-value" v-for="(line, idx) in yieldLines" :key="`yield-${idx}`">{{ line }}</view>
         </view>
       </view>
@@ -52,7 +52,7 @@
     <view class="card">
       <view class="title-row">
         <view class="title">记录</view>
-        <view class="record-total">未到期 {{ filteredActiveTotal }}</view>
+        <view class="record-total" v-if="showActiveTotal">未到期 {{ filteredActiveTotal }}</view>
       </view>
       <view class="filter-panel">
         <scroll-view class="filter-scroll" scroll-x>
@@ -127,7 +127,7 @@
               <view class="record-footer">
                 <view class="record-info">
                   <view class="record-info-top">
-                    <text class="record-item" v-if="rec.status === '已支取'">支取日 {{ rec.endDate }}</text>
+                  <text class="record-item" v-if="rec.status === '已支取'">支取日 {{ rec.withdrawnAt || rec.endDate }}</text>
                     <template v-else-if="rec.status === '已到期'">
                       <text class="record-item">到期日 {{ rec.endDate }}</text>
                     </template>
@@ -147,7 +147,7 @@
                     <text class="record-tag empty" v-else>无标签</text>
                   </view>
                 </view>
-                <view class="record-status">{{ rec.status }}</view>
+                <view class="record-status" v-if="rec.status !== '未到期'">{{ rec.status }}</view>
               </view>
             </view>
           </view>
@@ -164,6 +164,14 @@ import { onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { getCurrencyMeta } from '../../utils/currency'
+import {
+  deleteDepositRecord,
+  getDepositStats,
+  listDepositAccounts,
+  listDepositRecords,
+  listDepositTags,
+  updateDepositRecord,
+} from '../../utils/api'
 
 type Account = {
   id: string
@@ -186,6 +194,7 @@ type DepositRecord = {
   rate: number
   startDate: string
   endDate: string
+  withdrawnAt?: string
   interest: number
   tags?: string[]
   note: string
@@ -206,9 +215,6 @@ type RecordView = DepositRecord & {
   statusClass: string
 }
 
-const ACCOUNTS_KEY = 'deposit.accounts'
-const RECORDS_KEY = 'deposit.records'
-
 const accounts = ref<Account[]>([])
 const records = ref<DepositRecord[]>([])
 const statusFilter = ref('未到期')
@@ -216,6 +222,8 @@ const bankFilterId = ref('')
 const tagFilters = ref<string[]>([])
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const user = ref<any>(null)
+const tagOptionsRemote = ref<string[]>([])
+const stats = ref<any>(null)
 const openId = ref('')
 const touchStartX = ref(0)
 const touchStartY = ref(0)
@@ -234,12 +242,10 @@ const editIcon =
 const bankIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10v8"/><path d="M9 10v8"/><path d="M15 10v8"/><path d="M19 10v8"/><path d="M2 18h20"/><path d="M12 4l9 4H3z"/></svg>'
 
-onShow(() => {
+onShow(async () => {
   syncTheme()
   user.value = (uni.getStorageSync('user') as any) || null
-  seedDemoData()
-  accounts.value = loadAccounts()
-  records.value = loadRecords()
+  await load()
   openId.value = ''
   swipeOffsetById.value = {}
 })
@@ -287,6 +293,7 @@ const bankOptions = computed(() => {
 })
 
 const tagOptions = computed(() => {
+  if (tagOptionsRemote.value.length) return tagOptionsRemote.value
   const set = new Set<string>()
   for (const rec of recordItems.value) {
     const tags = Array.isArray(rec.tags) ? rec.tags : []
@@ -311,15 +318,28 @@ const filteredRecords = computed<RecordView[]>(() => {
   })
 })
 
-const filteredActiveTotal = computed(() => {
+const filteredActiveTotals = computed(() => {
   const active = filteredRecords.value.filter((rec) => rec.status === '未到期')
-  const sorted = sortCurrencyItems(aggregateByCurrency(active, (rec) => rec.amount))
-  return formatCurrencySummary(sorted)
+  return sortCurrencyItems(aggregateByCurrency(active, (rec) => rec.amount))
 })
+const filteredActiveTotal = computed(() => formatCurrencySummary(filteredActiveTotals.value))
+const showActiveTotal = computed(() => filteredActiveTotals.value.some((item) => Number(item.amount || 0) > 0))
 
 const displayName = computed(() => String(user.value?.nickname || '').trim() || '我')
 
 const accountTotals = computed(() => {
+  if (stats.value?.accountTotals?.length) {
+    const map = new Map<string, Map<string, number>>()
+    for (const item of stats.value.accountTotals) {
+      const id = String(item.accountId || '')
+      if (!id) continue
+      const currency = String(item.currency || 'CNY').toUpperCase()
+      if (!map.has(id)) map.set(id, new Map())
+      const curMap = map.get(id)!
+      curMap.set(currency, (curMap.get(currency) || 0) + Number(item.amount || 0))
+    }
+    return map
+  }
   const map = new Map<string, Map<string, number>>()
   for (const rec of recordItems.value) {
     if (rec.status === '已支取') continue
@@ -334,42 +354,85 @@ const accountTotals = computed(() => {
 })
 
 const totalDepositItems = computed(() => {
+  if (stats.value?.totals?.length) {
+    return sortCurrencyItems(
+      stats.value.totals.map((item: any) => ({
+        currency: String(item.currency || 'CNY'),
+        amount: Number(item.amount || 0),
+      })),
+    )
+  }
   const active = recordItems.value.filter((rec) => rec.status === '未到期')
   return sortCurrencyItems(aggregateByCurrency(active, (rec) => rec.amount))
 })
 
 const annualYieldItems = computed(() => {
-  const active = recordItems.value.filter((rec) => rec.status === '未到期')
-  return sortCurrencyItems(aggregateByCurrency(active, (rec) => (rec.amount * rec.rate) / 100))
+  if (stats.value?.annualYields?.length) {
+    return sortCurrencyItems(
+      stats.value.annualYields.map((item: any) => ({
+        currency: String(item.currency || 'CNY'),
+        amount: Number(item.amount || 0),
+      })),
+    )
+  }
+  const active = recordItems.value.filter((rec) => rec.status === '未到期' && isSameYear(rec.endDate))
+  return sortCurrencyItems(aggregateByCurrency(active, (rec) => rec.interest || 0))
 })
 
 const depositLines = computed(() => formatCurrencyLines(totalDepositItems.value, ''))
 const yieldLines = computed(() => formatCurrencyLines(annualYieldItems.value, '+'))
 
-function loadAccounts(): Account[] {
+async function load() {
   try {
-    const raw = uni.getStorageSync(ACCOUNTS_KEY)
-    if (!raw) return []
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(parsed) ? parsed : []
-  } catch (e) {
-    return []
+    const [accountsRes, recordsRes] = await Promise.all([listDepositAccounts(), listDepositRecords()])
+    accounts.value = (accountsRes?.items || []).map((acc: any) => ({
+      id: String(acc.id || ''),
+      bank: String(acc.bank || ''),
+      branch: String(acc.branch || ''),
+      accountNo: String(acc.accountNo || ''),
+      holder: String(acc.holder || ''),
+      avatarUrl: String(acc.avatarUrl || ''),
+      note: String(acc.note || ''),
+    }))
+    records.value = (recordsRes?.items || []).map((rec: any) => ({
+      id: String(rec.id || ''),
+      accountId: String(rec.accountId || ''),
+      currency: String(rec.currency || 'CNY'),
+      amount: Number(rec.amount || 0),
+      amountUpper: String(rec.amountUpper || ''),
+      termValue: Number(rec.termValue || 0),
+      termUnit: (rec.termUnit === 'month' ? 'month' : rec.termUnit === 'day' ? 'day' : 'year') as
+        | 'year'
+        | 'month'
+        | 'day',
+      rate: Number(rec.rate || 0),
+      startDate: String(rec.startDate || ''),
+      endDate: String(rec.endDate || ''),
+      withdrawnAt: String(rec.withdrawnAt || ''),
+      interest: Number(rec.interest || 0),
+      tags: Array.isArray(rec.tags) ? rec.tags : [],
+      note: String(rec.note || ''),
+      attachments: Array.isArray(rec.attachments) ? rec.attachments : [],
+      status: (rec.status === '已到期' || rec.status === '已支取' ? rec.status : '未到期') as
+        | '未到期'
+        | '已到期'
+        | '已支取',
+    }))
+    await loadStatsAndTags()
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
   }
 }
 
-function loadRecords(): DepositRecord[] {
+async function loadStatsAndTags() {
   try {
-    const raw = uni.getStorageSync(RECORDS_KEY)
-    if (!raw) return []
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(parsed) ? parsed : []
-  } catch (e) {
-    return []
-  }
-}
-
-function saveRecords(list: DepositRecord[]) {
-  uni.setStorageSync(RECORDS_KEY, JSON.stringify(list))
+    const [tagsRes, statsRes] = await Promise.all([
+      listDepositTags(),
+      getDepositStats({ status: '未到期' }),
+    ])
+    tagOptionsRemote.value = (tagsRes?.items || []).map((it: any) => String(it?.tag || '')).filter(Boolean)
+    stats.value = statsRes?.stats || null
+  } catch (e) {}
 }
 
 function openAccountCreate() {
@@ -416,15 +479,37 @@ async function onWithdraw(rec: RecordView) {
     uni.showModal({ title: '确认支取', content: '确认支取这笔存款？', success: resolve })
   })
   if (!res.confirm) return
-  const nextDate = formatDate(new Date())
-  const next = records.value.map((item) =>
-    item.id === rec.id ? { ...item, status: '已支取', endDate: nextDate } : item,
-  )
-  records.value = next
-  saveRecords(next)
-  setSwipeOffset(rec.id, 0)
-  openId.value = ''
-  uni.showToast({ title: '已支取', icon: 'success' })
+  try {
+    const nextDate = formatDate(new Date())
+    const resp = await updateDepositRecord(rec.id, {
+      status: '已支取',
+      withdrawnAt: nextDate,
+      endDate: nextDate,
+    })
+    const updated = resp?.record
+    if (updated) {
+      records.value = records.value.map((item) =>
+        item.id === rec.id
+          ? {
+              ...item,
+              status: updated.status || '已支取',
+              endDate: updated.endDate || nextDate,
+              withdrawnAt: updated.withdrawnAt || nextDate,
+            }
+          : item,
+      )
+    } else {
+      records.value = records.value.map((item) =>
+        item.id === rec.id ? { ...item, status: '已支取', endDate: nextDate, withdrawnAt: nextDate } : item,
+      )
+    }
+    await loadStatsAndTags()
+    setSwipeOffset(rec.id, 0)
+    openId.value = ''
+    uni.showToast({ title: '已支取', icon: 'success' })
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '支取失败', icon: 'none' })
+  }
 }
 
 async function confirmDelete(rec: RecordView) {
@@ -432,12 +517,16 @@ async function confirmDelete(rec: RecordView) {
     uni.showModal({ title: '确认删除', content: '确定删除这笔存款记录？', success: resolve })
   })
   if (!res.confirm) return
-  const next = records.value.filter((item) => item.id !== rec.id)
-  records.value = next
-  saveRecords(next)
-  setSwipeOffset(rec.id, 0)
-  openId.value = ''
-  uni.showToast({ title: '已删除', icon: 'success' })
+  try {
+    await deleteDepositRecord(rec.id)
+    records.value = records.value.filter((item) => item.id !== rec.id)
+    await loadStatsAndTags()
+    setSwipeOffset(rec.id, 0)
+    openId.value = ''
+    uni.showToast({ title: '已删除', icon: 'success' })
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '删除失败', icon: 'none' })
+  }
 }
 
 function onTouchStart(e: any, id: string) {
@@ -533,144 +622,6 @@ function clampSwipeOffset(v: number): number {
   return Math.max(-SWIPE_ACTION_WIDTH, Math.min(0, Math.round(v)))
 }
 
-function seedDemoData() {
-  const existingAccounts = loadAccounts()
-  const existingRecords = loadRecords()
-  const today = new Date()
-
-  let accountsDemo = existingAccounts
-  if (existingAccounts.length === 0) {
-    const acc1: Account = {
-      id: 'acc_demo_1',
-      bank: '招商银行',
-      branch: '深圳科技园支行',
-      accountNo: '6225 8888 1234 5678',
-      holder: user.value?.nickname ? String(user.value.nickname) : '王小明',
-      avatarUrl: '',
-      note: '工资卡',
-    }
-    const acc2: Account = {
-      id: 'acc_demo_2',
-      bank: '工商银行',
-      branch: '北京国贸支行',
-      accountNo: '6222 0000 3333 9876',
-      holder: '李晴',
-      avatarUrl: '',
-      note: '定期存款',
-    }
-    const acc3: Account = {
-      id: 'acc_demo_3',
-      bank: '中国银行',
-      branch: '上海陆家嘴支行',
-      accountNo: '6216 4444 5555 6666',
-      holder: '周然',
-      avatarUrl: '',
-      note: '美元存款',
-    }
-    accountsDemo = [acc1, acc2, acc3]
-    saveAccounts(accountsDemo)
-  }
-
-  if (existingRecords.length !== 0) return
-
-  const accA = accountsDemo[0]
-  const accB = accountsDemo[1] || accountsDemo[0]
-  const accC = accountsDemo[2] || accountsDemo[0]
-
-  const recordsDemo: DepositRecord[] = [
-    {
-      id: 'dep_demo_1',
-      accountId: accA.id,
-      currency: 'CNY',
-      amount: 120000,
-      amountUpper: '',
-      termValue: 1,
-      termUnit: 'year',
-      rate: 2.2,
-      startDate: formatDate(addDays(today, -120)),
-      endDate: formatDate(addDays(today, 245)),
-      interest: 0,
-      tags: ['大额', '一年期', '重点'],
-      note: '一年期大额存单',
-      attachments: [],
-      status: '未到期',
-    },
-    {
-      id: 'dep_demo_2',
-      accountId: accB.id,
-      currency: 'CNY',
-      amount: 50000,
-      amountUpper: '',
-      termValue: 6,
-      termUnit: 'month',
-      rate: 1.85,
-      startDate: formatDate(addDays(today, -200)),
-      endDate: formatDate(addDays(today, -20)),
-      interest: 0,
-      tags: ['定期'],
-      note: '半年定期',
-      attachments: [],
-      status: '已到期',
-    },
-    {
-      id: 'dep_demo_3',
-      accountId: accC.id,
-      currency: 'USD',
-      amount: 8000,
-      amountUpper: '',
-      termValue: 3,
-      termUnit: 'month',
-      rate: 3.6,
-      startDate: formatDate(addDays(today, -10)),
-      endDate: formatDate(addDays(today, 80)),
-      interest: 0,
-      tags: ['美元', '短期'],
-      note: '三个月美元存款',
-      attachments: [],
-      status: '未到期',
-    },
-    {
-      id: 'dep_demo_4',
-      accountId: accA.id,
-      currency: 'CNY',
-      amount: 30000,
-      amountUpper: '',
-      termValue: 1,
-      termUnit: 'month',
-      rate: 1.3,
-      startDate: formatDate(addDays(today, -40)),
-      endDate: formatDate(addDays(today, -10)),
-      interest: 0,
-      note: '短期存款已支取',
-      attachments: [],
-      status: '已支取',
-    },
-    {
-      id: 'dep_demo_5',
-      accountId: accB.id,
-      currency: 'CNY',
-      amount: 80000,
-      amountUpper: '',
-      termValue: 2,
-      termUnit: 'year',
-      rate: 2.6,
-      startDate: formatDate(addDays(today, -30)),
-      endDate: formatDate(addDays(today, 700)),
-      interest: 0,
-      tags: ['重点', '长期'],
-      note: '两年期定存',
-      attachments: [],
-      status: '未到期',
-    },
-  ]
-
-  saveRecords(recordsDemo)
-}
-
-function saveAccounts(list: Account[]) {
-  uni.setStorageSync(ACCOUNTS_KEY, JSON.stringify(list))
-}
-
 function tailOf(accountNo: string): string {
   const v = String(accountNo || '').replace(/\s+/g, '')
   if (!v) return ''
@@ -740,6 +691,13 @@ function parseDate(value: string): Date | null {
   return new Date(y, m - 1, d)
 }
 
+function isSameYear(dateStr: string): boolean {
+  const date = parseDate(dateStr)
+  if (!date) return false
+  const now = new Date()
+  return date.getFullYear() === now.getFullYear()
+}
+
 function compareRecord(a: RecordView, b: RecordView): number {
   const rank = (status: string) => {
     if (status === '未到期') return 0
@@ -748,15 +706,11 @@ function compareRecord(a: RecordView, b: RecordView): number {
   }
   const r = rank(a.status) - rank(b.status)
   if (r !== 0) return r
-  const da = parseDate(a.endDate)?.getTime() || 0
-  const db = parseDate(b.endDate)?.getTime() || 0
+  const dateA = a.status === '已支取' ? a.withdrawnAt || a.endDate : a.endDate
+  const dateB = b.status === '已支取' ? b.withdrawnAt || b.endDate : b.endDate
+  const da = parseDate(dateA)?.getTime() || 0
+  const db = parseDate(dateB)?.getTime() || 0
   return da - db
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
 }
 
 function formatDate(date: Date): string {

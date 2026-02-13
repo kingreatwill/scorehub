@@ -95,6 +95,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { bankList } from '../../utils/banks'
+import { createDepositAccount, getDepositAccount, updateDepositAccount } from '../../utils/api'
 
 type Account = {
   id: string
@@ -105,8 +106,6 @@ type Account = {
   avatarUrl: string
   note: string
 }
-
-const ACCOUNTS_KEY = 'deposit.accounts'
 
 const form = ref<Account>({
   id: '',
@@ -136,13 +135,7 @@ onLoad((q) => {
   const query = (q || {}) as any
   const id = String(query.id || '').trim()
   if (id) {
-    const list = loadAccounts()
-    const existing = list.find((item) => String(item.id) === id)
-    if (existing) {
-      form.value = { ...existing }
-      isEditing.value = true
-      uni.setNavigationBarTitle({ title: '编辑账户' })
-    }
+    loadAccount(id)
   }
 })
 
@@ -165,7 +158,6 @@ async function onSave() {
   }
   saving.value = true
   try {
-    const list = loadAccounts()
     const base: Account = {
       ...form.value,
       bank: form.value.bank.trim(),
@@ -176,21 +168,36 @@ async function onSave() {
       note: form.value.note.trim(),
     }
     if (isEditing.value && form.value.id) {
-      const idx = list.findIndex((item) => item.id === form.value.id)
-      if (idx >= 0) {
-        list[idx] = { ...base, id: form.value.id }
-      } else {
-        list.push({ ...base, id: form.value.id })
+      const res = await updateDepositAccount(form.value.id, {
+        bank: base.bank,
+        branch: base.branch,
+        accountNo: base.accountNo,
+        holder: base.holder,
+        avatarUrl: base.avatarUrl,
+        note: base.note,
+      })
+      if (res?.account) {
+        form.value = {
+          ...base,
+          id: String(res.account.id || form.value.id),
+        }
       }
-      saveAccounts(list)
       uni.showToast({ title: '已保存', icon: 'success' })
     } else {
-      const next: Account = {
-        ...base,
-        id: `acc_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
+      const res = await createDepositAccount({
+        bank: base.bank,
+        branch: base.branch,
+        accountNo: base.accountNo,
+        holder: base.holder,
+        avatarUrl: base.avatarUrl,
+        note: base.note,
+      })
+      if (res?.account) {
+        form.value = {
+          ...base,
+          id: String(res.account.id || ''),
+        }
       }
-      list.push(next)
-      saveAccounts(list)
       uni.showToast({ title: '已创建', icon: 'success' })
     }
     setTimeout(() => {
@@ -201,19 +208,27 @@ async function onSave() {
   }
 }
 
-function loadAccounts(): Account[] {
+async function loadAccount(id: string) {
   try {
-    const raw = uni.getStorageSync(ACCOUNTS_KEY)
-    if (!raw) return []
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(parsed) ? parsed : []
-  } catch (e) {
-    return []
+    const res = await getDepositAccount(id)
+    const acc = res?.account
+    if (acc) {
+      form.value = {
+        id: String(acc.id || id),
+        bank: String(acc.bank || ''),
+        branch: String(acc.branch || ''),
+        accountNo: String(acc.accountNo || ''),
+        holder: String(acc.holder || ''),
+        avatarUrl: String(acc.avatarUrl || ''),
+        note: String(acc.note || ''),
+      }
+      isEditing.value = true
+      uni.setNavigationBarTitle({ title: '编辑账户' })
+      return
+    }
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
   }
-}
-
-function saveAccounts(list: Account[]) {
-  uni.setStorageSync(ACCOUNTS_KEY, JSON.stringify(list))
 }
 
 const filteredBanks = computed(() => {

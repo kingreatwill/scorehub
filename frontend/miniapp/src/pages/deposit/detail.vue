@@ -114,6 +114,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor, normalizeHexColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { getCurrencyMeta } from '../../utils/currency'
+import { getDepositAccount, getDepositRecord, updateDepositRecord } from '../../utils/api'
 
 type Account = {
   id: string
@@ -143,15 +144,13 @@ type DepositRecord = {
   receiptNo?: string
   startDate: string
   endDate: string
+  withdrawnAt?: string
   interest: number
   tags?: string[]
   note: string
   attachments: AttachmentItem[] | string[]
   status: '未到期' | '已到期' | '已支取'
 }
-
-const ACCOUNTS_KEY = 'deposit.accounts'
-const RECORDS_KEY = 'deposit.records'
 
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const recordId = ref('')
@@ -184,16 +183,38 @@ function syncTheme() {
 
 function load() {
   loading.value = true
-  const records = loadRecords()
-  const found = records.find((it) => String(it.id) === recordId.value) || null
-  record.value = found
-  if (found) {
-    const accounts = loadAccounts()
-    account.value = accounts.find((it) => String(it.id) === found.accountId) || null
-  } else {
+  fetchDetail()
+}
+
+async function fetchDetail() {
+  try {
+    const res = await getDepositRecord(recordId.value)
+    const found = res?.record || null
+    record.value = found
+    if (found?.accountId) {
+      const accRes = await getDepositAccount(String(found.accountId))
+      const acc = accRes?.account
+      account.value = acc
+        ? {
+            id: String(acc.id || ''),
+            bank: String(acc.bank || ''),
+            branch: String(acc.branch || ''),
+            accountNo: String(acc.accountNo || ''),
+            holder: String(acc.holder || ''),
+            avatarUrl: String(acc.avatarUrl || ''),
+            note: String(acc.note || ''),
+          }
+        : null
+    } else {
+      account.value = null
+    }
+  } catch (e: any) {
+    record.value = null
     account.value = null
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 const currencyMeta = computed(() => getCurrencyMeta(record.value?.currency || 'CNY'))
@@ -224,32 +245,6 @@ const amountUpperDisplay = computed(() => {
   if (meta.code !== 'CNY') return `${meta.symbol}${formatAmount(amount)}`
   return formatCurrencyUpper(amount)
 })
-
-function loadAccounts(): Account[] {
-  try {
-    const raw = uni.getStorageSync(ACCOUNTS_KEY)
-    if (!raw) return []
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(parsed) ? parsed : []
-  } catch (e) {
-    return []
-  }
-}
-
-function loadRecords(): DepositRecord[] {
-  try {
-    const raw = uni.getStorageSync(RECORDS_KEY)
-    if (!raw) return []
-    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    return Array.isArray(parsed) ? parsed : []
-  } catch (e) {
-    return []
-  }
-}
-
-function saveRecords(list: DepositRecord[]) {
-  uni.setStorageSync(RECORDS_KEY, JSON.stringify(list))
-}
 
 function tailOf(accountNo: string): string {
   const v = String(accountNo || '').replace(/\s+/g, '')
@@ -308,14 +303,21 @@ async function withdrawRecord() {
     uni.showModal({ title: '确认支取', content: '确认支取这笔存款？', success: resolve })
   })
   if (!res.confirm) return
-  const list = loadRecords()
-  const idx = list.findIndex((item) => String(item.id) === String(record.value?.id))
-  if (idx >= 0) {
+  try {
     const nextDate = formatDate(new Date())
-    list[idx] = { ...list[idx], status: '已支取', endDate: nextDate }
-    saveRecords(list)
-    record.value = { ...record.value, status: '已支取', endDate: nextDate }
+    const res = await updateDepositRecord(String(record.value.id), {
+      status: '已支取',
+      withdrawnAt: nextDate,
+      endDate: nextDate,
+    })
+    if (res?.record) {
+      record.value = { ...record.value, ...res.record }
+    } else {
+      record.value = { ...record.value, status: '已支取', endDate: nextDate, withdrawnAt: nextDate }
+    }
     uni.showToast({ title: '已支取', icon: 'success' })
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '支取失败', icon: 'none' })
   }
   closeActionMenu()
 }

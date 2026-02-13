@@ -268,6 +268,131 @@ export async function deleteBirthday(id: string) {
   return request<{ ok: boolean }>('DELETE', `/birthdays/${id}`)
 }
 
+export async function listDepositAccounts() {
+  return request<{ items: any[] }>('GET', '/deposits/accounts')
+}
+
+export async function getDepositAccount(id: string) {
+  return request<{ account: any }>('GET', `/deposits/accounts/${id}`)
+}
+
+export async function createDepositAccount(payload: {
+  bank: string
+  branch?: string
+  accountNo?: string
+  holder?: string
+  avatarUrl?: string
+  note?: string
+}) {
+  return request<{ account: any }>('POST', '/deposits/accounts', payload)
+}
+
+export async function updateDepositAccount(
+  id: string,
+  payload: {
+    bank?: string
+    branch?: string
+    accountNo?: string
+    holder?: string
+    avatarUrl?: string
+    note?: string
+  },
+) {
+  return request<{ account: any }>('PATCH', `/deposits/accounts/${id}`, payload)
+}
+
+export async function deleteDepositAccount(id: string) {
+  return request<{ ok: boolean }>('DELETE', `/deposits/accounts/${id}`)
+}
+
+export async function listDepositRecords(params: { accountId?: string; status?: string; tags?: string[] } = {}) {
+  const query: string[] = []
+  if (params.accountId) query.push(`accountId=${encodeURIComponent(params.accountId)}`)
+  if (params.status) query.push(`status=${encodeURIComponent(params.status)}`)
+  if (params.tags && params.tags.length > 0) query.push(`tags=${encodeURIComponent(params.tags.join(','))}`)
+  const q = query.join('&')
+  return request<{ items: any[] }>('GET', `/deposits/records${q ? `?${q}` : ''}`)
+}
+
+export async function listDepositAccountRecords(accountId: string, params: { status?: string; tags?: string[] } = {}) {
+  const query: string[] = []
+  if (params.status) query.push(`status=${encodeURIComponent(params.status)}`)
+  if (params.tags && params.tags.length > 0) query.push(`tags=${encodeURIComponent(params.tags.join(','))}`)
+  const q = query.join('&')
+  return request<{ items: any[] }>('GET', `/deposits/accounts/${accountId}/records${q ? `?${q}` : ''}`)
+}
+
+export async function getDepositRecord(id: string) {
+  return request<{ record: any }>('GET', `/deposits/records/${id}`)
+}
+
+export async function createDepositRecord(
+  accountId: string,
+  payload: {
+    currency: string
+    amount: number
+    amountUpper?: string
+    termValue: number
+    termUnit: 'year' | 'month'
+    rate: number
+    startDate: string
+    endDate: string
+    interest: number
+    receiptNo?: string
+    status?: string
+    withdrawnAt?: string
+    tags?: string[]
+    attachments?: any[]
+    note?: string
+  },
+) {
+  return request<{ record: any }>('POST', `/deposits/accounts/${accountId}/records`, payload)
+}
+
+export async function updateDepositRecord(
+  id: string,
+  payload: {
+    currency?: string
+    amount?: number
+    amountUpper?: string
+    termValue?: number
+    termUnit?: 'year' | 'month'
+    rate?: number
+    startDate?: string
+    endDate?: string
+    interest?: number
+    receiptNo?: string
+    status?: string
+    withdrawnAt?: string
+    tags?: string[]
+    attachments?: any[]
+    note?: string
+  },
+) {
+  return request<{ record: any }>('PATCH', `/deposits/records/${id}`, payload)
+}
+
+export async function deleteDepositRecord(id: string) {
+  return request<{ ok: boolean }>('DELETE', `/deposits/records/${id}`)
+}
+
+export async function listDepositTags(params: { accountId?: string; status?: string } = {}) {
+  const query: string[] = []
+  if (params.accountId) query.push(`accountId=${encodeURIComponent(params.accountId)}`)
+  if (params.status) query.push(`status=${encodeURIComponent(params.status)}`)
+  const q = query.join('&')
+  return request<{ items: { tag: string; count: number }[] }>('GET', `/deposits/tags${q ? `?${q}` : ''}`)
+}
+
+export async function getDepositStats(params: { accountId?: string; status?: string; tags?: string[] } = {}) {
+  const query: string[] = []
+  if (params.accountId) query.push(`accountId=${encodeURIComponent(params.accountId)}`)
+  if (params.status) query.push(`status=${encodeURIComponent(params.status)}`)
+  if (params.tags && params.tags.length > 0) query.push(`tags=${encodeURIComponent(params.tags.join(','))}`)
+  const q = query.join('&')
+  return request<{ stats: any }>('GET', `/deposits/stats${q ? `?${q}` : ''}`)
+}
+
 export async function deleteLedger(id: string) {
   return request<{ ledger: any }>('DELETE', `/ledgers/${id}`)
 }
