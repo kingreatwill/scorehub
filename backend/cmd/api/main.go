@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log"
+	"mime"
+	"path"
+	"strings"
 
+	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/hertz-contrib/cors"
 
@@ -12,6 +17,7 @@ import (
 	"scorehub/internal/http/middleware"
 	"scorehub/internal/realtime"
 	"scorehub/internal/store"
+	"scorehub/assets"
 )
 
 func main() {
@@ -34,6 +40,7 @@ func main() {
 		AllowMethods:    []string{"GET", "POST", "PATCH", "OPTIONS"},
 		AllowHeaders:    []string{"Authorization", "Content-Type", "X-Dev-OpenID"},
 	}))
+	h.GET("/static/*filepath", staticAssetsHandler())
 
 	authHandlers := handlers.NewAuthHandlers(cfg, st)
 	meHandlers := handlers.NewMeHandlers(st)
@@ -87,4 +94,29 @@ func main() {
 
 	log.Printf("scorehub api listening on %s", cfg.Addr)
 	h.Spin()
+}
+
+func staticAssetsHandler() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		reqPath := strings.TrimPrefix(string(c.Param("filepath")), "/")
+		if reqPath == "" {
+			c.SetStatusCode(404)
+			return
+		}
+		if strings.Contains(reqPath, "..") {
+			c.SetStatusCode(400)
+			return
+		}
+
+		data, err := fs.ReadFile(assets.FS, reqPath)
+		if err != nil {
+			c.SetStatusCode(404)
+			return
+		}
+
+		if contentType := mime.TypeByExtension(path.Ext(reqPath)); contentType != "" {
+			c.SetContentType(contentType)
+		}
+		c.Response.SetBodyRaw(data)
+	}
 }

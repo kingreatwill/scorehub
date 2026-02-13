@@ -59,6 +59,10 @@
           <image class="feature-icon" :src="ledgerIcon" mode="aspectFit" />
           <view class="feature-label">记账簿</view>
         </view>
+        <view class="feature" @click="openDepositList">
+          <image class="feature-icon" :src="depositIcon" mode="aspectFit" />
+          <view class="feature-label">存款薄</view>
+        </view>
         <view class="feature" @click="openBirthdayList">
           <image class="feature-icon" :src="birthdayIcon" mode="aspectFit" />
           <view class="feature-label">生日薄</view>
@@ -189,6 +193,7 @@ const presetDotColors = ['#111111', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6']
 const scorebookIcon = computed(() => iconDataUrl('scorebook', colorDot.value))
 const ledgerIcon = computed(() => iconDataUrl('ledger', colorDot.value))
 const birthdayIcon = computed(() => iconDataUrl('birthday', colorDot.value))
+const depositIcon = computed(() => iconDataUrl('deposit', colorDot.value))
 const scanIcon = computed(() => iconDataUrl('scan', colorDot.value))
 const logoutIcon = computed(() => iconDataUrl('logout', colorDot.value))
 
@@ -245,7 +250,7 @@ function toFillColor(hex: string, alpha = 0.32): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-type IconKind = 'scorebook' | 'ledger' | 'birthday' | 'scan' | 'logout'
+type IconKind = 'scorebook' | 'ledger' | 'birthday' | 'deposit' | 'scan' | 'logout'
 
 function iconDataUrl(kind: IconKind, hex: string): string {
   const normalized = normalizeHexColor(hex) || '#111111'
@@ -262,7 +267,10 @@ function iconSvg(kind: IconKind, stroke: string): string {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1"/></svg>`
   }
   if (kind === 'birthday') {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8z"/><path d="M4 10c1.5-1.2 3.5-1.2 5 0 1.5 1.2 3.5 1.2 5 0 1.5-1.2 3.5-1.2 5 0"/><path d="M12 3v4"/><path d="M9.5 5.5l5 0"/></svg>`
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7z"/><path d="M4 12c1.2-1 2.8-1 4 0 1.2 1 2.8 1 4 0 1.2-1 2.8-1 4 0 1.2 1 2.8 1 4 0"/><path d="M8 7v2"/><path d="M12 7v2"/><path d="M16 7v2"/></svg>`
+  }
+  if (kind === 'deposit') {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="${stroke}" stroke="${stroke}" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><path d="M851.8 157.3H233.3c-19.5 0-35.4 16.2-35.4 36.2v219.8H257V216.4h571.2v590.7H257v-197h-59.1v219.8c0 20.1 15.9 36.3 35.4 36.3h618.5c19.6 0 35.5-16.2 35.5-36.3V629.4 505.3 375 193.6c-0.1-20-15.9-36.3-35.5-36.3z"/><path d="M513 570.9v59h78.6V689h58.9v-59.1H729v-59h-78.5v-39.4H729v-59.1h-45.7l65.4-98.5h-78.6l-39.2 59-39.2-59h-78.5l65.4 98.5H513v59.1h78.6v39.4zM314.9 598.2c-11.5 11.6-11.5 30.3 0 41.8 5.8 5.8 13.4 8.6 20.9 8.6 7.5 0 15.1-2.9 20.9-8.6l97.4-97.5c11.6-11.5 11.6-30.3 0-41.8l-97.4-97.5c-5.8-5.8-13.4-8.7-20.9-8.7-7.5 0-15.1 2.9-20.9 8.7-11.5 11.5-11.5 30.2 0 41.7L362 492H129c-16.3 0-29.5 13.3-29.5 29.5 0 16.3 13.3 29.5 29.5 29.5h233l-47.1 47.2z"/></svg>`
   }
   if (kind === 'scan') {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h2"/><path d="M17 4h2a1 1 0 0 1 1 1v2"/><path d="M20 17v2a1 1 0 0 1-1 1h-2"/><path d="M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8"/></svg>`
@@ -402,6 +410,10 @@ function openScorebookList() {
 
 function openBirthdayList() {
   uni.navigateTo({ url: '/pages/birthday/list' })
+}
+
+function openDepositList() {
+  uni.navigateTo({ url: '/pages/deposit/list' })
 }
 
 async function onScanInviteToInput() {

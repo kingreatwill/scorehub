@@ -79,6 +79,30 @@
       }
     },
     {
+      "path": "pages/deposit/list",
+      "style": {
+        "navigationBarTitleText": "存款薄"
+      }
+    },
+    {
+      "path": "pages/deposit/account-create",
+      "style": {
+        "navigationBarTitleText": "新增账户"
+      }
+    },
+    {
+      "path": "pages/deposit/deposit-create",
+      "style": {
+        "navigationBarTitleText": "存款"
+      }
+    },
+    {
+      "path": "pages/deposit/detail",
+      "style": {
+        "navigationBarTitleText": "存款详情"
+      }
+    },
+    {
       "path": "pages/join/index",
       "style": {
         "navigationBarTitleText": "加入得分簿"
