@@ -7,7 +7,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/scorehub ./cmd/api
 
-FROM alpine:3.20
+FROM alpine:3
 RUN apk add --no-cache ca-certificates tzdata
 RUN adduser -D -u 10001 app
 USER app
@@ -18,7 +18,7 @@ EXPOSE 8080
 ENTRYPOINT ["/app/scorehub"]
 
 # docker build -t scorehub .
-# docker tag scorehub kingreatwill/scorehub:v2.1.0
+# docker tag scorehub kingreatwill/scorehub:v2.2.0
 # docker login -u kingreatwill
-# docker push kingreatwill/scorehub:v2.1.0
-# docker run -d --name scorehub --link postgresql   -p 10005:8080   -v /data/dockerv/scorehub/.env:/app/.env:ro   -v /etc/localtime:/etc/localtime:ro   --restart unless-stopped kingreatwill/scorehub:v2.1.0
+# docker push kingreatwill/scorehub:v2.2.0
+# docker run -d --name scorehub --link postgresql   -p 10005:8080   -v /data/dockerv/scorehub/.env:/app/.env:ro   -v /etc/localtime:/etc/localtime:ro   --restart unless-stopped kingreatwill/scorehub:v2.2.0
