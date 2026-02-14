@@ -52,7 +52,10 @@
     <view class="card">
       <view class="title-row">
         <view class="title">记录</view>
-        <view class="record-total" v-if="showActiveTotal">未到期 {{ filteredActiveTotal }}</view>
+        <view class="record-totals" v-if="showActiveTotal || showActiveInterest">
+          <view class="record-total" v-if="showActiveTotal">总 {{ filteredActiveTotal }}</view>
+          <view class="record-total" v-if="showActiveInterest">总利息 {{ filteredActiveInterest }}</view>
+        </view>
       </view>
       <view class="filter-panel">
         <scroll-view class="filter-scroll" scroll-x>
@@ -112,7 +115,7 @@
               :class="{ dragging: isDragging && touchItemId === rec.id }"
               :style="swipeMainStyle(rec.id)"
               @touchstart="onTouchStart($event, rec.id)"
-              @touchmove.stop="onTouchMove($event, rec.id)"
+              @touchmove="onTouchMove($event, rec.id)"
               @touchend="onTouchEnd($event, rec.id)"
               @click="onRecordTap(rec)"
             >
@@ -339,6 +342,12 @@ const filteredActiveTotals = computed(() => {
 })
 const filteredActiveTotal = computed(() => formatCurrencySummary(filteredActiveTotals.value))
 const showActiveTotal = computed(() => filteredActiveTotals.value.some((item) => Number(item.amount || 0) > 0))
+const filteredActiveInterestTotals = computed(() => {
+  const active = filteredRecords.value.filter((rec) => rec.status === '未到期')
+  return sortCurrencyItems(aggregateByCurrency(active, (rec) => rec.interest || 0))
+})
+const filteredActiveInterest = computed(() => formatCurrencySummary(filteredActiveInterestTotals.value))
+const showActiveInterest = computed(() => filteredActiveInterestTotals.value.some((item) => Number(item.amount || 0) > 0))
 
 const displayName = computed(() => String(user.value?.nickname || '').trim() || '我')
 
@@ -619,9 +628,6 @@ function onTouchStart(e: any, id: string) {
 
 function onTouchMove(e: any, id: string) {
   if (touchItemId.value !== id) return
-  if (e?.cancelable && typeof e.preventDefault === 'function') {
-    e.preventDefault()
-  }
   const t = e?.touches?.[0]
   if (!t) return
   const dx = t.clientX - touchStartX.value
@@ -629,12 +635,15 @@ function onTouchMove(e: any, id: string) {
   touchLastX.value = t.clientX
   touchDx.value = dx
   if (!isDragging.value) {
-    if (Math.abs(dx) < 6) return
+    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
     if (Math.abs(dx) <= Math.abs(dy)) {
       touchItemId.value = ''
       return
     }
     isDragging.value = true
+  }
+  if (e?.cancelable && typeof e.preventDefault === 'function') {
+    e.preventDefault()
   }
   const next = clampSwipeOffset(dragStartOffset.value + dx)
   setSwipeOffset(id, next)
@@ -982,6 +991,12 @@ function formatCurrencyLines(items: { currency: string; amount: number }[], pref
 .title {
   font-size: 30rpx;
   font-weight: 600;
+}
+.record-totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
 }
 .record-total {
   font-size: 24rpx;

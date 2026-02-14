@@ -35,6 +35,21 @@
         <view class="field-body">
           <input class="input" :value="form.amount" type="digit" placeholder="" @input="onAmountInput" />
           <text class="assist" v-if="amountUpper">大写：{{ amountUpper }}</text>
+          <view class="history-row" v-if="amountHistory.length">
+            <text class="history-label">历史</text>
+            <view class="history-chips">
+              <view
+                class="history-chip"
+                v-for="item in amountHistory"
+                :key="`amount-${item}`"
+                @click="applyAmountHistory(item)"
+                @longpress="removeAmountHistory(item)"
+              >
+                {{ item }}
+              </view>
+            </view>
+            <text class="history-clear" @click="confirmClearHistory('amount')">清空</text>
+          </view>
         </view>
       </view>
       <view class="field">
@@ -47,6 +62,21 @@
               <view class="chip" :class="{ active: form.termUnit === 'month' }" @click="setTermUnit('month')">月</view>
             </view>
           </view>
+          <view class="history-row" v-if="termHistory.length">
+            <text class="history-label">历史</text>
+            <view class="history-chips">
+              <view
+                class="history-chip"
+                v-for="item in termHistory"
+                :key="`term-${item.value}-${item.unit}`"
+                @click="applyTermHistory(item)"
+                @longpress="removeTermHistory(item)"
+              >
+                {{ item.value }}{{ termLabel(item.unit) }}
+              </view>
+            </view>
+            <text class="history-clear" @click="confirmClearHistory('term')">清空</text>
+          </view>
         </view>
       </view>
       <view class="field">
@@ -55,6 +85,21 @@
           <view class="rate-row">
             <input class="input rate-input" :value="form.rate" type="digit" placeholder="" @input="onRateInput" />
             <text class="rate-unit">%</text>
+          </view>
+          <view class="history-row" v-if="rateHistory.length">
+            <text class="history-label">历史</text>
+            <view class="history-chips">
+              <view
+                class="history-chip"
+                v-for="item in rateHistory"
+                :key="`rate-${item}`"
+                @click="applyRateHistory(item)"
+                @longpress="removeRateHistory(item)"
+              >
+                {{ item }}%
+              </view>
+            </view>
+            <text class="history-clear" @click="confirmClearHistory('rate')">清空</text>
           </view>
         </view>
       </view>
@@ -87,7 +132,7 @@
       <view class="field">
         <text class="label">到期利息</text>
         <view class="field-body">
-          <view class="value">{{ formatAmount(interest) }}</view>
+          <input class="input" :value="interestInput" type="digit" placeholder="自动计算" @input="onInterestInput" />
           <text class="assist" v-if="interestHint">{{ interestHint }}</text>
         </view>
       </view>
@@ -107,6 +152,21 @@
           confirm-type="done"
           @confirm="onTagConfirm"
         />
+      </view>
+      <view class="history-row" v-if="tagHistory.length">
+        <text class="history-label">历史</text>
+        <view class="history-chips">
+          <view
+            class="history-chip"
+            v-for="tag in tagHistory"
+            :key="`tag-${tag}`"
+            @click="applyTagHistory(tag)"
+            @longpress="removeTagHistory(tag)"
+          >
+            {{ tag }}
+          </view>
+        </view>
+        <text class="history-clear" @click="confirmClearHistory('tag')">清空</text>
       </view>
     </view>
 
@@ -178,12 +238,21 @@ type AttachmentItem = {
   name?: string
 }
 
+type TermHistoryItem = {
+  value: string
+  unit: 'year' | 'month'
+}
+
 const account = ref<Account | null>(null)
 const accountId = ref('')
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const saving = ref(false)
 const endDateManual = ref(false)
 const tagInput = ref('')
+const amountHistory = ref<string[]>([])
+const termHistory = ref<TermHistoryItem[]>([])
+const rateHistory = ref<string[]>([])
+const tagHistory = ref<string[]>([])
 
 const form = ref<DepositForm>({
   currency: 'CNY',
@@ -200,12 +269,20 @@ const form = ref<DepositForm>({
 })
 
 const amountUpper = computed(() => amountToChineseUpper(parseAmount(form.value.amount), form.value.currency))
-const interest = computed(() => calcInterest(parseAmount(form.value.amount), parseRate(form.value.rate), form.value.startDate, form.value.endDate))
+const interestInput = ref('')
+const interestManual = ref(false)
+const calculatedInterest = computed(() =>
+  calcInterest(parseAmount(form.value.amount), parseRate(form.value.rate), parseTerm(form.value.termValue), form.value.termUnit),
+)
+const interestValue = computed(() => {
+  if (!interestManual.value && !interestInput.value) return calculatedInterest.value
+  return parseAmount(interestInput.value)
+})
 const interestHint = computed(() => {
-  if (!form.value.startDate || !form.value.endDate) return ''
-  const days = Math.max(0, diffDays(form.value.startDate, form.value.endDate))
-  if (!days) return ''
-  return `按 ${days} 天计息 / 365`
+  const term = parseTerm(form.value.termValue)
+  if (!term) return ''
+  const unit = form.value.termUnit === 'year' ? '年' : '个月'
+  return `按 ${term} ${unit}计息（年化，可修改）`
 })
 
 onLoad((q) => {
@@ -215,6 +292,7 @@ onLoad((q) => {
 
 onShow(async () => {
   syncTheme()
+  loadHistory()
   await loadAccount()
   if (!form.value.endDate) {
     form.value.endDate = calcEndDate(form.value.startDate, form.value.termValue, form.value.termUnit)
@@ -227,6 +305,15 @@ watch(
     if (endDateManual.value) return
     form.value.endDate = calcEndDate(form.value.startDate, form.value.termValue, form.value.termUnit)
   },
+)
+
+watch(
+  calculatedInterest,
+  (next) => {
+    if (interestManual.value) return
+    interestInput.value = formatAmount(next)
+  },
+  { immediate: true },
 )
 
 function syncTheme() {
@@ -295,10 +382,60 @@ function onRateInput(e: any) {
   return next
 }
 
+function onInterestInput(e: any) {
+  const next = sanitizeDecimal(String(e?.detail?.value || ''))
+  if (!next) {
+    interestManual.value = false
+    interestInput.value = formatAmount(calculatedInterest.value)
+    return interestInput.value
+  }
+  interestManual.value = true
+  interestInput.value = next
+  return next
+}
+
 function onTermInput(e: any) {
   const next = String(e?.detail?.value || '').replace(/[^0-9]/g, '')
   form.value.termValue = next
   return next
+}
+
+function applyAmountHistory(value: string) {
+  form.value.amount = String(value || '')
+}
+
+function removeAmountHistory(value: string) {
+  amountHistory.value = amountHistory.value.filter((item) => item !== value)
+  uni.setStorageSync('depositAmountHistory', amountHistory.value)
+}
+
+function applyTermHistory(item: TermHistoryItem) {
+  if (!item?.value) return
+  form.value.termValue = String(item.value)
+  form.value.termUnit = item.unit === 'month' ? 'month' : 'year'
+}
+
+function removeTermHistory(item: TermHistoryItem) {
+  termHistory.value = termHistory.value.filter((it) => it.value !== item.value || it.unit !== item.unit)
+  uni.setStorageSync('depositTermHistory', termHistory.value)
+}
+
+function applyRateHistory(value: string) {
+  form.value.rate = String(value || '')
+}
+
+function removeRateHistory(value: string) {
+  rateHistory.value = rateHistory.value.filter((item) => item !== value)
+  uni.setStorageSync('depositRateHistory', rateHistory.value)
+}
+
+function applyTagHistory(tag: string) {
+  addTag(tag)
+}
+
+function removeTagHistory(tag: string) {
+  tagHistory.value = tagHistory.value.filter((item) => item !== tag)
+  uni.setStorageSync('depositTagHistory', tagHistory.value)
 }
 
 async function addAttachment() {
@@ -369,6 +506,10 @@ async function chooseFiles() {
 async function onSave() {
   if (!account.value) return
   if (saving.value) return
+  if (tagInput.value.trim()) {
+    addTag(tagInput.value)
+    tagInput.value = ''
+  }
   if (!parseAmount(form.value.amount)) {
     uni.showToast({ title: '请输入存款金额', icon: 'none' })
     return
@@ -402,12 +543,13 @@ async function onSave() {
       receiptNo: form.value.receiptNo.trim(),
       startDate: form.value.startDate,
       endDate: form.value.endDate,
-      interest: interest.value,
+      interest: interestValue.value,
       tags: [...form.value.tags],
       note: form.value.note.trim(),
       attachments: form.value.attachments,
       status: '未到期',
     })
+    recordHistory()
     uni.showToast({ title: '已保存', icon: 'success' })
     setTimeout(() => {
       uni.navigateBack({ delta: 1 })
@@ -415,6 +557,95 @@ async function onSave() {
   } finally {
     saving.value = false
   }
+}
+
+function termLabel(unit: 'year' | 'month'): string {
+  return unit === 'month' ? '月' : '年'
+}
+
+function loadHistory() {
+  amountHistory.value = normalizeHistoryList(uni.getStorageSync('depositAmountHistory'))
+  rateHistory.value = normalizeHistoryList(uni.getStorageSync('depositRateHistory'))
+  tagHistory.value = normalizeHistoryList(uni.getStorageSync('depositTagHistory'))
+  const raw = uni.getStorageSync('depositTermHistory')
+  if (Array.isArray(raw)) {
+    termHistory.value = raw
+      .map((item) => ({
+        value: String(item?.value || '').replace(/[^0-9]/g, ''),
+        unit: item?.unit === 'month' ? 'month' : 'year',
+      }))
+      .filter((item) => item.value)
+  } else {
+    termHistory.value = []
+  }
+}
+
+function recordHistory() {
+  const amount = formatAmount(parseAmount(form.value.amount))
+  amountHistory.value = pushHistory(amountHistory.value, amount)
+  rateHistory.value = pushHistory(rateHistory.value, String(parseRate(form.value.rate)))
+  if (form.value.termValue) {
+    termHistory.value = pushTermHistory(termHistory.value, {
+      value: String(parseTerm(form.value.termValue)),
+      unit: form.value.termUnit,
+    })
+  }
+  const tags = form.value.tags.map((tag) => String(tag || '').trim()).filter(Boolean)
+  if (tags.length) {
+    for (const tag of tags) {
+      tagHistory.value = pushHistory(tagHistory.value, tag)
+    }
+  }
+  uni.setStorageSync('depositAmountHistory', amountHistory.value)
+  uni.setStorageSync('depositRateHistory', rateHistory.value)
+  uni.setStorageSync('depositTermHistory', termHistory.value)
+  uni.setStorageSync('depositTagHistory', tagHistory.value)
+}
+
+function normalizeHistoryList(value: any): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item || '').trim()).filter(Boolean)
+}
+
+function pushHistory(list: string[], value: string, limit = 6): string[] {
+  const v = String(value || '').trim()
+  if (!v) return list
+  const next = list.filter((item) => item !== v)
+  next.unshift(v)
+  return next.slice(0, limit)
+}
+
+function pushTermHistory(list: TermHistoryItem[], item: TermHistoryItem, limit = 6): TermHistoryItem[] {
+  const v = String(item?.value || '').trim()
+  if (!v) return list
+  const unit = item.unit === 'month' ? 'month' : 'year'
+  const next = list.filter((it) => it.value !== v || it.unit !== unit)
+  next.unshift({ value: v, unit })
+  return next.slice(0, limit)
+}
+
+async function confirmClearHistory(type: 'amount' | 'term' | 'rate' | 'tag') {
+  const res = await new Promise<UniApp.ShowModalRes>((resolve) => {
+    uni.showModal({ title: '清空历史', content: '确认清空历史记录？', success: resolve })
+  })
+  if (!res.confirm) return
+  if (type === 'amount') {
+    amountHistory.value = []
+    uni.setStorageSync('depositAmountHistory', amountHistory.value)
+    return
+  }
+  if (type === 'term') {
+    termHistory.value = []
+    uni.setStorageSync('depositTermHistory', termHistory.value)
+    return
+  }
+  if (type === 'rate') {
+    rateHistory.value = []
+    uni.setStorageSync('depositRateHistory', rateHistory.value)
+    return
+  }
+  tagHistory.value = []
+  uni.setStorageSync('depositTagHistory', tagHistory.value)
 }
 
 function initialOf(name: string): string {
@@ -466,20 +697,10 @@ function calcEndDate(startDate: string, termValue: string, termUnit: 'year' | 'm
   return formatDate(addMonths(start, term * 12))
 }
 
-function diffDays(startDate: string, endDate: string): number {
-  const start = parseDate(startDate)
-  const end = parseDate(endDate)
-  if (!start || !end) return 0
-  const a = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-  const b = new Date(end.getFullYear(), end.getMonth(), end.getDate())
-  return Math.ceil((b.getTime() - a.getTime()) / 86400000)
-}
-
-function calcInterest(amount: number, rate: number, startDate: string, endDate: string): number {
-  if (!amount || !rate) return 0
-  const days = Math.max(0, diffDays(startDate, endDate))
-  if (!days) return 0
-  return (amount * rate * days) / 36500
+function calcInterest(amount: number, rate: number, termValue: number, termUnit: 'year' | 'month'): number {
+  if (!amount || !rate || !termValue) return 0
+  const years = termUnit === 'month' ? termValue / 12 : termValue
+  return (amount * rate * years) / 100
 }
 
 function parseAmount(raw: string): number {
@@ -733,6 +954,36 @@ function amountToChineseUpper(amount: number, currency: string): string {
 }
 .assist {
   color: #888;
+  font-size: 22rpx;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-wrap: wrap;
+}
+.history-label {
+  color: #999;
+  font-size: 22rpx;
+}
+.history-chips {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  flex-wrap: wrap;
+}
+.history-chip {
+  padding: 0 14rpx;
+  height: 36rpx;
+  line-height: 36rpx;
+  border-radius: 999rpx;
+  background: #f1f2f6;
+  color: #666;
+  font-size: 22rpx;
+}
+.history-clear {
+  margin-left: auto;
+  color: var(--brand-solid);
   font-size: 22rpx;
 }
 .assist-row {
