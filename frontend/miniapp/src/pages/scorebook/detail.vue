@@ -117,8 +117,8 @@
       </view>
     </view>
 
-	    <view class="modal-mask score-mask" v-if="scoreModalOpen" @click="closeScoreModal" />
-	    <view class="modal score-modal" v-if="scoreModalOpen">
+	    <view class="modal-mask score-mask" v-if="scoreModalOpen" @click="closeScoreModal">
+	      <view class="modal score-modal" @click.stop>
 	      <view class="modal-head">
 	        <view class="modal-title">记分</view>
 	        <view class="modal-close" @click="closeScoreModal">×</view>
@@ -172,11 +172,12 @@
 
 	      <view class="modal-actions">
 	        <button size="mini" class="confirm-btn" @click="closeScoreModal">取消</button>
-	        <button size="mini" class="confirm-btn" :disabled="scoreSubmitting" @click="submitScore">
+	        <button size="mini" class="confirm-btn" :disabled="scoreSubmitting" @click="submitScore" @touchstart="submitScore">
 	          {{ scoreSubmitting ? '提交中…' : '确认记分' }}
 	        </button>
 	      </view>
 	    </view>
+	  </view>
 
     <view class="modal-mask" v-if="qrModalOpen" @click="closeQRCode" />
     <view class="modal qr-modal" v-if="qrModalOpen">
@@ -1370,7 +1371,7 @@ async function submitScore() {
   right: 0;
   top: 0;
   bottom: 0;
-  z-index: 1200;
+  z-index: 900;
 }
 .fab {
   position: fixed;
@@ -1380,7 +1381,7 @@ async function submitScore() {
   flex-direction: column;
   align-items: flex-end;
   gap: 12rpx;
-  z-index: 1201;
+  z-index: 901;
 }
 .fab-panel {
   display: flex;
@@ -1678,6 +1679,10 @@ async function submitScore() {
 }
 .modal-mask.score-mask {
   z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24rpx;
 }
 .modal {
   position: fixed;
@@ -1691,12 +1696,16 @@ async function submitScore() {
   box-shadow: 0 18rpx 50rpx rgba(0, 0, 0, 0.18);
 }
 .score-modal {
-  top: 50%;
+  position: relative;
+  left: auto;
+  right: auto;
   bottom: auto;
-  transform: translateY(-50%);
+  top: auto;
+  transform: none;
+  width: 100%;
   max-height: 80vh;
   overflow: auto;
-  z-index: 1201;
+  z-index: 1;
 }
 .modal-head {
   display: flex;

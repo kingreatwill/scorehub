@@ -278,27 +278,20 @@ ORDER BY created_at DESC
 		}
 		if delta < 0 {
 			r.Amount = float64(-delta)
+			r.Type = "expense"
 		} else {
 			r.Amount = float64(delta)
+			r.Type = "income"
 		}
 		if ownerID != "" {
 			if r.FromMemberID == ownerID {
-				r.Type = "expense"
 				r.MemberID = r.ToMemberID
 			} else if r.ToMemberID == ownerID {
-				r.Type = "income"
 				r.MemberID = r.FromMemberID
 			}
 		}
-		if r.Type == "" {
-			if delta < 0 {
-				r.Type = "expense"
-			} else {
-				r.Type = "income"
-			}
-			if r.MemberID == "" {
-				r.MemberID = r.ToMemberID
-			}
+		if r.MemberID == "" {
+			r.MemberID = r.ToMemberID
 		}
 		records = append(records, r)
 	}
@@ -702,13 +695,13 @@ WHERE scorebook_id = $1::uuid AND id = $2::uuid
 		note = memberRemark
 	}
 
-	fromMemberID := ownerMemberID
-	toMemberID := memberID
+	fromMemberID := memberID
+	toMemberID := ownerMemberID
 	delta := amount
 	if recordType == "expense" {
 		delta = -amount
-		fromMemberID = memberID
-		toMemberID = ownerMemberID
+		fromMemberID = ownerMemberID
+		toMemberID = memberID
 	}
 
 	var record LedgerRecord
