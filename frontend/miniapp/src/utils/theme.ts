@@ -2,6 +2,7 @@ export const THEME_COLOR_KEY = 'scorehub.theme.color'
 export const LEGACY_THEME_COLOR_KEY = 'scorehub.my.colorDot'
 export const THEME_ALPHA_KEY = 'scorehub.theme.alpha'
 export const DEFAULT_THEME_COLOR = '#111111'
+export const WHITE_THEME_COLOR = '#FFFFFF'
 
 const TAB_PAGE_ROUTES = ['pages/home/index', 'pages/ledger/index', 'pages/my/index']
 
@@ -21,6 +22,12 @@ export function normalizeHexColor(raw: string): string {
   const shortWithAlpha = v.match(/^#([0-9A-F])([0-9A-F])([0-9A-F])([0-9A-F])$/)
   if (shortWithAlpha) return `#${shortWithAlpha[1]}${shortWithAlpha[1]}${shortWithAlpha[2]}${shortWithAlpha[2]}${shortWithAlpha[3]}${shortWithAlpha[3]}`
   return ''
+}
+
+export function resolveThemeColorForUi(raw: string): string {
+  const normalized = normalizeHexColor(raw) || DEFAULT_THEME_COLOR
+  if (normalized === WHITE_THEME_COLOR) return DEFAULT_THEME_COLOR
+  return normalized
 }
 
 function clampAlpha(raw: unknown): number {
@@ -104,7 +111,7 @@ export function lightenHex(hex: string, ratio: number): string {
 }
 
 export function buildThemeVars(base: string): Record<string, string> {
-  const color = normalizeHexColor(base) || DEFAULT_THEME_COLOR
+  const color = resolveThemeColorForUi(base)
   const isDefaultTheme = color === DEFAULT_THEME_COLOR
   const vars: Record<string, string> = {
     '--brand-1': darkenHex(color, 0.26),
@@ -173,7 +180,7 @@ export function syncCurrentPageCustomTabBar(base?: string, pageVm?: any) {
 }
 
 export function applyTabBarTheme(base?: string) {
-  const selectedColor = normalizeHexColor(base || '') || normalizeHexColor(getThemeBaseColor()) || DEFAULT_THEME_COLOR
+  const selectedColor = resolveThemeColorForUi(base || getThemeBaseColor())
   lastTabSelectedColor = selectedColor
   syncCurrentPageCustomTabBar(selectedColor)
 }

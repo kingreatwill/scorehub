@@ -128,6 +128,7 @@ import {
   buildThemeVars,
   getThemeBaseColor,
   normalizeHexColor as normalizeThemeHex,
+  resolveThemeColorForUi,
   saveThemeColor,
 } from '../../utils/theme'
 
@@ -189,7 +190,7 @@ const colorDotFabButtonProps = computed(() => ({
     'color:transparent',
   ].join(';'),
 }))
-const presetDotColors = ['#111111', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6']
+const presetDotColors = ['#FFFFFF', '#111111', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6']
 const scorebookIcon = computed(() => iconDataUrl('scorebook', colorDot.value))
 const ledgerIcon = computed(() => iconDataUrl('ledger', colorDot.value))
 const birthdayIcon = computed(() => iconDataUrl('birthday', colorDot.value))
@@ -253,7 +254,7 @@ function toFillColor(hex: string, alpha = 0.32): string {
 type IconKind = 'scorebook' | 'ledger' | 'birthday' | 'deposit' | 'scan' | 'logout'
 
 function iconDataUrl(kind: IconKind, hex: string): string {
-  const normalized = normalizeHexColor(hex) || '#111111'
+  const normalized = resolveThemeColorForUi(hex)
   const stroke = normalized.slice(0, 7)
   const svg = iconSvg(kind, stroke)
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`

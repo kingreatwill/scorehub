@@ -267,7 +267,7 @@ import {
 } from '../../utils/api'
 import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
 import { clampNickname } from '../../utils/nickname'
-import { applyTabBarTheme } from '../../utils/theme'
+import { applyTabBarTheme, resolveThemeColorForUi } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 
 const token = ref('')
@@ -278,17 +278,18 @@ const legacyColorDotKey = 'scorehub.my.colorDot'
 const themeBaseColor = ref('#111111')
 const themeStyle = computed(() => {
   const normalized = normalizeHexColor(themeBaseColor.value) || '#111111'
-  const { r, g, b } = hexToRgb(normalized)
+  const resolved = resolveThemeColorForUi(normalized)
+  const { r, g, b } = hexToRgb(resolved)
   return {
-    ...(normalized === '#111111' ? {} : { '--confirm-btn-bg-rgba': `rgba(${r}, ${g}, ${b}, 0.9)`, '--confirm-btn-color': '#FFFFFF' }),
-    '--brand-1': darkenHex(normalized, 0.26),
-    '--brand-2': lightenHex(normalized, 0.14),
-    '--brand-strong': darkenHex(normalized, 0.1),
-    '--brand-solid': normalized,
+    ...(resolved === '#111111' ? {} : { '--confirm-btn-bg-rgba': `rgba(${r}, ${g}, ${b}, 0.9)`, '--confirm-btn-color': '#FFFFFF' }),
+    '--brand-1': darkenHex(resolved, 0.26),
+    '--brand-2': lightenHex(resolved, 0.14),
+    '--brand-strong': darkenHex(resolved, 0.1),
+    '--brand-solid': resolved,
   }
 })
 const fabToggleStyle = computed(() => {
-  const { r, g, b } = hexToRgb(themeBaseColor.value)
+  const { r, g, b } = hexToRgb(resolveThemeColorForUi(themeBaseColor.value))
   const alpha = actionMenuOpen.value ? 0.58 : 0.32
   return { backgroundColor: `rgba(${r}, ${g}, ${b}, ${alpha})` }
 })
