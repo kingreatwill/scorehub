@@ -560,7 +560,7 @@ async function onWithdraw(rec: RecordView) {
     return
   }
   const res = await new Promise<UniApp.ShowModalRes>((resolve) => {
-    uni.showModal({ title: '确认支取', content: '确认支取这笔存款？', success: resolve })
+    uni.showModal({ title: '确认支取', content: '提前支取没有利息，是否确认？', success: resolve })
   })
   if (!res.confirm) return
   try {
