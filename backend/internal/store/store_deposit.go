@@ -42,14 +42,15 @@ RETURNING id::text, user_id, bank, branch, account_no, holder, avatar_url, note,
 	return account, nil
 }
 
-func (s *Store) ListDepositAccounts(ctx context.Context, userID int64) ([]DepositAccount, error) {
+func (s *Store) ListDepositAccounts(ctx context.Context, userID int64, limit, offset int32) ([]DepositAccount, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT id::text, user_id, bank, branch, account_no, holder, avatar_url, note,
        created_at, updated_at, deleted_at
 FROM deposit_accounts
 WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
-`, userID)
+LIMIT $2 OFFSET $3
+`, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +302,7 @@ RETURNING id::text, user_id, account_id, currency, amount, amount_upper, term_va
 	return record, nil
 }
 
-func (s *Store) ListDepositRecords(ctx context.Context, userID int64, accountID string, status string, tags []string) ([]DepositRecord, error) {
+func (s *Store) ListDepositRecords(ctx context.Context, userID int64, accountID string, status string, tags []string, limit, offset int32) ([]DepositRecord, error) {
 	var rows pgx.Rows
 	var err error
 	if accountID != "" {
@@ -316,7 +317,8 @@ WHERE user_id = $1 AND account_id = $2::uuid AND deleted_at IS NULL
 ORDER BY
   CASE status WHEN '未到期' THEN 0 WHEN '已到期' THEN 1 ELSE 2 END,
   COALESCE(withdrawn_at, end_date) ASC
-`, userID, accountID, status, tags)
+LIMIT $5 OFFSET $6
+`, userID, accountID, status, tags, limit, offset)
 	} else {
 		rows, err = s.pool.Query(ctx, `
 SELECT id::text, user_id, account_id::text, currency, amount, amount_upper, term_value, term_unit, rate,
@@ -329,7 +331,8 @@ WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY
   CASE status WHEN '未到期' THEN 0 WHEN '已到期' THEN 1 ELSE 2 END,
   COALESCE(withdrawn_at, end_date) ASC
-`, userID, status, tags)
+LIMIT $4 OFFSET $5
+`, userID, status, tags, limit, offset)
 	}
 	if err != nil {
 		return nil, err

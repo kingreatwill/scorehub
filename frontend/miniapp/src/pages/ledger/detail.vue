@@ -104,6 +104,11 @@
           <view class="record-note" v-if="r.note">{{ r.note }}</view>
         </view>
       </view>
+      <view class="records-footer" v-if="recordsLoaded && records.length > 0">
+        <t-loading v-if="recordsPaging" :loading="true" text="加载中…" />
+        <text v-else-if="recordsHasMore">滑动加载下一页</text>
+        <text v-else>已全部加载完毕</text>
+      </view>
       
     </view>
 
@@ -278,7 +283,7 @@
 
 <script setup lang="ts">
 import { computed, getCurrentInstance, nextTick, ref } from 'vue'
-import { onLoad, onShareAppMessage, onShow } from '@dcloudio/uni-app'
+import { onLoad, onReachBottom, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import {
   addLedgerMember,
   addLedgerRecord,
@@ -318,6 +323,11 @@ const fabToggleStyle = computed(() => {
 })
 const members = ref<any[]>([])
 const records = ref<any[]>([])
+const recordsLoaded = ref(false)
+const recordsPaging = ref(false)
+const recordsHasMore = ref(false)
+const recordsNextOffset = ref(0)
+const recordsPageSize = 20
 const shareMode = ref(false)
 const loading = ref(false)
 const notFound = ref(false)
@@ -455,6 +465,12 @@ onShow(() => {
   loadLedger()
 })
 
+onReachBottom(() => {
+  if (!ledger.value) return
+  if (recordsPaging.value || !recordsHasMore.value) return
+  loadMoreRecords()
+})
+
 onShareAppMessage(() => {
   const name = ledger.value?.name || '记账簿'
   const path = `/pages/ledger/detail?id=${encodeURIComponent(id.value)}&share=1`
@@ -466,6 +482,10 @@ async function loadLedger() {
     ledger.value = null
     members.value = []
     records.value = []
+    recordsLoaded.value = false
+    recordsPaging.value = false
+    recordsHasMore.value = false
+    recordsNextOffset.value = 0
     notFound.value = false
     loading.value = false
     return
@@ -474,20 +494,55 @@ async function loadLedger() {
   notFound.value = false
   loadFailed.value = false
   try {
-    const res = await getLedgerDetail(id.value)
+    const res = await getLedgerDetail(id.value, recordsPageSize, 0)
     ledger.value = res.ledger
     members.value = res.members || []
     records.value = res.records || []
+    recordsLoaded.value = true
+    recordsPaging.value = false
+    recordsNextOffset.value = records.value.length
+    recordsHasMore.value = records.value.length >= recordsPageSize
     maybeOpenBind()
   } catch (e: any) {
     ledger.value = null
     members.value = []
     records.value = []
+    recordsLoaded.value = false
+    recordsPaging.value = false
+    recordsHasMore.value = false
+    recordsNextOffset.value = 0
     notFound.value = String(e?.code || '') === 'not_found'
     loadFailed.value = !notFound.value
     uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMoreRecords() {
+  if (!id.value || recordsPaging.value || !recordsHasMore.value) return
+  recordsPaging.value = true
+  try {
+    const res = await getLedgerDetail(id.value, recordsPageSize, recordsNextOffset.value)
+    const items = res.records || []
+    const seen = new Set<string>()
+    for (const x of records.value || []) {
+      const rid = String(x?.id || '')
+      if (rid) seen.add(rid)
+    }
+    for (const it of items) {
+      const rid = String(it?.id || '')
+      if (!rid || seen.has(rid)) continue
+      seen.add(rid)
+      records.value.push(it)
+    }
+    recordsNextOffset.value += items.length
+    recordsHasMore.value = items.length >= recordsPageSize
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
+  } finally {
+    recordsPaging.value = false
+    recordsLoaded.value = true
   }
 }
 
@@ -761,6 +816,7 @@ async function submitRecord() {
     })
     if (res?.record) {
       records.value = [res.record, ...records.value]
+      recordsNextOffset.value = Math.max(0, recordsNextOffset.value + 1)
       applyRecordToMembers(res.record)
     }
     recordModalOpen.value = false
@@ -1765,6 +1821,12 @@ async function onChooseAvatar(e: any) {
   display: flex;
   flex-direction: column;
   gap: 16rpx;
+}
+.records-footer {
+  margin-top: 16rpx;
+  text-align: center;
+  color: #999;
+  font-size: 22rpx;
 }
 .record {
   background: #fff;

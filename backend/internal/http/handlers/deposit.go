@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,7 +127,20 @@ func (h *DepositHandlers) ListDepositAccounts(ctx context.Context, c *app.Reques
 		return
 	}
 
-	items, err := h.st.ListDepositAccounts(ctx, uid)
+	limit := int32(20)
+	offset := int32(0)
+	if v := strings.TrimSpace(string(c.Query("limit"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = int32(n)
+		}
+	}
+	if v := strings.TrimSpace(string(c.Query("offset"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = int32(n)
+		}
+	}
+
+	items, err := h.st.ListDepositAccounts(ctx, uid, limit, offset)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
 		return
@@ -136,7 +150,7 @@ func (h *DepositHandlers) ListDepositAccounts(ctx context.Context, c *app.Reques
 	for _, it := range items {
 		out = append(out, toDepositAccountDTO(it))
 	}
-	c.JSON(http.StatusOK, map[string]any{"items": out})
+	c.JSON(http.StatusOK, map[string]any{"items": out, "limit": limit, "offset": offset})
 }
 
 func (h *DepositHandlers) GetDepositAccount(ctx context.Context, c *app.RequestContext) {
@@ -382,7 +396,20 @@ func (h *DepositHandlers) ListDepositRecords(ctx context.Context, c *app.Request
 		return
 	}
 
-	items, err := h.st.ListDepositRecords(ctx, uid, accountID, status, tags)
+	limit := int32(20)
+	offset := int32(0)
+	if v := strings.TrimSpace(string(c.Query("limit"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = int32(n)
+		}
+	}
+	if v := strings.TrimSpace(string(c.Query("offset"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = int32(n)
+		}
+	}
+
+	items, err := h.st.ListDepositRecords(ctx, uid, accountID, status, tags, limit, offset)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
 		return
@@ -392,7 +419,7 @@ func (h *DepositHandlers) ListDepositRecords(ctx context.Context, c *app.Request
 	for _, it := range items {
 		out = append(out, toDepositRecordDTO(it))
 	}
-	c.JSON(http.StatusOK, map[string]any{"items": out})
+	c.JSON(http.StatusOK, map[string]any{"items": out, "limit": limit, "offset": offset})
 }
 
 func (h *DepositHandlers) ListDepositAccountRecords(ctx context.Context, c *app.RequestContext) {
@@ -417,7 +444,20 @@ func (h *DepositHandlers) ListDepositAccountRecords(ctx context.Context, c *app.
 		return
 	}
 
-	items, err := h.st.ListDepositRecords(ctx, uid, accountID, status, tags)
+	limit := int32(20)
+	offset := int32(0)
+	if v := strings.TrimSpace(string(c.Query("limit"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = int32(n)
+		}
+	}
+	if v := strings.TrimSpace(string(c.Query("offset"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = int32(n)
+		}
+	}
+
+	items, err := h.st.ListDepositRecords(ctx, uid, accountID, status, tags, limit, offset)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
 		return
@@ -427,7 +467,7 @@ func (h *DepositHandlers) ListDepositAccountRecords(ctx context.Context, c *app.
 	for _, it := range items {
 		out = append(out, toDepositRecordDTO(it))
 	}
-	c.JSON(http.StatusOK, map[string]any{"items": out})
+	c.JSON(http.StatusOK, map[string]any{"items": out, "limit": limit, "offset": offset})
 }
 
 func (h *DepositHandlers) GetDepositRecord(ctx context.Context, c *app.RequestContext) {

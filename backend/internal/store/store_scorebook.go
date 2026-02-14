@@ -83,7 +83,7 @@ RETURNING id::text, scorebook_id::text, user_id, role::text, nickname, avatar_ur
 	return sb, owner, nil
 }
 
-func (s *Store) ListScorebooksForUser(ctx context.Context, userID int64) ([]ScorebookListItem, error) {
+func (s *Store) ListScorebooksForUser(ctx context.Context, userID int64, limit, offset int32) ([]ScorebookListItem, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT
   s.id::text,
@@ -102,7 +102,8 @@ FROM scorebooks s
 JOIN scorebook_members m ON m.scorebook_id = s.id AND m.user_id = $1
 WHERE s.book_type = 'scorebook' AND s.deleted_at IS NULL
 ORDER BY s.updated_at DESC
-`, userID)
+LIMIT $2 OFFSET $3
+`, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

@@ -105,7 +105,20 @@ func (h *ScorebookHandlers) ListMyScorebooks(ctx context.Context, c *app.Request
 		return
 	}
 
-	items, err := h.st.ListScorebooksForUser(ctx, uid)
+	limit := int32(20)
+	offset := int32(0)
+	if v := strings.TrimSpace(string(c.Query("limit"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = int32(n)
+		}
+	}
+	if v := strings.TrimSpace(string(c.Query("offset"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = int32(n)
+		}
+	}
+
+	items, err := h.st.ListScorebooksForUser(ctx, uid, limit, offset)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
 		return
@@ -128,7 +141,7 @@ func (h *ScorebookHandlers) ListMyScorebooks(ctx context.Context, c *app.Request
 		})
 	}
 
-	c.JSON(http.StatusOK, map[string]any{"items": out})
+	c.JSON(http.StatusOK, map[string]any{"items": out, "limit": limit, "offset": offset})
 }
 
 func (h *ScorebookHandlers) GetScorebookDetail(ctx context.Context, c *app.RequestContext) {
@@ -529,7 +542,7 @@ func (h *ScorebookHandlers) ListRecords(ctx context.Context, c *app.RequestConte
 		return
 	}
 
-	limit := int32(50)
+	limit := int32(20)
 	offset := int32(0)
 	if v := strings.TrimSpace(string(c.Query("limit"))); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {

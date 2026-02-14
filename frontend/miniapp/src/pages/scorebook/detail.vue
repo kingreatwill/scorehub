@@ -111,9 +111,10 @@
           <view class="record-note" v-if="r.note">{{ r.note }}</view>
         </view>
       </view>
-      <view class="records-more" v-if="recordsHasMore || recordsPaging">
-        <button size="mini" class="more-btn confirm-btn" v-if="recordsHasMore && !recordsPaging" @click="loadMoreRecords">加载更多</button>
-        <t-loading v-else :loading="true" text="加载中…" />
+      <view class="records-more" v-if="recordsLoaded && records.length > 0">
+        <t-loading v-if="recordsPaging" :loading="true" text="加载中…" />
+        <text v-else-if="recordsHasMore">滑动加载下一页</text>
+        <text v-else>已全部加载完毕</text>
       </view>
     </view>
 
@@ -253,7 +254,7 @@
 </template>
 
 <script setup lang="ts">
-import { onHide, onLoad, onShareAppMessage, onShow, onUnload } from '@dcloudio/uni-app'
+import { onHide, onLoad, onReachBottom, onShareAppMessage, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, getCurrentInstance, nextTick, ref } from 'vue'
 import {
   connectScorebookWS,
@@ -316,7 +317,7 @@ const recordsLoaded = ref(false)
 const recordsPaging = ref(false)
 const recordsHasMore = ref(false)
 const recordsNextOffset = ref(0)
-const recordsPageSize = 50
+const recordsPageSize = 20
 
 const qrModalOpen = ref(false)
 const qrLoading = ref(false)
@@ -588,6 +589,12 @@ onShow(() => {
   startPolling()
 })
 
+onReachBottom(() => {
+  if (!pageActive.value) return
+  if (recordsPaging.value || !recordsHasMore.value) return
+  loadMoreRecords()
+})
+
 onHide(() => {
   pageActive.value = false
   stopPolling()
@@ -762,6 +769,7 @@ function prependRecord(r: any) {
   if (!rid) return
   if (records.value.some((x) => String(x?.id) === rid)) return
   records.value.unshift(r)
+  recordsNextOffset.value = Math.max(0, recordsNextOffset.value + 1)
 }
 
 function rememberLocalRecordID(id: string) {
@@ -1946,6 +1954,8 @@ async function submitScore() {
   margin-top: 12rpx;
   display: flex;
   justify-content: center;
+  color: #999;
+  font-size: 22rpx;
 }
 .more-btn {
   border-radius: 999rpx;

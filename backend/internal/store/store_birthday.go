@@ -98,7 +98,7 @@ WHERE id = $1::uuid AND user_id = $2
 	return contact, nil
 }
 
-func (s *Store) ListBirthdayContacts(ctx context.Context, userID int64) ([]BirthdayContactWithDays, error) {
+func (s *Store) ListBirthdayContacts(ctx context.Context, userID int64, limit, offset int32) ([]BirthdayContactWithDays, error) {
 	rows, err := s.pool.Query(ctx, `
 WITH base AS (
   SELECT
@@ -150,7 +150,8 @@ SELECT
        ELSE (birthday_this_year - CURRENT_DATE) END AS days_left
 FROM dates
 ORDER BY days_left ASC, name ASC
-`, userID)
+LIMIT $2 OFFSET $3
+`, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

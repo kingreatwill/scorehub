@@ -117,7 +117,7 @@ RETURNING id::text, scorebook_id::text, user_id, role, nickname, avatar_url, rem
 	return sb, member, nil
 }
 
-func (s *Store) ListLedgersForUser(ctx context.Context, userID int64) ([]LedgerListItem, error) {
+func (s *Store) ListLedgersForUser(ctx context.Context, userID int64, limit, offset int32) ([]LedgerListItem, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT
   s.id::text,
@@ -145,7 +145,8 @@ ORDER BY
     ELSE 2
   END ASC,
   s.updated_at DESC
-`, userID)
+LIMIT $2 OFFSET $3
+`, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +172,7 @@ ORDER BY
 	return out, rows.Err()
 }
 
-func (s *Store) GetLedgerDetail(ctx context.Context, ledgerID string) (Scorebook, []LedgerMember, []LedgerRecord, error) {
+func (s *Store) GetLedgerDetail(ctx context.Context, ledgerID string, limit, offset int32) (Scorebook, []LedgerMember, []LedgerRecord, error) {
 	var sb Scorebook
 	err := s.pool.QueryRow(ctx, `
 SELECT id::text, name, location_text, start_time, updated_at, status::text, book_type, created_by_user_id, ended_at, invite_code, share_disabled
@@ -248,7 +249,8 @@ SELECT id::text, scorebook_id::text, from_member_id::text, to_member_id::text, d
 FROM score_records
 WHERE scorebook_id = $1::uuid
 ORDER BY created_at DESC
-`, ledgerID)
+LIMIT $2 OFFSET $3
+`, ledgerID, limit, offset)
 	if err != nil {
 		return Scorebook{}, nil, nil, err
 	}

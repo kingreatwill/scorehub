@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,7 +89,20 @@ func (h *LedgerHandlers) ListLedgers(ctx context.Context, c *app.RequestContext)
 		return
 	}
 
-	items, err := h.st.ListLedgersForUser(ctx, uid)
+	limit := int32(20)
+	offset := int32(0)
+	if v := strings.TrimSpace(string(c.Query("limit"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = int32(n)
+		}
+	}
+	if v := strings.TrimSpace(string(c.Query("offset"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = int32(n)
+		}
+	}
+
+	items, err := h.st.ListLedgersForUser(ctx, uid, limit, offset)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "internal", "db error", err)
 		return
@@ -108,7 +122,7 @@ func (h *LedgerHandlers) ListLedgers(ctx context.Context, c *app.RequestContext)
 		})
 	}
 
-	c.JSON(http.StatusOK, map[string]any{"items": out})
+	c.JSON(http.StatusOK, map[string]any{"items": out, "limit": limit, "offset": offset})
 }
 
 func (h *LedgerHandlers) GetLedgerDetail(ctx context.Context, c *app.RequestContext) {
@@ -118,7 +132,20 @@ func (h *LedgerHandlers) GetLedgerDetail(ctx context.Context, c *app.RequestCont
 		return
 	}
 
-	ledger, members, records, err := h.st.GetLedgerDetail(ctx, id)
+	limit := int32(20)
+	offset := int32(0)
+	if v := strings.TrimSpace(string(c.Query("limit"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = int32(n)
+		}
+	}
+	if v := strings.TrimSpace(string(c.Query("offset"))); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = int32(n)
+		}
+	}
+
+	ledger, members, records, err := h.st.GetLedgerDetail(ctx, id, limit, offset)
 	if err != nil {
 		if err == store.ErrNotFound {
 			writeError(c, http.StatusNotFound, "not_found", "ledger not found")
@@ -170,6 +197,8 @@ func (h *LedgerHandlers) GetLedgerDetail(ctx context.Context, c *app.RequestCont
 		"ledger":  toLedgerDTO(ledger),
 		"members": memOut,
 		"records": recOut,
+		"limit":   limit,
+		"offset":  offset,
 	})
 }
 

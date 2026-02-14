@@ -64,8 +64,9 @@ export async function createScorebook(payload: { name?: string; locationText?: s
   return request<{ scorebook: any; me: any }>('POST', '/scorebooks', payload)
 }
 
-export async function listMyScorebooks() {
-  return request<{ items: any[] }>('GET', '/scorebooks')
+export async function listMyScorebooks(limit = 20, offset = 0) {
+  const q = `?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
+  return request<{ items: any[]; limit: number; offset: number }>('GET', `/scorebooks${q}`)
 }
 
 export async function getScorebookDetail(id: string) {
@@ -96,7 +97,7 @@ export async function createRecord(id: string, payload: { toMemberId: string; de
   return request<{ record: any }>('POST', `/scorebooks/${id}/records`, payload)
 }
 
-export async function listScorebookRecords(id: string, limit = 50, offset = 0) {
+export async function listScorebookRecords(id: string, limit = 20, offset = 0) {
   const q = `?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
   return request<{ items: any[]; limit: number; offset: number }>('GET', `/scorebooks/${id}/records${q}`)
 }
@@ -176,12 +177,14 @@ export async function createLedger(payload: { name?: string }) {
   return request<{ ledger: any; member?: any }>('POST', '/ledgers', payload)
 }
 
-export async function listLedgers() {
-  return request<{ items: any[] }>('GET', '/ledgers')
+export async function listLedgers(limit = 20, offset = 0) {
+  const q = `?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
+  return request<{ items: any[]; limit: number; offset: number }>('GET', `/ledgers${q}`)
 }
 
-export async function getLedgerDetail(id: string) {
-  return request<{ ledger: any; members: any[]; records: any[] }>('GET', `/ledgers/${id}`)
+export async function getLedgerDetail(id: string, limit = 20, offset = 0) {
+  const q = `?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
+  return request<{ ledger: any; members: any[]; records: any[]; limit: number; offset: number }>('GET', `/ledgers/${id}${q}`)
 }
 
 export async function updateLedgerName(id: string, name: string) {
@@ -219,8 +222,9 @@ export async function endLedger(id: string) {
   return request<{ ledger: any }>('POST', `/ledgers/${id}/end`)
 }
 
-export async function listBirthdays() {
-  return request<{ items: any[] }>('GET', '/birthdays')
+export async function listBirthdays(limit = 20, offset = 0) {
+  const q = `?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
+  return request<{ items: any[]; limit: number; offset: number }>('GET', `/birthdays${q}`)
 }
 
 export async function getBirthday(id: string) {
@@ -268,8 +272,9 @@ export async function deleteBirthday(id: string) {
   return request<{ ok: boolean }>('DELETE', `/birthdays/${id}`)
 }
 
-export async function listDepositAccounts() {
-  return request<{ items: any[] }>('GET', '/deposits/accounts')
+export async function listDepositAccounts(limit = 20, offset = 0) {
+  const q = `?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
+  return request<{ items: any[]; limit: number; offset: number }>('GET', `/deposits/accounts${q}`)
 }
 
 export async function getDepositAccount(id: string) {
@@ -305,21 +310,33 @@ export async function deleteDepositAccount(id: string) {
   return request<{ ok: boolean }>('DELETE', `/deposits/accounts/${id}`)
 }
 
-export async function listDepositRecords(params: { accountId?: string; status?: string; tags?: string[] } = {}) {
+export async function listDepositRecords(
+  params: { accountId?: string; status?: string; tags?: string[]; limit?: number; offset?: number } = {},
+) {
   const query: string[] = []
   if (params.accountId) query.push(`accountId=${encodeURIComponent(params.accountId)}`)
   if (params.status) query.push(`status=${encodeURIComponent(params.status)}`)
   if (params.tags && params.tags.length > 0) query.push(`tags=${encodeURIComponent(params.tags.join(','))}`)
+  if (params.limit !== undefined) query.push(`limit=${encodeURIComponent(String(params.limit))}`)
+  if (params.offset !== undefined) query.push(`offset=${encodeURIComponent(String(params.offset))}`)
   const q = query.join('&')
-  return request<{ items: any[] }>('GET', `/deposits/records${q ? `?${q}` : ''}`)
+  return request<{ items: any[]; limit: number; offset: number }>('GET', `/deposits/records${q ? `?${q}` : ''}`)
 }
 
-export async function listDepositAccountRecords(accountId: string, params: { status?: string; tags?: string[] } = {}) {
+export async function listDepositAccountRecords(
+  accountId: string,
+  params: { status?: string; tags?: string[]; limit?: number; offset?: number } = {},
+) {
   const query: string[] = []
   if (params.status) query.push(`status=${encodeURIComponent(params.status)}`)
   if (params.tags && params.tags.length > 0) query.push(`tags=${encodeURIComponent(params.tags.join(','))}`)
+  if (params.limit !== undefined) query.push(`limit=${encodeURIComponent(String(params.limit))}`)
+  if (params.offset !== undefined) query.push(`offset=${encodeURIComponent(String(params.offset))}`)
   const q = query.join('&')
-  return request<{ items: any[] }>('GET', `/deposits/accounts/${accountId}/records${q ? `?${q}` : ''}`)
+  return request<{ items: any[]; limit: number; offset: number }>(
+    'GET',
+    `/deposits/accounts/${accountId}/records${q ? `?${q}` : ''}`,
+  )
 }
 
 export async function getDepositRecord(id: string) {

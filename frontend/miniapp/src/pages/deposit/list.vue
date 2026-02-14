@@ -154,13 +154,18 @@
           <view class="record-divider" v-if="idx !== filteredRecords.length - 1"></view>
         </view>
       </view>
+      <view class="records-footer" v-if="recordsLoaded && records.length > 0">
+        <t-loading v-if="recordsPaging" :loading="true" text="加载中…" />
+        <text v-else-if="recordsHasMore">滑动加载下一页</text>
+        <text v-else>已全部加载完毕</text>
+      </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onReachBottom, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { getCurrencyMeta } from '../../utils/currency'
@@ -217,6 +222,11 @@ type RecordView = DepositRecord & {
 
 const accounts = ref<Account[]>([])
 const records = ref<DepositRecord[]>([])
+const recordsLoaded = ref(false)
+const recordsPaging = ref(false)
+const recordsHasMore = ref(false)
+const recordsNextOffset = ref(0)
+const recordsPageSize = 20
 const statusFilter = ref('未到期')
 const bankFilterId = ref('')
 const tagFilters = ref<string[]>([])
@@ -248,6 +258,11 @@ onShow(async () => {
   await load()
   openId.value = ''
   swipeOffsetById.value = {}
+})
+
+onReachBottom(() => {
+  if (recordsPaging.value || !recordsHasMore.value) return
+  loadMoreRecords()
 })
 
 function syncTheme() {
@@ -384,7 +399,14 @@ const yieldLines = computed(() => formatCurrencyLines(annualYieldItems.value, '+
 
 async function load() {
   try {
-    const [accountsRes, recordsRes] = await Promise.all([listDepositAccounts(), listDepositRecords()])
+    recordsLoaded.value = false
+    recordsPaging.value = false
+    recordsHasMore.value = true
+    recordsNextOffset.value = 0
+    const [accountsRes, recordsRes] = await Promise.all([
+      listDepositAccounts(200, 0),
+      listDepositRecords({ limit: recordsPageSize, offset: 0 }),
+    ])
     accounts.value = (accountsRes?.items || []).map((acc: any) => ({
       id: String(acc.id || ''),
       bank: String(acc.bank || ''),
@@ -418,9 +440,62 @@ async function load() {
         | '已到期'
         | '已支取',
     }))
+    recordsLoaded.value = true
+    recordsNextOffset.value = records.value.length
+    recordsHasMore.value = records.value.length >= recordsPageSize
     await loadStatsAndTags()
   } catch (e: any) {
     uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
+  }
+}
+
+async function loadMoreRecords() {
+  if (recordsPaging.value || !recordsHasMore.value) return
+  recordsPaging.value = true
+  try {
+    const res = await listDepositRecords({ limit: recordsPageSize, offset: recordsNextOffset.value })
+    const items = res?.items || []
+    const seen = new Set<string>()
+    for (const it of records.value) {
+      const id = String(it?.id || '')
+      if (id) seen.add(id)
+    }
+    for (const rec of items) {
+      const id = String(rec?.id || '')
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      records.value.push({
+        id: String(rec.id || ''),
+        accountId: String(rec.accountId || ''),
+        currency: String(rec.currency || 'CNY'),
+        amount: Number(rec.amount || 0),
+        amountUpper: String(rec.amountUpper || ''),
+        termValue: Number(rec.termValue || 0),
+        termUnit: (rec.termUnit === 'month' ? 'month' : rec.termUnit === 'day' ? 'day' : 'year') as
+          | 'year'
+          | 'month'
+          | 'day',
+        rate: Number(rec.rate || 0),
+        startDate: String(rec.startDate || ''),
+        endDate: String(rec.endDate || ''),
+        withdrawnAt: String(rec.withdrawnAt || ''),
+        interest: Number(rec.interest || 0),
+        tags: Array.isArray(rec.tags) ? rec.tags : [],
+        note: String(rec.note || ''),
+        attachments: Array.isArray(rec.attachments) ? rec.attachments : [],
+        status: (rec.status === '已到期' || rec.status === '已支取' ? rec.status : '未到期') as
+          | '未到期'
+          | '已到期'
+          | '已支取',
+      })
+    }
+    recordsNextOffset.value += items.length
+    recordsHasMore.value = items.length >= recordsPageSize
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
+  } finally {
+    recordsPaging.value = false
+    recordsLoaded.value = true
   }
 }
 
@@ -1077,6 +1152,12 @@ function formatCurrencyLines(items: { currency: string; amount: number }[], pref
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+.records-footer {
+  margin-top: 16rpx;
+  text-align: center;
+  color: #999;
+  font-size: 22rpx;
 }
 .record-wrap {
   display: flex;

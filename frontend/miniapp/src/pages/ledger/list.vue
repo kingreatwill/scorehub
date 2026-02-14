@@ -54,6 +54,11 @@
             </view>
           </view>
         </view>
+        <view class="list-footer" v-if="items.length > 0">
+          <t-loading v-if="paging" :loading="true" text="加载中…" />
+          <text v-else-if="hasMore">滑动加载下一页</text>
+          <text v-else>已全部加载完毕</text>
+        </view>
       </template>
     </view>
   </view>
@@ -61,7 +66,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onReachBottom, onShow } from '@dcloudio/uni-app'
 import { deleteLedger, listLedgers } from '../../utils/api'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 
@@ -69,6 +74,10 @@ const items = ref<any[]>([])
 const token = ref('')
 const loading = ref(false)
 const loadError = ref('')
+const paging = ref(false)
+const hasMore = ref(false)
+const nextOffset = ref(0)
+const pageSize = 20
 const keyword = ref('')
 const searchFocused = ref(false)
 const openId = ref('')
@@ -94,7 +103,13 @@ const filteredItems = computed(() => {
 
 onShow(() => {
   syncTheme()
-  load()
+  load(true)
+})
+
+onReachBottom(() => {
+  if (!token.value) return
+  if (paging.value || !hasMore.value) return
+  load(false)
 })
 
 function syncTheme() {
@@ -104,19 +119,47 @@ function syncTheme() {
   applyTabBarTheme(base)
 }
 
-async function load() {
+async function load(reset: boolean) {
   token.value = (uni.getStorageSync('token') as string) || ''
   loadError.value = ''
   if (!token.value) {
     items.value = []
     loading.value = false
+    paging.value = false
+    hasMore.value = false
+    nextOffset.value = 0
     return
   }
-  const showLoading = items.value.length === 0
+  const showLoading = reset && items.value.length === 0
+  if (reset) {
+    nextOffset.value = 0
+    hasMore.value = true
+  }
   loading.value = showLoading
+  paging.value = !reset
   try {
-    const res = await listLedgers()
-    items.value = sortLedgers(res.items || [])
+    const res = await listLedgers(pageSize, reset ? 0 : nextOffset.value)
+    const incoming = res.items || []
+    if (reset) {
+      items.value = sortLedgers(incoming)
+    } else {
+      const seen = new Set<string>()
+      for (const it of items.value) {
+        const id = String(it?.id || '')
+        if (id) seen.add(id)
+      }
+      const merged = [...items.value]
+      for (const it of incoming) {
+        const id = String(it?.id || '')
+        if (!id || seen.has(id)) continue
+        seen.add(id)
+        merged.push(it)
+      }
+      items.value = sortLedgers(merged)
+    }
+    const loaded = incoming.length
+    nextOffset.value += loaded
+    hasMore.value = loaded >= pageSize
     openId.value = ''
     swipeOffsetById.value = {}
   } catch (e: any) {
@@ -125,6 +168,7 @@ async function load() {
     }
   } finally {
     if (showLoading) loading.value = false
+    paging.value = false
   }
 }
 
@@ -317,6 +361,12 @@ function sortLedgers(list: any[]): any[] {
 .hint {
   color: #666;
   font-size: 26rpx;
+}
+.list-footer {
+  margin-top: 20rpx;
+  text-align: center;
+  color: #999;
+  font-size: 22rpx;
 }
 .list-loading {
   margin-top: 12rpx;
