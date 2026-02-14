@@ -153,7 +153,7 @@
           @confirm="onTagConfirm"
         />
       </view>
-      <view class="history-row" v-if="tagHistory.length">
+      <view class="history-row tag-history" v-if="tagHistory.length">
         <text class="history-label">历史</text>
         <view class="history-chips">
           <view
@@ -518,7 +518,7 @@ async function onSave() {
     uni.showToast({ title: '请输入存期', icon: 'none' })
     return
   }
-  if (!parseRate(form.value.rate)) {
+  if (String(form.value.rate || '').trim() === '') {
     uni.showToast({ title: '请输入年化利率', icon: 'none' })
     return
   }
@@ -980,6 +980,9 @@ function amountToChineseUpper(amount: number, currency: string): string {
   background: #f1f2f6;
   color: #666;
   font-size: 22rpx;
+}
+.tag-history {
+  margin-top: 8rpx;
 }
 .history-clear {
   margin-left: auto;

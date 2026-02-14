@@ -25,9 +25,18 @@
         <!-- <button size="mini" class="loc-btn text" v-if="isMpWeixin" @click="chooseLocationFromMap" hover-class="none">地图</button> -->
       </view>
       <view class="loc-history" v-if="locationHistory.length">
-        <view class="loc-history-title">历史</view>
+        <view class="loc-history-title-row">
+          <view class="loc-history-title">历史</view>
+          <view class="loc-history-clear" @click="confirmClearLocationHistory">清空</view>
+        </view>
         <view class="loc-history-list">
-          <view class="loc-chip" v-for="(h, i) in locationHistory" :key="`${h}-${i}`" @click="selectLocationHistory(h)">
+          <view
+            class="loc-chip"
+            v-for="(h, i) in locationHistory"
+            :key="`${h}-${i}`"
+            @click="selectLocationHistory(h)"
+            @longpress="removeLocationHistory(h)"
+          >
             {{ h }}
           </view>
         </view>
@@ -190,6 +199,22 @@ function rememberLocation(text: string, coord?: { latitude?: number; longitude?:
 
 function selectLocationHistory(text: string) {
   locationText.value = String(text || '').trim()
+}
+
+function removeLocationHistory(text: string) {
+  const t = String(text || '').trim()
+  if (!t) return
+  locationHistory.value = locationHistory.value.filter((item) => item !== t)
+  uni.setStorageSync('locationHistory', locationHistory.value)
+}
+
+async function confirmClearLocationHistory() {
+  const res = await new Promise<UniApp.ShowModalRes>((resolve) => {
+    uni.showModal({ title: '清空历史', content: '确认清空位置历史？', success: resolve })
+  })
+  if (!res.confirm) return
+  locationHistory.value = []
+  uni.setStorageSync('locationHistory', locationHistory.value)
 }
 
 function clearLocation() {
@@ -423,10 +448,20 @@ function isScorebook(item: any): boolean {
 .loc-history {
   margin-top: 10rpx;
 }
+.loc-history-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 6rpx;
+}
 .loc-history-title {
   color: #666;
   font-size: 24rpx;
-  margin-bottom: 6rpx;
+}
+.loc-history-clear {
+  color: var(--brand-solid);
+  font-size: 22rpx;
 }
 .loc-history-list {
   display: flex;
