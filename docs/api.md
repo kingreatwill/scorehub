@@ -31,6 +31,42 @@ Request:
 {"code":"<wx_code>"}
 ```
 
+### POST /auth/password_login
+
+Web 版用户名密码登录（用户名需要在小程序内「账号与安全」里首次绑定）。
+
+Request:
+
+```json
+{"username":"abc_123","password":"********"}
+```
+
+Response:
+
+```json
+{"token":"sh1....","user":{"id":1,"openid":"","nickname":"","avatarUrl":"","username":"abc_123","hasPassword":true,"wechatBound":true}}
+```
+
+### POST /auth/set_credentials
+
+首次绑定用户名密码（需要登录 token，一般用于微信小程序用户首次绑定）。
+
+Request:
+
+```json
+{"username":"abc_123","password":"********"}
+```
+
+### POST /auth/change_password
+
+修改密码（需要登录 token）。
+
+Request:
+
+```json
+{"oldPassword":"********","newPassword":"********"}
+```
+
 ## Me
 
 所有接口默认需要 `Authorization: Bearer <token>`。

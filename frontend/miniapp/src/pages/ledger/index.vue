@@ -10,7 +10,11 @@
       <view class="title-row">
         <view class="title">记录中的记账簿</view>
         <view class="more" @click="openList">
-          <image class="more-icon" :src="moreIcon" mode="aspectFit" />
+          <view class="more-dots">
+            <view class="more-dot" />
+            <view class="more-dot" />
+            <view class="more-dot" />
+          </view>
         </view>
       </view>
       <t-loading v-if="loading" :loading="true" text="加载中…" />
@@ -47,9 +51,6 @@ const token = ref('')
 const loading = ref(false)
 const loadError = ref('')
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
-const moreIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2" fill="%23111"/><circle cx="12" cy="12" r="2" fill="%23111"/><circle cx="18" cy="12" r="2" fill="%23111"/></svg>'
-
 const activeLedgers = computed(() => (ledgers.value || []).filter((it) => it.status !== 'ended'))
 
 onShow(() => {
@@ -178,9 +179,17 @@ function formatTime(v: any): string {
 .more:active {
   opacity: 0.8;
 }
-.more-icon {
-  width: 28rpx;
-  height: 28rpx;
+.more-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+}
+.more-dot {
+  width: 6rpx;
+  height: 6rpx;
+  border-radius: 999rpx;
+  background: var(--brand-solid);
 }
 .hint {
   color: #666;

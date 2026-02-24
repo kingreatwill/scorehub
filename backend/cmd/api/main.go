@@ -40,7 +40,10 @@ func main() {
 		AllowMethods:    []string{"GET", "POST", "PATCH", "OPTIONS"},
 		AllowHeaders:    []string{"Authorization", "Content-Type", "X-Dev-OpenID"},
 	}))
+	h.GET("/", h5IndexHandler())
+	h.GET("/assets/*filepath", h5AssetsHandler())
 	h.GET("/static/*filepath", staticAssetsHandler())
+	h.NoRoute(h5SpaFallbackHandler())
 
 	authHandlers := handlers.NewAuthHandlers(cfg, st)
 	meHandlers := handlers.NewMeHandlers(st)
@@ -54,10 +57,14 @@ func main() {
 	auth := api.Group("/auth")
 	auth.POST("/dev_login", authHandlers.DevLogin)
 	auth.POST("/wechat_login", authHandlers.WechatLogin)
+	auth.POST("/password_login", authHandlers.PasswordLogin)
 
 	authed := api.Group("", middleware.AuthRequired(cfg, st))
 	authed.GET("/me", meHandlers.GetMe)
 	authed.PATCH("/me", meHandlers.UpdateMe)
+	authed.POST("/auth/set_credentials", authHandlers.SetCredentials)
+	authed.POST("/auth/change_password", authHandlers.ChangePassword)
+	authed.POST("/auth/bind_wechat", authHandlers.BindWeChat)
 	authed.POST("/scorebooks", scorebookHandlers.CreateScorebook)
 	authed.GET("/scorebooks", scorebookHandlers.ListMyScorebooks)
 	authed.GET("/scorebooks/:id", scorebookHandlers.GetScorebookDetail)
@@ -122,15 +129,84 @@ func staticAssetsHandler() app.HandlerFunc {
 			return
 		}
 
-		data, err := fs.ReadFile(assets.FS, reqPath)
-		if err != nil {
+		// H5 build outputs files into h5/static, while legacy bank icons stay in img/.
+		if serveEmbeddedFile(c, path.Join("h5", "static", reqPath)) {
+			return
+		}
+		if serveEmbeddedFile(c, reqPath) {
+			return
+		}
+		c.SetStatusCode(404)
+	}
+}
+
+func h5AssetsHandler() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		reqPath := strings.TrimPrefix(string(c.Param("filepath")), "/")
+		if reqPath == "" {
+			c.SetStatusCode(404)
+			return
+		}
+		if strings.Contains(reqPath, "..") {
+			c.SetStatusCode(400)
+			return
+		}
+		if serveEmbeddedFile(c, path.Join("h5", "assets", reqPath)) {
+			return
+		}
+		c.SetStatusCode(404)
+	}
+}
+
+func h5IndexHandler() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		if serveEmbeddedFile(c, "h5/index.html") {
+			return
+		}
+		c.SetStatusCode(404)
+	}
+}
+
+func h5SpaFallbackHandler() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		method := strings.ToUpper(string(c.Method()))
+		if method != "GET" && method != "HEAD" {
 			c.SetStatusCode(404)
 			return
 		}
 
-		if contentType := mime.TypeByExtension(path.Ext(reqPath)); contentType != "" {
-			c.SetContentType(contentType)
+		reqPath := string(c.Path())
+		if reqPath == "/api" || strings.HasPrefix(reqPath, "/api/") {
+			c.SetStatusCode(404)
+			return
 		}
-		c.Response.SetBodyRaw(data)
+		if reqPath == "/ws" || strings.HasPrefix(reqPath, "/ws/") {
+			c.SetStatusCode(404)
+			return
+		}
+		if strings.HasPrefix(reqPath, "/static/") || strings.HasPrefix(reqPath, "/assets/") {
+			c.SetStatusCode(404)
+			return
+		}
+		if path.Ext(reqPath) != "" {
+			c.SetStatusCode(404)
+			return
+		}
+		if serveEmbeddedFile(c, "h5/index.html") {
+			return
+		}
+		c.SetStatusCode(404)
 	}
+}
+
+func serveEmbeddedFile(c *app.RequestContext, assetPath string) bool {
+	data, err := fs.ReadFile(assets.FS, assetPath)
+	if err != nil {
+		return false
+	}
+	if contentType := mime.TypeByExtension(path.Ext(assetPath)); contentType != "" {
+		c.SetContentType(contentType)
+	}
+	c.Response.SetBodyRaw(data)
+	return true
 }

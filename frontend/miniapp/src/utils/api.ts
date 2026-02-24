@@ -50,12 +50,31 @@ export async function wechatLogin(code: string) {
   return body
 }
 
+export async function passwordLogin(username: string, password: string) {
+  const body = await request<{ token: string; user: any }>('POST', '/auth/password_login', { username, password })
+  uni.setStorageSync('token', body.token)
+  uni.setStorageSync('user', body.user)
+  return body
+}
+
 export async function getMe() {
   return request<{ user: any }>('GET', '/me')
 }
 
 export async function updateMe(payload: { nickname?: string; avatarUrl?: string }) {
   const body = await request<{ user: any }>('PATCH', '/me', payload)
+  if (body?.user) uni.setStorageSync('user', body.user)
+  return body
+}
+
+export async function setCredentials(payload: { username: string; password: string }) {
+  const body = await request<{ user: any }>('POST', '/auth/set_credentials', payload)
+  if (body?.user) uni.setStorageSync('user', body.user)
+  return body
+}
+
+export async function changePassword(payload: { oldPassword: string; newPassword: string }) {
+  const body = await request<{ user: any }>('POST', '/auth/change_password', payload)
   if (body?.user) uni.setStorageSync('user', body.user)
   return body
 }

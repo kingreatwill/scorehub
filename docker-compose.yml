@@ -12,7 +12,8 @@ services:
 
   api:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       SCOREHUB_ADDR: :8080
       SCOREHUB_DB_DSN: postgres://postgres:scorehub@postgres:5432/scorehub?sslmode=disable

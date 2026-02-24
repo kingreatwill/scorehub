@@ -237,7 +237,15 @@
         <button size="mini" class="action-btn danger" v-if="canEnd" @click="closeActionMenu(); end()">结束</button>
       </view>
       <button class="fab-toggle" :class="{ active: actionMenuOpen }" :style="fabToggleStyle" @tap.stop="toggleActionMenu">
-        <image class="fab-icon" :src="actionMenuOpen ? closeIcon : moreIcon" mode="aspectFit" />
+        <view v-if="actionMenuOpen" class="fab-close-icon">
+          <view class="fab-close-line line-a" />
+          <view class="fab-close-line line-b" />
+        </view>
+        <view v-else class="fab-more-icon">
+          <view class="fab-more-dot" />
+          <view class="fab-more-dot" />
+          <view class="fab-more-dot" />
+        </view>
       </button>
     </view>
   </view>
@@ -301,11 +309,6 @@ const isMpWeixin = ref(false)
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
 // #endif
-
-const moreIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'
-const closeIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>'
 
 const scoreModalOpen = ref(false)
 const scoreTarget = ref<any>(null)
@@ -1440,9 +1443,37 @@ async function submitScore() {
 .fab-toggle.dragging {
   transition: none;
 }
-.fab-icon {
-  width: 28rpx;
-  height: 28rpx;
+.fab-more-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5rpx;
+}
+.fab-more-dot {
+  width: 7rpx;
+  height: 7rpx;
+  border-radius: 999rpx;
+  background: #fff;
+}
+.fab-close-icon {
+  width: 26rpx;
+  height: 26rpx;
+  position: relative;
+}
+.fab-close-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: #fff;
+}
+.fab-close-line.line-a {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.fab-close-line.line-b {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 .action-btn {
   position: relative;

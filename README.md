@@ -29,10 +29,34 @@ docker run --name scorehub-pg -e POSTGRES_PASSWORD=scorehub -e POSTGRES_DB=score
 docker compose up -d postgres
 ```
 
-2) 执行初始化 SQL
+如需通过 Docker 构建后端镜像并内置 H5 前端，直接在仓库根目录构建 `backend/Dockerfile`（会在构建阶段执行 `npm run build:h5-backend`）：
 
 ```bash
-psql "postgres://postgres:scorehub@localhost:5432/scorehub?sslmode=disable" -f backend/sql/migrations/0001_init.sql
+docker build -f backend/Dockerfile -t scorehub .
+```
+
+2) 执行初始化 SQL（按顺序执行所有 migration）
+
+```bash
+for f in backend/sql/migrations/*.sql; do
+  psql "postgres://postgres:scorehub@localhost:5432/scorehub?sslmode=disable" -f "$f"
+done
+```
+
+如果你之前已经启动过 `docker compose`（本地 `pgdata` 卷已存在），新增的 migration 不会自动应用。
+此时你有两种方式：
+
+- 方式 A（推荐开发环境）：删除卷重建数据库
+
+```bash
+docker compose down -v
+docker compose up -d postgres
+```
+
+- 方式 B：手动执行新增 migration（例如本次新增的 `0004_auth.sql`）
+
+```bash
+psql "postgres://postgres:scorehub@localhost:5432/scorehub?sslmode=disable" -f backend/sql/migrations/0004_auth.sql
 ```
 
 3) 启动后端
@@ -68,6 +92,18 @@ cd frontend/miniapp
 npm run build:mp-weixin
 ```
 
+如需构建 H5 并交给后端统一托管（支持前端路由刷新）：
+
+```bash
+cd frontend/miniapp
+npm run build:h5-backend
+```
+
+该命令会把 H5 产物同步到 `backend/assets/h5/`，后端启动后可直接访问：
+
+- `http://localhost:8080/`
+- 前端路由刷新（如 `http://localhost:8080/pages/home/index`）会回退到 H5 `index.html`
+
 ## 文档
 
 - `docs/api.md` 后端接口说明
@@ -95,4 +131,3 @@ https://tdesign.tencent.com/uniapp/getting-started
 #### weui
 原生视觉体验
 https://github.com/Tencent/weui-wxss
-

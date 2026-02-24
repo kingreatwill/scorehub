@@ -107,6 +107,12 @@
       "style": {
         "navigationBarTitleText": "加入得分簿"
       }
+    },
+    {
+      "path": "pages/auth/account",
+      "style": {
+        "navigationBarTitleText": "账号与安全"
+      }
     }
   ],
   "globalStyle": {

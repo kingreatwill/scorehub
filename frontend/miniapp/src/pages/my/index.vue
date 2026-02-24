@@ -25,9 +25,8 @@
           </form>
         </template>
         <template v-else>
-          <input class="input" :value="nickname" placeholder="昵称" :controlled="true" :cursor="nicknameCursor" @input="onNicknameInput" />
-          <input class="input" v-model="avatarUrl" placeholder="头像 URL（可选）" />
-          <button class="btn" @click="onDevLogin">登录</button>
+          <view class="hint">Web 版请使用用户名密码登录</view>
+          <button class="btn confirm-btn" @click="openAccount">去登录</button>
         </template>
       </view>
     </view>
@@ -45,6 +44,10 @@
           <view class="user-name">{{ user?.nickname || '未设置昵称' }}</view>
           <view class="user-sub">已登录</view>
         </view>
+      </view>
+      <view class="security-row">
+        <button class="btn confirm-btn" @click.stop="openAccount">账号与安全</button>
+        <view class="hint" v-if="isMpWeixin && !user?.hasPassword">首次登录建议绑定用户名密码（用于 Web）</view>
       </view>
     </view>
 
@@ -573,7 +576,9 @@ async function onWechatLogin() {
   // #endif
 
   // #ifdef MP-WEIXIN
+  let stage = 'start'
   try {
+    stage = 'uni.login'
     const loginRes = await new Promise<UniApp.LoginRes>((resolve, reject) => {
       uni.login({ success: resolve, fail: reject })
     })
@@ -582,11 +587,16 @@ async function onWechatLogin() {
       return
     }
 
+    stage = 'api.wechatLogin'
     const res = await wechatLogin(loginRes.code)
+
+    stage = 'assign.token'
     token.value = res.token
+    stage = 'assign.user'
     user.value = res.user
 
     // 同步昵称/头像（可选）
+    stage = 'sync.profile'
     const nextNickname = clampNickname(nickname.value.trim())
     const nextAvatar = avatarUrl.value.trim()
     if (nextNickname || nextAvatar) {
@@ -600,10 +610,16 @@ async function onWechatLogin() {
       }
     }
 
+    stage = 'afterLoginRedirect'
     await afterLoginRedirect()
     uni.showToast({ title: '登录成功', icon: 'success' })
   } catch (e: any) {
-    uni.showToast({ title: e?.message || e?.errMsg || '微信登录失败', icon: 'none' })
+    try {
+      // Helps locate runtime errors (e.g. undefined ref in v-model) in DevTools console.
+      console.error('wechat login failed', { stage, error: e })
+    } catch {}
+    const msg = String(e?.message || e?.errMsg || e || '微信登录失败')
+    uni.showToast({ title: `${stage}: ${msg}`.slice(0, 120), icon: 'none' })
   }
   // #endif
 }
@@ -633,6 +649,10 @@ async function afterLoginRedirect() {
   if (typeof v?.url === 'string' && v.url) {
     uni.navigateTo({ url: String(v.url) })
   }
+}
+
+function openAccount() {
+  uni.navigateTo({ url: '/pages/auth/account' })
 }
 
 function logout() {
@@ -677,6 +697,15 @@ function logout() {
   color: #666;
   font-size: 26rpx;
 }
+.security-row {
+  margin-top: 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.security-row .confirm-btn {
+  width: 100%;
+}
 .form {
   margin-top: 16rpx;
   display: flex;
@@ -720,6 +749,7 @@ function logout() {
 }
 .btn {
   margin-top: 8rpx;
+  width: 100%;
 }
 .primary {
   background: #111;

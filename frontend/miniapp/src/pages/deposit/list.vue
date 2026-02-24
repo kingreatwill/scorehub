@@ -25,7 +25,7 @@
         <view class="title">银行</view>
         <view class="title-actions">
           <button class="icon-btn primary" @click="openAccountCreate">
-            <image class="icon-img" :src="addIcon" mode="aspectFit" />
+            <view class="plus-icon" />
           </button>
         </view>
       </view>
@@ -34,7 +34,7 @@
       <view class="member-grid" v-else>
         <view class="member" v-for="acc in accounts" :key="acc.id" @click="openDeposit(acc)">
           <button class="member-edit" @click.stop="openAccountEdit(acc)">
-            <image class="icon-img small" :src="editIcon" mode="aspectFit" />
+            <view class="edit-icon" />
           </button>
           <view class="avatar-wrap">
             <image v-if="acc.avatarUrl" class="avatar" :src="acc.avatarUrl" mode="aspectFill" />
@@ -255,10 +255,6 @@ const isDragging = ref(false)
 const swipeJustFinished = ref(false)
 const swipeOffsetById = ref<Record<string, number>>({})
 const SWIPE_ACTION_WIDTH = 220
-const addIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
-const editIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
 const bankIcon =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10v8"/><path d="M9 10v8"/><path d="M15 10v8"/><path d="M19 10v8"/><path d="M2 18h20"/><path d="M12 4l9 4H3z"/></svg>'
 
@@ -1084,9 +1080,25 @@ function formatCurrencyLines(items: { currency: string; amount: number }[], pref
   background: var(--brand-soft);
   color: var(--brand-strong);
 }
-.icon-img {
-  width: 28rpx;
-  height: 28rpx;
+.plus-icon {
+  width: 26rpx;
+  height: 26rpx;
+  position: relative;
+}
+.plus-icon::before,
+.plus-icon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: var(--brand-strong);
+  transform: translate(-50%, -50%);
+}
+.plus-icon::after {
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 .tip {
   color: #888;
@@ -1133,9 +1145,32 @@ function formatCurrencyLines(items: { currency: string; amount: number }[], pref
 .member-edit::after {
   border: none;
 }
-.icon-img.small {
-  width: 22rpx;
-  height: 22rpx;
+.edit-icon {
+  width: 20rpx;
+  height: 20rpx;
+  position: relative;
+  transform: rotate(-28deg);
+}
+.edit-icon::before {
+  content: '';
+  position: absolute;
+  left: 2rpx;
+  top: 8rpx;
+  width: 12rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: var(--brand-strong);
+}
+.edit-icon::after {
+  content: '';
+  position: absolute;
+  left: 14rpx;
+  top: 6rpx;
+  width: 0;
+  height: 0;
+  border-top: 4rpx solid transparent;
+  border-bottom: 4rpx solid transparent;
+  border-left: 6rpx solid var(--brand-strong);
 }
 .avatar-wrap {
   width: 96rpx;

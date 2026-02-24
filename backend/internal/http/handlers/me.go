@@ -39,10 +39,13 @@ func (h *MeHandlers) GetMe(ctx context.Context, c *app.RequestContext) {
 
 	c.JSON(http.StatusOK, map[string]any{
 		"user": map[string]any{
-			"id":        u.ID,
-			"openid":    u.WeChatOpenID,
-			"nickname":  u.WeChatNickname,
-			"avatarUrl": u.WeChatAvatarURL,
+			"id":          u.ID,
+			"openid":      valueOrEmpty(u.WeChatOpenID),
+			"nickname":    u.WeChatNickname,
+			"avatarUrl":   u.WeChatAvatarURL,
+			"username":    valueOrEmpty(u.Username),
+			"hasPassword": u.PasswordHash != nil && strings.TrimSpace(*u.PasswordHash) != "",
+			"wechatBound": u.WeChatOpenID != nil && strings.TrimSpace(*u.WeChatOpenID) != "",
 		},
 	})
 }
@@ -95,10 +98,13 @@ func (h *MeHandlers) UpdateMe(ctx context.Context, c *app.RequestContext) {
 
 	c.JSON(http.StatusOK, map[string]any{
 		"user": map[string]any{
-			"id":        u.ID,
-			"openid":    u.WeChatOpenID,
-			"nickname":  u.WeChatNickname,
-			"avatarUrl": u.WeChatAvatarURL,
+			"id":          u.ID,
+			"openid":      valueOrEmpty(u.WeChatOpenID),
+			"nickname":    u.WeChatNickname,
+			"avatarUrl":   u.WeChatAvatarURL,
+			"username":    valueOrEmpty(u.Username),
+			"hasPassword": u.PasswordHash != nil && strings.TrimSpace(*u.PasswordHash) != "",
+			"wechatBound": u.WeChatOpenID != nil && strings.TrimSpace(*u.WeChatOpenID) != "",
 		},
 	})
 }

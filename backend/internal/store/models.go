@@ -4,9 +4,12 @@ import "time"
 
 type User struct {
 	ID              int64
-	WeChatOpenID    string
+	WeChatOpenID    *string
 	WeChatNickname  string
 	WeChatAvatarURL string
+	Username        *string
+	PasswordHash    *string
+	PasswordSetAt   *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

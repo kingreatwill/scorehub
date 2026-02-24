@@ -37,7 +37,7 @@
         <view class="title">成员</view>
         <view class="title-actions" v-if="!isReadonly">
           <button class="icon-btn primary" @click="openMemberModal">
-            <image class="icon-img" :src="addIcon" mode="aspectFit" />
+            <view class="plus-icon" />
           </button>
         </view>
       </view>
@@ -48,7 +48,7 @@
       <view class="member-grid" v-else>
         <view class="member" :class="{ disabled: isReadonly }" v-for="m in members" :key="m.id" @click="onClickMember(m)">
           <button class="member-edit" v-if="canEditMember(m)" @click.stop="openEditMember(m)">
-            <image class="icon-img small" :src="editIcon" mode="aspectFit" />
+            <view class="edit-icon" />
           </button>
           <view class="member-tags" v-if="isOwnerMember(m) || isMeMember(m)">
             <view class="tag owner-tag" v-if="isOwnerMember(m)">账主</view>
@@ -255,7 +255,15 @@
         </button>
       </view>
       <button class="fab-toggle" :class="{ active: actionMenuOpen }" :style="fabToggleStyle" @tap.stop="toggleActionMenu">
-        <image class="fab-icon" :src="actionMenuOpen ? closeIcon : moreIcon" mode="aspectFit" />
+        <view v-if="actionMenuOpen" class="fab-close-icon">
+          <view class="fab-close-line line-a" />
+          <view class="fab-close-line line-b" />
+        </view>
+        <view v-else class="fab-more-icon">
+          <view class="fab-more-dot" />
+          <view class="fab-more-dot" />
+          <view class="fab-more-dot" />
+        </view>
       </button>
     </view>
   </view>
@@ -366,15 +374,6 @@ const binding = ref(false)
 const bindRequired = ref(false)
 let lastAppliedNavBg = ''
 let lastAppliedNavFront: '#000000' | '#ffffff' | '' = ''
-
-const addIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'
-const editIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23111" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>'
-const moreIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>'
-const closeIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>'
 
 const isOwner = computed(() => {
   if (!currentUserId.value) return false
@@ -1565,9 +1564,37 @@ async function onChooseAvatar(e: any) {
 .fab-toggle.dragging {
   transition: none;
 }
-.fab-icon {
-  width: 28rpx;
-  height: 28rpx;
+.fab-more-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5rpx;
+}
+.fab-more-dot {
+  width: 7rpx;
+  height: 7rpx;
+  border-radius: 999rpx;
+  background: #fff;
+}
+.fab-close-icon {
+  width: 26rpx;
+  height: 26rpx;
+  position: relative;
+}
+.fab-close-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: #fff;
+}
+.fab-close-line.line-a {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.fab-close-line.line-b {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 .action-btn {
   position: relative;
@@ -1641,13 +1668,52 @@ async function onChooseAvatar(e: any) {
   background: var(--brand-soft);
   color: var(--brand-strong);
 }
-.icon-img {
-  width: 28rpx;
-  height: 28rpx;
+.plus-icon {
+  width: 26rpx;
+  height: 26rpx;
+  position: relative;
 }
-.icon-img.small {
-  width: 22rpx;
-  height: 22rpx;
+.plus-icon::before,
+.plus-icon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: var(--brand-strong);
+  transform: translate(-50%, -50%);
+}
+.plus-icon::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.edit-icon {
+  width: 20rpx;
+  height: 20rpx;
+  position: relative;
+  transform: rotate(-28deg);
+}
+.edit-icon::before {
+  content: '';
+  position: absolute;
+  left: 2rpx;
+  top: 8rpx;
+  width: 12rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: var(--brand-strong);
+}
+.edit-icon::after {
+  content: '';
+  position: absolute;
+  left: 14rpx;
+  top: 6rpx;
+  width: 0;
+  height: 0;
+  border-top: 4rpx solid transparent;
+  border-bottom: 4rpx solid transparent;
+  border-left: 6rpx solid var(--brand-strong);
 }
 .title {
   font-size: 30rpx;

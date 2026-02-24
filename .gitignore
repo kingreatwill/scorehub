@@ -11,8 +11,9 @@ backend/.env
 **/.env.local
 **/.cache/
 **/unpackage/
+backend/assets/h5/*
+!backend/assets/h5/.gitkeep
 
 # IDE
 .vscode/
 .idea/
-

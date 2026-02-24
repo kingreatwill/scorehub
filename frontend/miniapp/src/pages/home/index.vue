@@ -13,7 +13,7 @@
         <button
           size="mini"
           class="loc-btn"
-          v-if="isMpWeixin"
+          v-if="canLocate"
           @click="refreshLocation"
           :disabled="locating"
           hover-class="none"
@@ -48,7 +48,11 @@
       <view class="title-row">
         <view class="title">记录中的得分簿</view>
         <view class="more" @click="openScorebookList">
-          <image class="more-icon" :src="moreIcon" mode="aspectFit" />
+          <view class="more-dots">
+            <view class="more-dot" />
+            <view class="more-dot" />
+            <view class="more-dot" />
+          </view>
         </view>
       </view>
       <t-loading v-if="loadingScorebooks && activeScorebooks.length === 0" :loading="true" text="加载中…" />
@@ -82,12 +86,18 @@ import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBase
 const token = ref('')
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const isMpWeixin = ref(false)
+const canLocate = ref(false)
 const locating = ref(false)
 const locationText = ref('')
 const locationHistory = ref<string[]>([])
 
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
+canLocate.value = true
+// #endif
+
+// #ifdef H5
+canLocate.value = true
 // #endif
 
 const newName = ref('')
@@ -97,9 +107,6 @@ const loadScorebooksError = ref('')
 const activeScorebooks = computed(() =>
   (myScorebooks.value || []).filter((it) => isScorebook(it) && String(it?.status || '') !== 'ended'),
 )
-
-const moreIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2" fill="%23111"/><circle cx="12" cy="12" r="2" fill="%23111"/><circle cx="18" cy="12" r="2" fill="%23111"/></svg>'
 
 onShow(() => {
   syncTheme()
@@ -153,35 +160,72 @@ function formatTime(v: any): string {
 }
 
 async function refreshLocation() {
-  // #ifndef MP-WEIXIN
-  return
-  // #endif
-
-  // #ifdef MP-WEIXIN
+  if (locating.value) return
   locating.value = true
   try {
-    const res = await new Promise<UniApp.GetLocationSuccess>((resolve, reject) => {
-      uni.getLocation({
-        type: 'gcj02',
-        isHighAccuracy: true,
-        success: resolve,
-        fail: reject,
-      } as any)
-    })
-    const fallback = `${Number(res.latitude).toFixed(4)},${Number(res.longitude).toFixed(4)}`
+    const coord = await getCurrentCoordinate()
+    const fallback = `${Number(coord.latitude).toFixed(4)},${Number(coord.longitude).toFixed(4)}`
     let text = fallback
     try {
-      const geo = await reverseGeocode(res.latitude, res.longitude)
+      const geo = await reverseGeocode(coord.latitude, coord.longitude)
       if (geo?.locationText) text = String(geo.locationText)
     } catch (e) {}
     locationText.value = text
   } catch (e: any) {
-    // 用户拒绝授权时给出可恢复提示
-    uni.showToast({ title: e?.errMsg?.includes('auth') ? '定位权限未开启' : '获取位置失败', icon: 'none' })
+    uni.showToast({ title: locationErrorMessage(e), icon: 'none' })
   } finally {
     locating.value = false
   }
+}
+
+type GeoCoordinate = {
+  latitude: number
+  longitude: number
+}
+
+async function getCurrentCoordinate(): Promise<GeoCoordinate> {
+  // #ifdef MP-WEIXIN
+  const res = await new Promise<UniApp.GetLocationSuccess>((resolve, reject) => {
+    uni.getLocation({
+      type: 'gcj02',
+      isHighAccuracy: true,
+      success: resolve,
+      fail: reject,
+    } as any)
+  })
+  return {
+    latitude: Number(res.latitude),
+    longitude: Number(res.longitude),
+  }
   // #endif
+
+  // #ifdef H5
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    throw new Error('当前浏览器不支持定位')
+  }
+  const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0,
+    })
+  })
+  return {
+    latitude: Number(pos.coords.latitude),
+    longitude: Number(pos.coords.longitude),
+  }
+  // #endif
+
+  throw new Error('当前平台不支持定位')
+}
+
+function locationErrorMessage(err: any): string {
+  const code = Number(err?.code || 0)
+  const msg = String(err?.message || err?.errMsg || '').toLowerCase()
+  if (code === 1 || msg.includes('denied') || msg.includes('auth')) return '定位权限未开启'
+  if (code === 3 || msg.includes('timeout')) return '定位超时，请重试'
+  if (msg.includes('not support') || msg.includes('不支持')) return '当前环境不支持定位'
+  return '获取位置失败'
 }
 
 function rememberLocation(text: string, coord?: { latitude?: number; longitude?: number }) {
@@ -342,9 +386,17 @@ function isScorebook(item: any): boolean {
 .more:active {
   opacity: 0.8;
 }
-.more-icon {
-  width: 28rpx;
-  height: 28rpx;
+.more-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+}
+.more-dot {
+  width: 6rpx;
+  height: 6rpx;
+  border-radius: 999rpx;
+  background: var(--brand-solid);
 }
 .title {
   font-size: 32rpx;
