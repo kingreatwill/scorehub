@@ -312,10 +312,21 @@ SELECT id::text, user_id, account_id::text, currency, amount, amount_upper, term
        created_at, updated_at, deleted_at
 FROM deposit_records
 WHERE user_id = $1 AND account_id = $2::uuid AND deleted_at IS NULL
-  AND ($3 = '' OR status = $3)
+  AND (
+    $3 = '' OR
+    (CASE
+      WHEN status = '已支取' THEN '已支取'
+      WHEN end_date <= CURRENT_DATE THEN '已到期'
+      ELSE '未到期'
+    END) = $3
+  )
   AND (array_length($4::text[], 1) IS NULL OR tags && $4::text[])
 ORDER BY
-  CASE status WHEN '未到期' THEN 0 WHEN '已到期' THEN 1 ELSE 2 END,
+  CASE
+    WHEN status = '已支取' THEN 2
+    WHEN end_date <= CURRENT_DATE THEN 1
+    ELSE 0
+  END,
   COALESCE(withdrawn_at, end_date) ASC
 LIMIT $5 OFFSET $6
 `, userID, accountID, status, tags, limit, offset)
@@ -326,10 +337,21 @@ SELECT id::text, user_id, account_id::text, currency, amount, amount_upper, term
        created_at, updated_at, deleted_at
 FROM deposit_records
 WHERE user_id = $1 AND deleted_at IS NULL
-  AND ($2 = '' OR status = $2)
+  AND (
+    $2 = '' OR
+    (CASE
+      WHEN status = '已支取' THEN '已支取'
+      WHEN end_date <= CURRENT_DATE THEN '已到期'
+      ELSE '未到期'
+    END) = $2
+  )
   AND (array_length($3::text[], 1) IS NULL OR tags && $3::text[])
 ORDER BY
-  CASE status WHEN '未到期' THEN 0 WHEN '已到期' THEN 1 ELSE 2 END,
+  CASE
+    WHEN status = '已支取' THEN 2
+    WHEN end_date <= CURRENT_DATE THEN 1
+    ELSE 0
+  END,
   COALESCE(withdrawn_at, end_date) ASC
 LIMIT $4 OFFSET $5
 `, userID, status, tags, limit, offset)
@@ -541,7 +563,14 @@ FROM (
   FROM deposit_records
   WHERE user_id = $1 AND deleted_at IS NULL
     AND ($2 = '' OR account_id = NULLIF($2,'')::uuid)
-    AND ($3 = '' OR status = $3)
+    AND (
+      $3 = '' OR
+      (CASE
+        WHEN status = '已支取' THEN '已支取'
+        WHEN end_date <= CURRENT_DATE THEN '已到期'
+        ELSE '未到期'
+      END) = $3
+    )
 ) t
 WHERE tag <> ''
 GROUP BY tag
@@ -575,7 +604,14 @@ WITH base AS (
   FROM deposit_records
   WHERE user_id = $1 AND deleted_at IS NULL
     AND ($2 = '' OR account_id = NULLIF($2,'')::uuid)
-    AND ($3 = '' OR status = $3)
+    AND (
+      $3 = '' OR
+      (CASE
+        WHEN status = '已支取' THEN '已支取'
+        WHEN end_date <= CURRENT_DATE THEN '已到期'
+        ELSE '未到期'
+      END) = $3
+    )
     AND (array_length($4::text[], 1) IS NULL OR tags && $4::text[])
 )
 SELECT currency, COALESCE(SUM(amount), 0)::float8
@@ -601,7 +637,14 @@ WITH base AS (
   FROM deposit_records
   WHERE user_id = $1 AND deleted_at IS NULL
     AND ($2 = '' OR account_id = NULLIF($2,'')::uuid)
-    AND ($3 = '' OR status = $3)
+    AND (
+      $3 = '' OR
+      (CASE
+        WHEN status = '已支取' THEN '已支取'
+        WHEN end_date <= CURRENT_DATE THEN '已到期'
+        ELSE '未到期'
+      END) = $3
+    )
     AND (array_length($4::text[], 1) IS NULL OR tags && $4::text[])
 )
 SELECT currency, COALESCE(SUM(interest), 0)::float8
@@ -628,7 +671,14 @@ WITH base AS (
   FROM deposit_records
   WHERE user_id = $1 AND deleted_at IS NULL
     AND ($2 = '' OR account_id = NULLIF($2,'')::uuid)
-    AND ($3 = '' OR status = $3)
+    AND (
+      $3 = '' OR
+      (CASE
+        WHEN status = '已支取' THEN '已支取'
+        WHEN end_date <= CURRENT_DATE THEN '已到期'
+        ELSE '未到期'
+      END) = $3
+    )
     AND (array_length($4::text[], 1) IS NULL OR tags && $4::text[])
 )
 SELECT account_id::text, currency, COALESCE(SUM(amount), 0)::float8

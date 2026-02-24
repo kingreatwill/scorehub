@@ -452,7 +452,7 @@ type addLedgerRecordRequest struct {
 type updateLedgerMemberRequest struct {
 	Nickname  string `json:"nickname"`
 	AvatarURL string `json:"avatarUrl"`
-	Remark    string `json:"remark"`
+	Remark    *string `json:"remark"`
 }
 
 type addLedgerMemberRequest struct {
@@ -547,7 +547,11 @@ func (h *LedgerHandlers) UpdateLedgerMember(ctx context.Context, c *app.RequestC
 		return
 	}
 
-	m, err := h.st.UpdateLedgerMember(ctx, ledgerID, uid, memberID, strings.TrimSpace(req.Nickname), strings.TrimSpace(req.AvatarURL), strings.TrimSpace(req.Remark))
+	if req.Remark != nil {
+		v := strings.TrimSpace(*req.Remark)
+		req.Remark = &v
+	}
+	m, err := h.st.UpdateLedgerMember(ctx, ledgerID, uid, memberID, strings.TrimSpace(req.Nickname), strings.TrimSpace(req.AvatarURL), req.Remark)
 	if err != nil {
 		switch err {
 		case store.ErrForbidden:

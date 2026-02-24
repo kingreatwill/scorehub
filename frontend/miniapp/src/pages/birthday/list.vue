@@ -40,7 +40,7 @@
               :class="{ dragging: isDragging && touchItemId === it.id }"
               :style="swipeMainStyle(it.id)"
               @touchstart="onTouchStart($event, it.id)"
-              @touchmove.stop="onTouchMove($event, it.id)"
+              @touchmove="onTouchMove($event, it.id)"
               @touchend="onTouchEnd($event, it.id)"
               @click="onItemTap(it)"
             >
@@ -395,9 +395,6 @@ function onTouchStart(e: any, id: string) {
 
 function onTouchMove(e: any, id: string) {
   if (touchItemId.value !== id) return
-  if (e?.cancelable && typeof e.preventDefault === 'function') {
-    e.preventDefault()
-  }
   const t = e?.touches?.[0]
   if (!t) return
   const dx = t.clientX - touchStartX.value
@@ -405,12 +402,15 @@ function onTouchMove(e: any, id: string) {
   touchLastX.value = t.clientX
   touchDx.value = dx
   if (!isDragging.value) {
-    if (Math.abs(dx) < 6) return
+    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
     if (Math.abs(dx) <= Math.abs(dy)) {
       touchItemId.value = ''
       return
     }
     isDragging.value = true
+  }
+  if (e?.cancelable && typeof e.preventDefault === 'function') {
+    e.preventDefault()
   }
   const next = clampSwipeOffset(dragStartOffset.value + dx)
   setSwipeOffset(id, next)

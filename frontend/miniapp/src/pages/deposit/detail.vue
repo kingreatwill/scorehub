@@ -56,7 +56,7 @@
         </view>
         <view class="info-row">
           <text class="label">状态</text>
-          <text class="value">{{ record.status }}</text>
+          <text class="value">{{ displayStatus }}</text>
         </view>
       </view>
 
@@ -218,7 +218,8 @@ async function fetchDetail() {
 }
 
 const currencyMeta = computed(() => getCurrencyMeta(record.value?.currency || 'CNY'))
-const canWithdraw = computed(() => record.value?.status === '未到期')
+const displayStatus = computed(() => normalizeStatus(record.value))
+const canWithdraw = computed(() => displayStatus.value === '未到期')
 const hasActions = computed(() => !!record.value)
 const fabToggleStyle = computed(() => {
   const base = normalizeHexColor(getThemeBaseColor()) || '#111111'
@@ -274,6 +275,30 @@ function formatDate(date: Date): string {
   const m = `${date.getMonth() + 1}`.padStart(2, '0')
   const d = `${date.getDate()}`.padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+function normalizeStatus(rec: DepositRecord | null): '未到期' | '已到期' | '已支取' {
+  if (!rec) return '未到期'
+  if (rec.status === '已支取') return '已支取'
+  const daysLeft = calcDaysLeft(rec.endDate)
+  return daysLeft <= 0 ? '已到期' : '未到期'
+}
+
+function calcDaysLeft(endDate: string): number {
+  const end = parseDate(endDate)
+  if (!end) return 0
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diff = end.getTime() - today.getTime()
+  return Math.ceil(diff / 86400000)
+}
+
+function parseDate(value: string): Date | null {
+  if (!value) return null
+  const parts = String(value).split('-').map((v) => Number.parseInt(v, 10))
+  if (parts.length < 3 || parts.some((p) => !Number.isFinite(p))) return null
+  const [y, m, d] = parts
+  return new Date(y, m - 1, d)
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {

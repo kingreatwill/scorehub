@@ -421,7 +421,7 @@ RETURNING id::text, scorebook_id::text, user_id, role, nickname, avatar_url, rem
 	return member, nil
 }
 
-func (s *Store) UpdateLedgerMember(ctx context.Context, ledgerID string, userID int64, memberID string, nickname, avatarURL, remark string) (LedgerMember, error) {
+func (s *Store) UpdateLedgerMember(ctx context.Context, ledgerID string, userID int64, memberID string, nickname, avatarURL string, remark *string) (LedgerMember, error) {
 	if strings.TrimSpace(memberID) == "" {
 		return LedgerMember{}, ErrInvalidArgument
 	}
@@ -453,11 +453,12 @@ WHERE id = $1::uuid AND book_type = 'ledger' AND deleted_at IS NULL
 	}
 
 	var targetUserID sql.NullInt64
+	var prevRemark sql.NullString
 	err = tx.QueryRow(ctx, `
-SELECT user_id
+SELECT user_id, remark
 FROM scorebook_members
 WHERE scorebook_id = $1::uuid AND id = $2::uuid
-`, ledgerID, memberID).Scan(&targetUserID)
+`, ledgerID, memberID).Scan(&targetUserID, &prevRemark)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return LedgerMember{}, ErrNotFound
@@ -468,6 +469,23 @@ WHERE scorebook_id = $1::uuid AND id = $2::uuid
 		if !targetUserID.Valid || targetUserID.Int64 != userID {
 			return LedgerMember{}, ErrForbidden
 		}
+		remark = nil
+	}
+
+	var remarkVal sql.NullString
+	if remark != nil {
+		v := strings.TrimSpace(*remark)
+		remark = &v
+		remarkVal = sql.NullString{Valid: true, String: v}
+	}
+	prevRemarkText := strings.TrimSpace(prevRemark.String)
+	newRemarkText := prevRemarkText
+	if remark != nil {
+		newRemarkText = strings.TrimSpace(*remark)
+	}
+	shouldRecordRemark := ownerID == userID && remark != nil && prevRemarkText != newRemarkText
+	if shouldRecordRemark && targetUserID.Valid && targetUserID.Int64 == userID {
+		shouldRecordRemark = false
 	}
 
 	var member LedgerMember
@@ -477,7 +495,7 @@ UPDATE scorebook_members
 SET nickname = $3, avatar_url = $4, remark = COALESCE($5, remark), updated_at = NOW()
 WHERE scorebook_id = $1::uuid AND id = $2::uuid
 RETURNING id::text, scorebook_id::text, user_id, role::text, nickname, avatar_url, remark, score::float8, joined_at, updated_at
-`, ledgerID, memberID, nickname, avatarURL, remark).Scan(
+`, ledgerID, memberID, nickname, avatarURL, remarkVal).Scan(
 		&member.ID,
 		&member.LedgerID,
 		&memberUserID,
@@ -494,6 +512,38 @@ RETURNING id::text, scorebook_id::text, user_id, role::text, nickname, avatar_ur
 	}
 	if memberUserID.Valid {
 		member.UserID = &memberUserID.Int64
+	}
+
+	if shouldRecordRemark {
+		var ownerMemberID string
+		err = tx.QueryRow(ctx, `
+SELECT id::text
+FROM scorebook_members
+WHERE scorebook_id = $1::uuid AND role = 'owner'
+`, ledgerID).Scan(&ownerMemberID)
+		if err != nil {
+			return LedgerMember{}, err
+		}
+		if ownerMemberID == "" {
+			err = tx.QueryRow(ctx, `
+SELECT id::text
+FROM scorebook_members
+WHERE scorebook_id = $1::uuid
+ORDER BY joined_at ASC
+LIMIT 1
+`, ledgerID).Scan(&ownerMemberID)
+			if err != nil {
+				return LedgerMember{}, err
+			}
+		}
+		if ownerMemberID != "" {
+			if _, err := tx.Exec(ctx, `
+INSERT INTO score_records (scorebook_id, from_member_id, to_member_id, delta, note)
+VALUES ($1::uuid, $2::uuid, $3::uuid, 0, $4)
+`, ledgerID, ownerMemberID, memberID, newRemarkText); err != nil {
+				return LedgerMember{}, err
+			}
+		}
 	}
 	_, _ = tx.Exec(ctx, `UPDATE scorebooks SET updated_at = NOW() WHERE id = $1::uuid`, ledgerID)
 

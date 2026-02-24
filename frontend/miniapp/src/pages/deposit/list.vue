@@ -167,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { onReachBottom, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
@@ -216,6 +216,11 @@ type AttachmentItem = {
   name?: string
 }
 
+type CurrencyStat = {
+  currency: string
+  amount: number
+}
+
 type RecordView = DepositRecord & {
   bank: string
   avatarUrl: string
@@ -237,6 +242,8 @@ const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor(
 const user = ref<any>(null)
 const tagOptionsRemote = ref<string[]>([])
 const stats = ref<any>(null)
+const annualYieldStats = ref<CurrencyStat[] | null>(null)
+const activeRecordQueryKey = ref('')
 const openId = ref('')
 const touchStartX = ref(0)
 const touchStartY = ref(0)
@@ -299,6 +306,19 @@ const recordItems = computed<RecordView[]>(() => {
 })
 
 const statusOptions = ['全部', '未到期', '已到期', '已支取']
+
+const recordQueryKey = computed(() => {
+  const status = statusFilter.value
+  const accountId = bankFilterId.value
+  const tags = [...tagFilters.value].map((tag) => String(tag || '').trim()).filter(Boolean).sort()
+  return `${status}|${accountId}|${tags.join('|')}`
+})
+
+watch(recordQueryKey, async (nextKey, prevKey) => {
+  if (!recordsLoaded.value || nextKey === prevKey) return
+  activeRecordQueryKey.value = nextKey
+  await reloadRecords()
+})
 
 const bankOptions = computed(() => {
   const map = new Map<string, string>()
@@ -391,20 +411,51 @@ const totalDepositItems = computed(() => {
 })
 
 const annualYieldItems = computed(() => {
-  if (stats.value?.annualYields?.length) {
-    return sortCurrencyItems(
-      stats.value.annualYields.map((item: any) => ({
-        currency: String(item.currency || 'CNY'),
-        amount: Number(item.amount || 0),
-      })),
-    )
+  if (annualYieldStats.value) {
+    return sortCurrencyItems(annualYieldStats.value)
   }
-  const active = recordItems.value.filter((rec) => rec.status === '未到期' && isSameYear(rec.endDate))
+  const active = recordItems.value.filter((rec) => rec.status !== '已支取' && isSameYear(rec.endDate))
   return sortCurrencyItems(aggregateByCurrency(active, (rec) => rec.interest || 0))
 })
 
 const depositLines = computed(() => formatCurrencyLines(totalDepositItems.value, ''))
 const yieldLines = computed(() => formatCurrencyLines(annualYieldItems.value, '+'))
+
+function buildRecordQuery() {
+  const query: { accountId?: string; status?: string; tags?: string[] } = {}
+  if (bankFilterId.value) query.accountId = bankFilterId.value
+  if (statusFilter.value && statusFilter.value !== '全部') query.status = statusFilter.value
+  const tags = tagFilters.value.map((tag) => String(tag || '').trim()).filter(Boolean)
+  if (tags.length > 0) query.tags = tags
+  return query
+}
+
+function mapDepositRecord(rec: any): DepositRecord {
+  return {
+    id: String(rec.id || ''),
+    accountId: String(rec.accountId || ''),
+    currency: String(rec.currency || 'CNY'),
+    amount: Number(rec.amount || 0),
+    amountUpper: String(rec.amountUpper || ''),
+    termValue: Number(rec.termValue || 0),
+    termUnit: (rec.termUnit === 'month' ? 'month' : rec.termUnit === 'day' ? 'day' : 'year') as
+      | 'year'
+      | 'month'
+      | 'day',
+    rate: Number(rec.rate || 0),
+    startDate: String(rec.startDate || ''),
+    endDate: String(rec.endDate || ''),
+    withdrawnAt: String(rec.withdrawnAt || ''),
+    interest: Number(rec.interest || 0),
+    tags: Array.isArray(rec.tags) ? rec.tags : [],
+    note: String(rec.note || ''),
+    attachments: Array.isArray(rec.attachments) ? rec.attachments : [],
+    status: (rec.status === '已到期' || rec.status === '已支取' ? rec.status : '未到期') as
+      | '未到期'
+      | '已到期'
+      | '已支取',
+  }
+}
 
 async function load() {
   try {
@@ -412,9 +463,11 @@ async function load() {
     recordsPaging.value = false
     recordsHasMore.value = true
     recordsNextOffset.value = 0
+    activeRecordQueryKey.value = recordQueryKey.value
+    const recordQuery = buildRecordQuery()
     const [accountsRes, recordsRes] = await Promise.all([
       listDepositAccounts(200, 0),
-      listDepositRecords({ limit: recordsPageSize, offset: 0 }),
+      listDepositRecords({ ...recordQuery, limit: recordsPageSize, offset: 0 }),
     ])
     accounts.value = (accountsRes?.items || []).map((acc: any) => ({
       id: String(acc.id || ''),
@@ -425,44 +478,55 @@ async function load() {
       avatarUrl: String(acc.avatarUrl || ''),
       note: String(acc.note || ''),
     }))
-    records.value = (recordsRes?.items || []).map((rec: any) => ({
-      id: String(rec.id || ''),
-      accountId: String(rec.accountId || ''),
-      currency: String(rec.currency || 'CNY'),
-      amount: Number(rec.amount || 0),
-      amountUpper: String(rec.amountUpper || ''),
-      termValue: Number(rec.termValue || 0),
-      termUnit: (rec.termUnit === 'month' ? 'month' : rec.termUnit === 'day' ? 'day' : 'year') as
-        | 'year'
-        | 'month'
-        | 'day',
-      rate: Number(rec.rate || 0),
-      startDate: String(rec.startDate || ''),
-      endDate: String(rec.endDate || ''),
-      withdrawnAt: String(rec.withdrawnAt || ''),
-      interest: Number(rec.interest || 0),
-      tags: Array.isArray(rec.tags) ? rec.tags : [],
-      note: String(rec.note || ''),
-      attachments: Array.isArray(rec.attachments) ? rec.attachments : [],
-      status: (rec.status === '已到期' || rec.status === '已支取' ? rec.status : '未到期') as
-        | '未到期'
-        | '已到期'
-        | '已支取',
-    }))
+    records.value = (recordsRes?.items || []).map(mapDepositRecord)
     recordsLoaded.value = true
     recordsNextOffset.value = records.value.length
     recordsHasMore.value = records.value.length >= recordsPageSize
     await loadStatsAndTags()
+    const latestKey = recordQueryKey.value
+    if (activeRecordQueryKey.value !== latestKey) {
+      activeRecordQueryKey.value = latestKey
+      await reloadRecords()
+    }
   } catch (e: any) {
     uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
   }
 }
 
+async function reloadRecords() {
+  if (recordsPaging.value) return
+  const queryKey = recordQueryKey.value
+  activeRecordQueryKey.value = queryKey
+  recordsPaging.value = true
+  recordsLoaded.value = false
+  recordsHasMore.value = true
+  recordsNextOffset.value = 0
+  records.value = []
+  try {
+    const res = await listDepositRecords({ ...buildRecordQuery(), limit: recordsPageSize, offset: 0 })
+    if (activeRecordQueryKey.value !== queryKey) return
+    const items = res?.items || []
+    records.value = items.map(mapDepositRecord)
+    recordsNextOffset.value = records.value.length
+    recordsHasMore.value = records.value.length >= recordsPageSize
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
+  } finally {
+    recordsPaging.value = false
+    if (activeRecordQueryKey.value === queryKey) {
+      recordsLoaded.value = true
+    }
+  }
+}
+
 async function loadMoreRecords() {
   if (recordsPaging.value || !recordsHasMore.value) return
+  const queryKey = recordQueryKey.value
+  if (activeRecordQueryKey.value && activeRecordQueryKey.value !== queryKey) return
   recordsPaging.value = true
   try {
-    const res = await listDepositRecords({ limit: recordsPageSize, offset: recordsNextOffset.value })
+    const res = await listDepositRecords({ ...buildRecordQuery(), limit: recordsPageSize, offset: recordsNextOffset.value })
+    if (activeRecordQueryKey.value && activeRecordQueryKey.value !== queryKey) return
     const items = res?.items || []
     const seen = new Set<string>()
     for (const it of records.value) {
@@ -473,30 +537,7 @@ async function loadMoreRecords() {
       const id = String(rec?.id || '')
       if (!id || seen.has(id)) continue
       seen.add(id)
-      records.value.push({
-        id: String(rec.id || ''),
-        accountId: String(rec.accountId || ''),
-        currency: String(rec.currency || 'CNY'),
-        amount: Number(rec.amount || 0),
-        amountUpper: String(rec.amountUpper || ''),
-        termValue: Number(rec.termValue || 0),
-        termUnit: (rec.termUnit === 'month' ? 'month' : rec.termUnit === 'day' ? 'day' : 'year') as
-          | 'year'
-          | 'month'
-          | 'day',
-        rate: Number(rec.rate || 0),
-        startDate: String(rec.startDate || ''),
-        endDate: String(rec.endDate || ''),
-        withdrawnAt: String(rec.withdrawnAt || ''),
-        interest: Number(rec.interest || 0),
-        tags: Array.isArray(rec.tags) ? rec.tags : [],
-        note: String(rec.note || ''),
-        attachments: Array.isArray(rec.attachments) ? rec.attachments : [],
-        status: (rec.status === '已到期' || rec.status === '已支取' ? rec.status : '未到期') as
-          | '未到期'
-          | '已到期'
-          | '已支取',
-      })
+      records.value.push(mapDepositRecord(rec))
     }
     recordsNextOffset.value += items.length
     recordsHasMore.value = items.length >= recordsPageSize
@@ -510,13 +551,17 @@ async function loadMoreRecords() {
 
 async function loadStatsAndTags() {
   try {
-    const [tagsRes, statsRes] = await Promise.all([
+    const [tagsRes, activeStatsRes, maturedStatsRes] = await Promise.all([
       listDepositTags(),
       getDepositStats({ status: '未到期' }),
+      getDepositStats({ status: '已到期' }),
     ])
     tagOptionsRemote.value = (tagsRes?.items || []).map((it: any) => String(it?.tag || '')).filter(Boolean)
-    stats.value = statsRes?.stats || null
-  } catch (e) {}
+    stats.value = activeStatsRes?.stats || null
+    annualYieldStats.value = mergeCurrencyItems(activeStatsRes?.stats?.annualYields, maturedStatsRes?.stats?.annualYields)
+  } catch (e) {
+    annualYieldStats.value = null
+  }
 }
 
 function openAccountCreate() {
@@ -754,7 +799,7 @@ function accountTotalLabel(accountId: string): string {
 
 function normalizeStatus(rec: DepositRecord, daysLeft: number): '未到期' | '已到期' | '已支取' {
   if (rec.status === '已支取') return '已支取'
-  if (daysLeft < 0) return '已到期'
+  if (daysLeft <= 0) return '已到期'
   return '未到期'
 }
 
@@ -816,6 +861,19 @@ function aggregateByCurrency(list: RecordView[], picker: (rec: RecordView) => nu
     const key = String(rec.currency || 'CNY').toUpperCase()
     const prev = map.get(key) || 0
     map.set(key, prev + (picker(rec) || 0))
+  }
+  return Array.from(map.entries()).map(([currency, amount]) => ({ currency, amount }))
+}
+
+function mergeCurrencyItems(...lists: Array<CurrencyStat[] | undefined | null>): CurrencyStat[] {
+  const map = new Map<string, number>()
+  for (const list of lists) {
+    if (!list || list.length === 0) continue
+    for (const item of list) {
+      const currency = String(item.currency || 'CNY').toUpperCase()
+      const amount = Number(item.amount || 0)
+      map.set(currency, (map.get(currency) || 0) + (Number.isFinite(amount) ? amount : 0))
+    }
   }
   return Array.from(map.entries()).map(([currency, amount]) => ({ currency, amount }))
 }
