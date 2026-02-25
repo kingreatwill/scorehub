@@ -215,22 +215,20 @@
     <view class="modal qr-modal" v-if="inviteQRModalOpen">
       <view class="modal-title">邀请码二维码（点击可保存）</view>
       <view v-if="inviteQRLoading" class="hint">生成中…</view>
-      <template v-else>
-        <!-- #ifdef MP-WEIXIN -->
-        <canvas
-          class="invite-qr-canvas"
-          canvas-id="inviteQrCanvas"
-          id="inviteQrCanvas"
-          @click="saveInviteCodeQR"
-          :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px` }"
-          :width="inviteQRSize"
-          :height="inviteQRSize"
-        />
-        <!-- #endif -->
-        <!-- #ifdef H5 -->
-        <image v-if="inviteQRSrc" class="qr" :src="inviteQRSrc" mode="widthFix" @click="saveInviteCodeQR" />
-        <!-- #endif -->
-      </template>
+      <!-- #ifdef MP-WEIXIN -->
+      <canvas
+        class="invite-qr-canvas"
+        canvas-id="inviteQrCanvas"
+        id="inviteQrCanvas"
+        @click="saveInviteCodeQR"
+        :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px`, opacity: inviteQRLoading ? 0 : 1 }"
+        :width="inviteQRSize"
+        :height="inviteQRSize"
+      />
+      <!-- #endif -->
+      <!-- #ifdef H5 -->
+      <image v-if="!inviteQRLoading && inviteQRSrc" class="qr" :src="inviteQRSrc" mode="widthFix" @click="saveInviteCodeQR" />
+      <!-- #endif -->
       <view class="hint">在我的页面点「扫码」即可识别</view>
     </view>
 
@@ -238,22 +236,20 @@
     <view class="modal qr-modal" v-if="browserQRModalOpen">
       <view class="modal-title">浏览器码（点击可保存）</view>
       <view v-if="browserQRLoading" class="hint">生成中…</view>
-      <template v-else>
-        <!-- #ifdef MP-WEIXIN -->
-        <canvas
-          class="invite-qr-canvas"
-          canvas-id="browserQrCanvas"
-          id="browserQrCanvas"
-          @click="saveBrowserQRCode"
-          :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px` }"
-          :width="inviteQRSize"
-          :height="inviteQRSize"
-        />
-        <!-- #endif -->
-        <!-- #ifdef H5 -->
-        <image v-if="browserQRSrc" class="qr" :src="browserQRSrc" mode="widthFix" @click="saveBrowserQRCode" />
-        <!-- #endif -->
-      </template>
+      <!-- #ifdef MP-WEIXIN -->
+      <canvas
+        class="invite-qr-canvas"
+        canvas-id="browserQrCanvas"
+        id="browserQrCanvas"
+        @click="saveBrowserQRCode"
+        :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px`, opacity: browserQRLoading ? 0 : 1 }"
+        :width="inviteQRSize"
+        :height="inviteQRSize"
+      />
+      <!-- #endif -->
+      <!-- #ifdef H5 -->
+      <image v-if="!browserQRLoading && browserQRSrc" class="qr" :src="browserQRSrc" mode="widthFix" @click="saveBrowserQRCode" />
+      <!-- #endif -->
       <view class="hint">浏览器扫码可直接打开加入页</view>
       <view class="qr-link" v-if="browserJoinURL" @click="copyBrowserJoinURL">{{ browserJoinURL }}</view>
     </view>
@@ -1243,16 +1239,17 @@ function drawBrowserQRCode(url: string): Promise<void> {
   const margin = 4
   const moduleSize = Math.max(1, Math.floor(inviteQRSize / (n + margin * 2)))
   const drawSize = moduleSize * (n + margin * 2)
+  const offset = Math.floor((inviteQRSize - drawSize) / 2)
 
   const ctx = uni.createCanvasContext('browserQrCanvas', proxy)
   ctx.setFillStyle('#ffffff')
-  ctx.fillRect(0, 0, drawSize, drawSize)
+  ctx.fillRect(0, 0, inviteQRSize, inviteQRSize)
   ctx.setFillStyle('#000000')
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
       if (!matrix[r][c]) continue
-      const x = (c + margin) * moduleSize
-      const y = (r + margin) * moduleSize
+      const x = offset + (c + margin) * moduleSize
+      const y = offset + (r + margin) * moduleSize
       ctx.fillRect(x, y, moduleSize, moduleSize)
     }
   }
@@ -1349,16 +1346,17 @@ function drawInviteCodeQR(code: string): Promise<void> {
   const margin = 4
   const moduleSize = Math.max(1, Math.floor(inviteQRSize / (n + margin * 2)))
   const drawSize = moduleSize * (n + margin * 2)
+  const offset = Math.floor((inviteQRSize - drawSize) / 2)
 
   const ctx = uni.createCanvasContext('inviteQrCanvas', proxy)
   ctx.setFillStyle('#ffffff')
-  ctx.fillRect(0, 0, drawSize, drawSize)
+  ctx.fillRect(0, 0, inviteQRSize, inviteQRSize)
   ctx.setFillStyle('#000000')
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
       if (!matrix[r][c]) continue
-      const x = (c + margin) * moduleSize
-      const y = (r + margin) * moduleSize
+      const x = offset + (c + margin) * moduleSize
+      const y = offset + (r + margin) * moduleSize
       ctx.fillRect(x, y, moduleSize, moduleSize)
     }
   }
