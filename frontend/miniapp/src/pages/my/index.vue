@@ -121,12 +121,14 @@
         </view>
       </template>
     </t-color-picker>
+
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import jsQR from 'jsqr'
 import { devLogin, getInviteInfo, joinByInviteCode, updateMe, wechatLogin } from '../../utils/api'
 import { clampNickname } from '../../utils/nickname'
 import {
@@ -144,9 +146,6 @@ const user = ref<any>(null)
 
 const isMpWeixin = ref(false)
 const isH5 = ref(false)
-// #ifdef H5
-let h5InviteDetector: any = null
-// #endif
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
 // #endif
@@ -467,18 +466,40 @@ async function onScanInviteToInputH5() {
 
   // #ifdef H5
   try {
-    const res = await new Promise<any>((resolve, reject) => {
-      uni.chooseImage({
-        count: 1,
-        sizeType: ['compressed'],
-        sourceType: ['camera', 'album'],
-        success: resolve,
-        fail: reject,
-      } as any)
-    })
-    const path = String(res?.tempFilePaths?.[0] || res?.tempFiles?.[0]?.path || '').trim()
-    if (!path) return
-    const raw = await detectInviteCodeFromImageH5(path)
+    await scanInviteFromImageH5()
+  } catch (e: any) {
+    if (isUserCancelError(e)) return
+    uni.showToast({ title: h5ScanErrorMessage(e), icon: 'none' })
+  }
+  // #endif
+}
+
+function h5ScanErrorMessage(err: any): string {
+  const name = String(err?.name || '').toLowerCase()
+  const msg = String(err?.message || err?.errMsg || '').toLowerCase()
+  if (msg.includes('secure') || msg.includes('https')) return '请使用 HTTPS 或 localhost 访问'
+  if (name.includes('notallowed') || msg.includes('denied') || msg.includes('permission') || msg.includes('notallowed')) return '请允许浏览器访问相册'
+  if (msg.includes('not support') || msg.includes('notsupported')) return '当前浏览器不支持扫码'
+  const detail = String(err?.message || err?.errMsg || '').trim()
+  if (detail) return `扫码失败：${detail.slice(0, 30)}`
+  return '扫码失败'
+}
+
+function isUserCancelError(err: any): boolean {
+  const msg = String(err?.message || err?.errMsg || err || '').toLowerCase()
+  return msg.includes('cancel') || msg.includes('canceled') || msg.includes('取消')
+}
+
+async function scanInviteFromImageH5() {
+  // #ifndef H5
+  return
+  // #endif
+
+  // #ifdef H5
+  let source: { src: string; revoke?: () => void } | null = null
+  try {
+    source = await chooseInviteImageSourceH5()
+    const raw = await detectInviteCodeByImageSourceH5(source.src)
     const code = normalizeCode(raw)
     if (!code) {
       uni.showToast({ title: '未识别到邀请码', icon: 'none' })
@@ -487,61 +508,98 @@ async function onScanInviteToInputH5() {
     inviteCode.value = code
     uni.showToast({ title: '识别成功', icon: 'success' })
   } catch (e: any) {
-    const msg = String(e?.errMsg || e?.message || '')
-    if (msg.toLowerCase().includes('cancel')) return
+    if (isUserCancelError(e)) return
     uni.showToast({ title: h5ScanErrorMessage(e), icon: 'none' })
+  } finally {
+    releaseInviteImageSource(source)
   }
   // #endif
 }
 
-function h5ScanErrorMessage(err: any): string {
-  const msg = String(err?.message || err?.errMsg || '').toLowerCase()
-  if (msg.includes('denied') || msg.includes('permission') || msg.includes('notallowed')) return '请允许浏览器访问相机'
-  if (msg.includes('not support') || msg.includes('notsupported')) return '当前浏览器不支持扫码'
-  if (msg.includes('not found') || msg.includes('notfound')) return '未检测到可用摄像头'
-  return '扫码失败'
+async function chooseInviteImageSourceH5(): Promise<{ src: string; revoke?: () => void }> {
+  // #ifndef H5
+  return { src: '' }
+  // #endif
+
+  // #ifdef H5
+  const res = await new Promise<any>((resolve, reject) => {
+    uni.chooseImage({
+      count: 1,
+      sizeType: ['original', 'compressed'],
+      sourceType: ['album'],
+      success: resolve,
+      fail: reject,
+    } as any)
+  })
+
+  const path = String(res?.tempFilePaths?.[0] || res?.tempFiles?.[0]?.path || '').trim()
+  if (path) return { src: path }
+
+  const file = res?.tempFiles?.[0]?.file
+  if (file && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+    const src = URL.createObjectURL(file)
+    return {
+      src,
+      revoke: () => URL.revokeObjectURL(src),
+    }
+  }
+
+  throw new Error('未读取到图片')
+  // #endif
 }
 
-async function detectInviteCodeFromImageH5(path: string): Promise<string> {
+async function detectInviteCodeByImageSourceH5(src: string): Promise<string> {
   // #ifndef H5
   return ''
   // #endif
 
   // #ifdef H5
-  const detector = getH5InviteDetector()
-  const img = await loadH5Image(path)
-  const codes = await detector.detect(img)
-  return String(codes?.[0]?.rawValue || '').trim()
+  if (typeof document === 'undefined') throw new Error('当前平台不支持扫码')
+  const image = await loadH5Image(src)
+  const srcWidth = Number((image as any).naturalWidth || image.width || 0)
+  const srcHeight = Number((image as any).naturalHeight || image.height || 0)
+  if (!srcWidth || !srcHeight) return ''
+
+  const maxEdge = 1600
+  const scale = Math.min(1, maxEdge / Math.max(srcWidth, srcHeight))
+  const width = Math.max(1, Math.round(srcWidth * scale))
+  const height = Math.max(1, Math.round(srcHeight * scale))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true } as any)
+  if (!ctx) return ''
+  ctx.clearRect(0, 0, width, height)
+  ctx.drawImage(image, 0, 0, width, height)
+
+  const imageData = ctx.getImageData(0, 0, width, height)
+  const hit = jsQR(imageData.data, width, height, { inversionAttempts: 'attemptBoth' })
+  return String(hit?.data || '').trim()
   // #endif
 }
 
-function getH5InviteDetector(): any {
+function loadH5Image(src: string): Promise<HTMLImageElement> {
   // #ifndef H5
-  throw new Error('当前平台不支持扫码')
-  // #endif
-
-  // #ifdef H5
-  if (h5InviteDetector) return h5InviteDetector
-  const Detector = (globalThis as any).BarcodeDetector
-  if (!Detector) throw new Error('当前浏览器不支持扫码')
-  h5InviteDetector = new Detector({ formats: ['qr_code'] })
-  return h5InviteDetector
-  // #endif
-}
-
-function loadH5Image(src: string): Promise<any> {
-  // #ifndef H5
-  return Promise.reject(new Error('当前平台不支持扫码'))
+  return Promise.reject(new Error('仅支持 H5'))
   // #endif
 
   // #ifdef H5
   return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.src = src
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('图片读取失败'))
+    image.src = src
   })
   // #endif
+}
+
+function releaseInviteImageSource(source: { revoke?: () => void } | null | undefined) {
+  try {
+    source?.revoke?.()
+  } catch (e) {
+    // ignore cleanup errors
+  }
 }
 
 function normalizeCode(v: string): string {
