@@ -77,7 +77,7 @@
       <view class="title">邀请码加入</view>
       <view class="invite-row">
         <input class="input invite-input" v-model="inviteCode" placeholder="邀请码（例如 8 位码）" />
-        <button size="mini" class="scan-btn" v-if="isMpWeixin" @click="onScanInviteToInput" hover-class="none">
+        <button size="mini" class="scan-btn" v-if="isMpWeixin || isH5" @click="onScanInviteToInput" hover-class="none">
           <image class="scan-icon" :src="scanIcon" mode="aspectFit" />
         </button>
       </view>
@@ -144,6 +144,9 @@ const user = ref<any>(null)
 
 const isMpWeixin = ref(false)
 const isH5 = ref(false)
+// #ifdef H5
+let h5InviteDetector: any = null
+// #endif
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
 // #endif
@@ -430,26 +433,114 @@ function openDepositList() {
 }
 
 async function onScanInviteToInput() {
-  // #ifndef MP-WEIXIN
-  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
+  if (isMpWeixin.value) {
+    try {
+      const res = await new Promise<any>((resolve, reject) => {
+        uni.scanCode({ success: resolve, fail: reject })
+      })
+      const raw = String(res?.path || res?.result || '').trim()
+      const code = normalizeCode(raw)
+      if (!code) {
+        uni.showToast({ title: '未识别到邀请码', icon: 'none' })
+        return
+      }
+      inviteCode.value = code
+    } catch (e: any) {
+      uni.showToast({ title: e?.message || '扫码失败', icon: 'none' })
+    }
+    return
+  }
+
+  if (isH5.value) {
+    await onScanInviteToInputH5()
+    return
+  }
+
+  uni.showToast({ title: '当前平台不支持扫码', icon: 'none' })
+}
+
+async function onScanInviteToInputH5() {
+  // #ifndef H5
+  uni.showToast({ title: '当前平台不支持扫码', icon: 'none' })
   return
   // #endif
 
-  // #ifdef MP-WEIXIN
+  // #ifdef H5
   try {
     const res = await new Promise<any>((resolve, reject) => {
-      uni.scanCode({ success: resolve, fail: reject })
+      uni.chooseImage({
+        count: 1,
+        sizeType: ['compressed'],
+        sourceType: ['camera', 'album'],
+        success: resolve,
+        fail: reject,
+      } as any)
     })
-    const raw = String(res?.path || res?.result || '').trim()
+    const path = String(res?.tempFilePaths?.[0] || res?.tempFiles?.[0]?.path || '').trim()
+    if (!path) return
+    const raw = await detectInviteCodeFromImageH5(path)
     const code = normalizeCode(raw)
     if (!code) {
       uni.showToast({ title: '未识别到邀请码', icon: 'none' })
       return
     }
     inviteCode.value = code
+    uni.showToast({ title: '识别成功', icon: 'success' })
   } catch (e: any) {
-    uni.showToast({ title: e?.message || '扫码失败', icon: 'none' })
+    const msg = String(e?.errMsg || e?.message || '')
+    if (msg.toLowerCase().includes('cancel')) return
+    uni.showToast({ title: h5ScanErrorMessage(e), icon: 'none' })
   }
+  // #endif
+}
+
+function h5ScanErrorMessage(err: any): string {
+  const msg = String(err?.message || err?.errMsg || '').toLowerCase()
+  if (msg.includes('denied') || msg.includes('permission') || msg.includes('notallowed')) return '请允许浏览器访问相机'
+  if (msg.includes('not support') || msg.includes('notsupported')) return '当前浏览器不支持扫码'
+  if (msg.includes('not found') || msg.includes('notfound')) return '未检测到可用摄像头'
+  return '扫码失败'
+}
+
+async function detectInviteCodeFromImageH5(path: string): Promise<string> {
+  // #ifndef H5
+  return ''
+  // #endif
+
+  // #ifdef H5
+  const detector = getH5InviteDetector()
+  const img = await loadH5Image(path)
+  const codes = await detector.detect(img)
+  return String(codes?.[0]?.rawValue || '').trim()
+  // #endif
+}
+
+function getH5InviteDetector(): any {
+  // #ifndef H5
+  throw new Error('当前平台不支持扫码')
+  // #endif
+
+  // #ifdef H5
+  if (h5InviteDetector) return h5InviteDetector
+  const Detector = (globalThis as any).BarcodeDetector
+  if (!Detector) throw new Error('当前浏览器不支持扫码')
+  h5InviteDetector = new Detector({ formats: ['qr_code'] })
+  return h5InviteDetector
+  // #endif
+}
+
+function loadH5Image(src: string): Promise<any> {
+  // #ifndef H5
+  return Promise.reject(new Error('当前平台不支持扫码'))
+  // #endif
+
+  // #ifdef H5
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
   // #endif
 }
 
@@ -459,10 +550,10 @@ function normalizeCode(v: string): string {
   if (/^[0-9A-Z]{6,12}$/.test(raw)) return raw
   try {
     const u = new URL(raw)
-    const code = u.searchParams.get('code') || ''
+    const code = u.searchParams.get('code') || u.searchParams.get('scene') || ''
     return decodeURIComponent(code).trim()
   } catch (e) {}
-  const m = raw.match(/(?:^|[?&])code=([^&]+)/)
+  const m = raw.match(/(?:^|[?&])(?:code|scene)=([^&]+)/)
   if (m?.[1]) return decodeURIComponent(m[1]).trim()
   return raw
 }

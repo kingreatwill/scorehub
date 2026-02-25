@@ -215,16 +215,47 @@
     <view class="modal qr-modal" v-if="inviteQRModalOpen">
       <view class="modal-title">邀请码二维码（点击可保存）</view>
       <view v-if="inviteQRLoading" class="hint">生成中…</view>
-      <canvas
-        class="invite-qr-canvas"
-        canvas-id="inviteQrCanvas"
-        id="inviteQrCanvas"
-        @click="saveInviteCodeQR"
-        :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px` }"
-        :width="inviteQRSize"
-        :height="inviteQRSize"
-      />
+      <template v-else>
+        <!-- #ifdef MP-WEIXIN -->
+        <canvas
+          class="invite-qr-canvas"
+          canvas-id="inviteQrCanvas"
+          id="inviteQrCanvas"
+          @click="saveInviteCodeQR"
+          :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px` }"
+          :width="inviteQRSize"
+          :height="inviteQRSize"
+        />
+        <!-- #endif -->
+        <!-- #ifdef H5 -->
+        <image v-if="inviteQRSrc" class="qr" :src="inviteQRSrc" mode="widthFix" @click="saveInviteCodeQR" />
+        <!-- #endif -->
+      </template>
       <view class="hint">在我的页面点「扫码」即可识别</view>
+    </view>
+
+    <view class="modal-mask" v-if="browserQRModalOpen" @click="closeBrowserQRCode" />
+    <view class="modal qr-modal" v-if="browserQRModalOpen">
+      <view class="modal-title">浏览器码（点击可保存）</view>
+      <view v-if="browserQRLoading" class="hint">生成中…</view>
+      <template v-else>
+        <!-- #ifdef MP-WEIXIN -->
+        <canvas
+          class="invite-qr-canvas"
+          canvas-id="browserQrCanvas"
+          id="browserQrCanvas"
+          @click="saveBrowserQRCode"
+          :style="{ width: `${inviteQRSize}px`, height: `${inviteQRSize}px` }"
+          :width="inviteQRSize"
+          :height="inviteQRSize"
+        />
+        <!-- #endif -->
+        <!-- #ifdef H5 -->
+        <image v-if="browserQRSrc" class="qr" :src="browserQRSrc" mode="widthFix" @click="saveBrowserQRCode" />
+        <!-- #endif -->
+      </template>
+      <view class="hint">浏览器扫码可直接打开加入页</view>
+      <view class="qr-link" v-if="browserJoinURL" @click="copyBrowserJoinURL">{{ browserJoinURL }}</view>
     </view>
 
     <view class="fab-mask" v-if="actionMenuOpen && hasActions" @tap="closeActionMenu" />
@@ -232,6 +263,9 @@
       <view class="fab-panel" :class="{ open: actionMenuOpen }" @tap.stop>
         <button size="mini" class="action-btn" v-if="canOpenQRCode" @click="closeActionMenu(); openQRCode()">
           小程序码
+        </button>
+        <button size="mini" class="action-btn" v-if="canOpenQRCode" @click="closeActionMenu(); openBrowserQRCode()">
+          浏览器码
         </button>
         <!-- #ifdef MP-WEIXIN -->
         <button
@@ -303,9 +337,10 @@ import {
   updateLedgerMember,
   updateLedgerName,
 } from '../../utils/api'
-import { makeInviteCodeQRMatrix } from '../../utils/qrcode'
+import { makeInviteCodeQRMatrix, makeTextQRMatrix } from '../../utils/qrcode'
 import { applyTabBarTheme, resolveThemeColorForUi } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
+import { buildInviteBrowserJoinURL } from '../../utils/invite-link'
 
 const id = ref('')
 const ledger = ref<any>(null)
@@ -367,6 +402,10 @@ const qrLoading = ref(false)
 const qrSrc = ref('')
 const inviteQRModalOpen = ref(false)
 const inviteQRLoading = ref(false)
+const inviteQRSrc = ref('')
+const browserQRModalOpen = ref(false)
+const browserQRLoading = ref(false)
+const browserQRSrc = ref('')
 const inviteQRSize = 232
 const currentUserId = ref('')
 const bindModalOpen = ref(false)
@@ -390,6 +429,7 @@ const canOpenQRCode = computed(
 )
 const canShare = computed(() => !!ledger.value && isOwner.value && !ledger.value.shareDisabled)
 const canManageLedger = computed(() => !!ledger.value && isOwner.value && ledger.value.status !== 'ended')
+const browserJoinURL = computed(() => buildInviteBrowserJoinURL(String(ledger.value?.inviteCode || '').trim()))
 const hasActions = computed(() => canOpenQRCode.value || canShare.value || canManageLedger.value)
 const canShowInvite = computed(() => {
   if (!ledger.value?.inviteCode) return false
@@ -743,6 +783,8 @@ async function openQRCode() {
   }
   qrModalOpen.value = true
   qrLoading.value = true
+  browserQRModalOpen.value = false
+  browserQRSrc.value = ''
   try {
     const cached = getCachedLedgerQRCode(id.value)
     if (cached) {
@@ -1104,20 +1146,19 @@ function copyInvite() {
 async function openInviteCodeQR() {
   const code = String(ledger.value?.inviteCode || '').trim()
   if (!code || !canShowInvite.value) return
-
-  // #ifndef MP-WEIXIN
-  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
-  return
-  // #endif
-
-  // #ifdef MP-WEIXIN
   inviteQRModalOpen.value = true
   inviteQRLoading.value = true
+  inviteQRSrc.value = ''
   qrModalOpen.value = false
+  browserQRModalOpen.value = false
 
   try {
-    await nextTick()
-    await drawInviteCodeQR(code)
+    if (isMpWeixin.value) {
+      await nextTick()
+      await drawInviteCodeQR(code)
+      return
+    }
+    inviteQRSrc.value = drawInviteCodeQRH5(code)
   } catch (e: any) {
     inviteQRModalOpen.value = false
     const raw = String(e?.message || '')
@@ -1126,11 +1167,177 @@ async function openInviteCodeQR() {
   } finally {
     inviteQRLoading.value = false
   }
-  // #endif
 }
 
 function closeInviteCodeQR() {
   inviteQRModalOpen.value = false
+  inviteQRSrc.value = ''
+}
+
+async function openBrowserQRCode() {
+  if (ledger.value?.status === 'ended') {
+    uni.showToast({ title: '已结束，不能加入', icon: 'none' })
+    return
+  }
+  if (!isOwner.value) {
+    uni.showToast({ title: '仅账主可分享', icon: 'none' })
+    return
+  }
+  if (ledger.value?.shareDisabled) {
+    uni.showToast({ title: '当前已禁止分享', icon: 'none' })
+    return
+  }
+
+  const code = String(ledger.value?.inviteCode || '').trim()
+  if (!code) return
+  const url = buildInviteBrowserJoinURL(code)
+  if (!url) {
+    uni.showToast({ title: '生成链接失败', icon: 'none' })
+    return
+  }
+
+  browserQRModalOpen.value = true
+  browserQRLoading.value = true
+  browserQRSrc.value = ''
+  qrModalOpen.value = false
+  inviteQRModalOpen.value = false
+
+  try {
+    if (isMpWeixin.value) {
+      await nextTick()
+      await drawBrowserQRCode(url)
+      return
+    }
+    browserQRSrc.value = drawBrowserQRCodeH5(url)
+  } catch (e: any) {
+    browserQRModalOpen.value = false
+    const raw = String(e?.message || '')
+    const msg = raw || '生成二维码失败'
+    uni.showToast({ title: msg, icon: 'none' })
+  } finally {
+    browserQRLoading.value = false
+  }
+}
+
+function closeBrowserQRCode() {
+  browserQRModalOpen.value = false
+  browserQRSrc.value = ''
+}
+
+function copyBrowserJoinURL() {
+  const url = String(browserJoinURL.value || '').trim()
+  if (!url) return
+  uni.setClipboardData({
+    data: url,
+    success: () => uni.showToast({ title: '链接已复制', icon: 'none' }),
+    fail: () => uni.showToast({ title: '复制失败', icon: 'none' }),
+  })
+}
+
+function drawBrowserQRCode(url: string): Promise<void> {
+  const instance = getCurrentInstance()
+  const proxy = (instance?.proxy as any) || undefined
+  const matrix = makeTextQRMatrix(url)
+
+  const n = matrix.length
+  const margin = 4
+  const moduleSize = Math.max(1, Math.floor(inviteQRSize / (n + margin * 2)))
+  const drawSize = moduleSize * (n + margin * 2)
+
+  const ctx = uni.createCanvasContext('browserQrCanvas', proxy)
+  ctx.setFillStyle('#ffffff')
+  ctx.fillRect(0, 0, drawSize, drawSize)
+  ctx.setFillStyle('#000000')
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!matrix[r][c]) continue
+      const x = (c + margin) * moduleSize
+      const y = (r + margin) * moduleSize
+      ctx.fillRect(x, y, moduleSize, moduleSize)
+    }
+  }
+
+  return new Promise((resolve) => {
+    ctx.draw(false, resolve)
+  })
+}
+
+function drawBrowserQRCodeH5(url: string): string {
+  const matrix = makeTextQRMatrix(url)
+  const n = matrix.length
+  const margin = 4
+  const moduleSize = Math.max(1, Math.floor(inviteQRSize / (n + margin * 2)))
+  const drawSize = moduleSize * (n + margin * 2)
+
+  // #ifndef H5
+  throw new Error('请在 H5 内使用')
+  // #endif
+
+  // #ifdef H5
+  const canvas = document.createElement('canvas')
+  canvas.width = drawSize
+  canvas.height = drawSize
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('浏览器不支持 Canvas')
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, drawSize, drawSize)
+  ctx.fillStyle = '#000000'
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!matrix[r][c]) continue
+      const x = (c + margin) * moduleSize
+      const y = (r + margin) * moduleSize
+      ctx.fillRect(x, y, moduleSize, moduleSize)
+    }
+  }
+  return canvas.toDataURL('image/png')
+  // #endif
+}
+
+async function saveBrowserQRCode() {
+  if (browserQRLoading.value) return
+  if (!isMpWeixin.value) {
+    if (!browserQRSrc.value) return
+    // #ifdef H5
+    try {
+      const code = String(ledger.value?.inviteCode || '').trim() || 'invite'
+      const link = document.createElement('a')
+      link.href = browserQRSrc.value
+      link.download = `ledger-browser-join-${code}.png`
+      link.rel = 'noopener'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      return
+    } catch (e) {
+      uni.previewImage({ urls: [browserQRSrc.value] })
+      return
+    }
+    // #endif
+  }
+
+  try {
+    const instance = getCurrentInstance()
+    const proxy = (instance?.proxy as any) || undefined
+    const tempFilePath = await new Promise<string>((resolve, reject) => {
+      uni.canvasToTempFilePath(
+        {
+          canvasId: 'browserQrCanvas',
+          success: (res: any) => resolve(String(res?.tempFilePath || '')),
+          fail: reject,
+        },
+        proxy,
+      )
+    })
+    if (!tempFilePath) {
+      uni.showToast({ title: '预览失败', icon: 'none' })
+      return
+    }
+    uni.previewImage({ urls: [tempFilePath] })
+  } catch (e: any) {
+    uni.showToast({ title: '预览失败', icon: 'none' })
+  }
 }
 
 function drawInviteCodeQR(code: string): Promise<void> {
@@ -1161,15 +1368,61 @@ function drawInviteCodeQR(code: string): Promise<void> {
   })
 }
 
-async function saveInviteCodeQR() {
-  if (inviteQRLoading.value) return
+function drawInviteCodeQRH5(code: string): string {
+  const matrix = makeInviteCodeQRMatrix(code)
+  const n = matrix.length
+  const margin = 4
+  const moduleSize = Math.max(1, Math.floor(inviteQRSize / (n + margin * 2)))
+  const drawSize = moduleSize * (n + margin * 2)
 
-  // #ifndef MP-WEIXIN
-  uni.showToast({ title: '请在微信小程序内使用', icon: 'none' })
-  return
+  // #ifndef H5
+  throw new Error('请在 H5 内使用')
   // #endif
 
-  // #ifdef MP-WEIXIN
+  // #ifdef H5
+  const canvas = document.createElement('canvas')
+  canvas.width = drawSize
+  canvas.height = drawSize
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('浏览器不支持 Canvas')
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, drawSize, drawSize)
+  ctx.fillStyle = '#000000'
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!matrix[r][c]) continue
+      const x = (c + margin) * moduleSize
+      const y = (r + margin) * moduleSize
+      ctx.fillRect(x, y, moduleSize, moduleSize)
+    }
+  }
+  return canvas.toDataURL('image/png')
+  // #endif
+}
+
+async function saveInviteCodeQR() {
+  if (inviteQRLoading.value) return
+  if (!isMpWeixin.value) {
+    if (!inviteQRSrc.value) return
+    // #ifdef H5
+    try {
+      const code = String(ledger.value?.inviteCode || '').trim() || 'invite'
+      const link = document.createElement('a')
+      link.href = inviteQRSrc.value
+      link.download = `ledger-invite-${code}.png`
+      link.rel = 'noopener'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      return
+    } catch (e) {
+      uni.previewImage({ urls: [inviteQRSrc.value] })
+      return
+    }
+    // #endif
+  }
+
   try {
     const instance = getCurrentInstance()
     const proxy = (instance?.proxy as any) || undefined
@@ -1191,7 +1444,6 @@ async function saveInviteCodeQR() {
   } catch (e: any) {
     uni.showToast({ title: '预览失败', icon: 'none' })
   }
-  // #endif
 }
 
 async function onChooseAvatar(e: any) {
@@ -1511,6 +1763,18 @@ async function onChooseAvatar(e: any) {
   margin: 16rpx auto 0;
   border-radius: 12rpx;
   background: #f6f7fb;
+}
+.qr-link {
+  margin-top: 10rpx;
+  width: 100%;
+  text-align: center;
+  font-size: 22rpx;
+  color: #666;
+  line-height: 1.4;
+  word-break: break-all;
+}
+.qr-link:active {
+  opacity: 0.72;
 }
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;

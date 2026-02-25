@@ -14,6 +14,7 @@
     "@dcloudio/uni-h5": "vue3",
     "@dcloudio/uni-mp-weixin": "vue3",
     "@tdesign/uniapp": "^0.7.1",
+    "qrcode-generator": "^2.0.4",
     "tdesign-miniprogram": "^1.12.3",
     "vue": "^3.4.0"
   },
