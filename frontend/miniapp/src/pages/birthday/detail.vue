@@ -13,10 +13,10 @@
         </button>
       </template>
       <template v-else>
-        <view class="avatar-wrap">
+        <button class="avatar-wrap avatar-button" @click="onChooseAvatarH5" hover-class="none">
           <image v-if="form.avatarUrl" class="avatar" :src="form.avatarUrl" mode="aspectFill" />
           <view v-else class="avatar avatar-fallback" :style="avatarStyle(form.name)">{{ initial }}</view>
-        </view>
+        </button>
       </template>
       <view class="profile-info">
         <view class="name">{{ form.name || '联系人' }}</view>
@@ -111,6 +111,7 @@ import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBase
 import lunarCalendar from '../../utils/lunar-calendar.mjs'
 import BirthdayCalendar from './calendar.vue'
 import { avatarStyle } from '../../utils/avatar-color'
+import { isH5ImagePickCancelError, pickH5ImageAsDataUrl } from '../../utils/h5-image'
 
 type BirthdayForm = {
   id: string
@@ -246,6 +247,19 @@ function openPicker() {
   pickerType.value = form.value.primaryType || 'solar'
   hydratePickerFromForm()
   pickerVisible.value = true
+}
+
+async function onChooseAvatarH5() {
+  // #ifndef H5
+  return
+  // #endif
+
+  try {
+    form.value.avatarUrl = await pickH5ImageAsDataUrl({ maxBytes: 200 * 1024 })
+  } catch (e: any) {
+    if (isH5ImagePickCancelError(e)) return
+    uni.showToast({ title: e?.message || '头像处理失败', icon: 'none' })
+  }
 }
 
 async function onChooseAvatar(e: any) {

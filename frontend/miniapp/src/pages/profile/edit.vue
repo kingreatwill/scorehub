@@ -10,11 +10,11 @@
           </button>
         </template>
         <template v-else>
-          <view class="avatar-preview">
+          <button class="avatar-preview avatar-preview-btn" @click.prevent="onChooseAvatarH5" hover-class="none">
             <image class="avatar" :src="avatarUrl || fallbackAvatar" mode="aspectFill" />
-            <view class="avatar-tip">头像预览</view>
-          </view>
-          <input class="input" v-model="avatarUrl" placeholder="头像 URL（可选）" />
+            <view class="avatar-tip">{{ avatarUrl ? '点击更换头像' : '点击选择头像' }}</view>
+          </button>
+          <input class="input" v-model="avatarUrl" placeholder="或输入头像 URL（可选）" />
         </template>
         <input
           class="input"
@@ -42,6 +42,7 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { addLedgerMember, getLedgerDetail, getScorebookDetail, updateLedgerMember, updateMe, updateMyProfile } from '../../utils/api'
+import { isH5ImagePickCancelError, pickH5ImageAsDataUrl } from '../../utils/h5-image'
 import { clampNickname } from '../../utils/nickname'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 
@@ -220,6 +221,19 @@ async function loadInitial() {
   }
 }
 
+async function onChooseAvatarH5() {
+  // #ifndef H5
+  return
+  // #endif
+
+  try {
+    avatarUrl.value = await pickH5ImageAsDataUrl({ maxBytes: 200 * 1024 })
+  } catch (e: any) {
+    if (isH5ImagePickCancelError(e)) return
+    uni.showToast({ title: e?.message || '头像处理失败', icon: 'none' })
+  }
+}
+
 async function onChooseAvatar(e: any) {
   // #ifndef MP-WEIXIN
   return
@@ -367,6 +381,12 @@ function onCancel() {
   flex-direction: column;
   align-items: center;
   gap: 10rpx;
+}
+.avatar-preview-btn {
+  border: none;
+}
+.avatar-preview-btn::after {
+  border: none;
 }
 .avatar {
   width: 120rpx;

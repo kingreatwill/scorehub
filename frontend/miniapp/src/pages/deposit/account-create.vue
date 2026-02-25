@@ -8,10 +8,10 @@
         </button>
       </template>
       <template v-else>
-        <view class="avatar-wrap">
+        <button class="avatar-wrap avatar-button" @click="onChooseAvatarH5" hover-class="none">
           <image v-if="form.avatarUrl" class="avatar" :src="form.avatarUrl" mode="aspectFill" />
           <view v-else class="avatar avatar-fallback" :style="avatarStyle(form.bank)">{{ initial }}</view>
-        </view>
+        </button>
       </template>
       <view class="profile-info">
         <view class="name">{{ form.bank || '银行账户' }}</view>
@@ -58,7 +58,7 @@
       <view class="field" v-if="!isMpWeixin">
         <text class="label">头像</text>
         <view class="field-body">
-          <input class="input" v-model="form.avatarUrl" placeholder="（可选）" />
+          <input class="input" v-model="form.avatarUrl" placeholder="或粘贴图片 URL（可选）" />
         </view>
       </view>
     </view>
@@ -113,6 +113,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { bankList, type BankMeta } from '../../utils/banks'
+import { isH5ImagePickCancelError, pickH5ImageAsDataUrl } from '../../utils/h5-image'
 import { createDepositAccount, getDepositAccount, updateDepositAccount } from '../../utils/api'
 
 type Account = {
@@ -353,6 +354,19 @@ function focusBankInput() {
       bankInputFocus.value = false
     }, 200)
   })
+}
+
+async function onChooseAvatarH5() {
+  // #ifndef H5
+  return
+  // #endif
+
+  try {
+    form.value.avatarUrl = await pickH5ImageAsDataUrl({ maxBytes: 200 * 1024 })
+  } catch (e: any) {
+    if (isH5ImagePickCancelError(e)) return
+    uni.showToast({ title: e?.message || '头像处理失败', icon: 'none' })
+  }
 }
 
 async function onChooseAvatar(e: any) {
