@@ -27,7 +27,12 @@
           <view class="bank-input-row">
             <input class="input bank-input" v-model="form.bank" placeholder="" :focus="bankInputFocus" />
             <button class="select-btn" @click="openBankPicker">
+              <!-- #ifdef H5 -->
+              <img class="select-icon select-icon-h5" :src="selectIcon" alt="" />
+              <!-- #endif -->
+              <!-- #ifndef H5 -->
               <image class="select-icon" :src="selectIcon" mode="aspectFit" />
+              <!-- #endif -->
             </button>
           </view>
         </view>
@@ -78,7 +83,20 @@
       </view>
       <scroll-view class="bank-scroll" scroll-y>
         <view class="bank-item" v-for="bank in filteredBanks" :key="bank.name" @click="selectBank(bank)">
+          <!-- #ifdef H5 -->
+          <img
+            v-if="bankLogoSrc(bank)"
+            class="bank-logo bank-logo-h5"
+            :src="bankLogoSrc(bank)"
+            alt=""
+            loading="lazy"
+            @error="onBankLogoError(bank)"
+          />
+          <view v-else class="bank-logo bank-logo-fallback">{{ bankLogoFallbackText(bank) }}</view>
+          <!-- #endif -->
+          <!-- #ifndef H5 -->
           <image v-if="bank.logo" class="bank-logo" :src="bank.logo" mode="aspectFit" />
+          <!-- #endif -->
           <view class="bank-info">
             <view class="bank-name">{{ bank.name }}</view>
             <view class="bank-abbr" v-if="bank.abbr">{{ bank.abbr }}</view>
@@ -94,7 +112,7 @@ import { computed, nextTick, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
-import { bankList } from '../../utils/banks'
+import { bankList, type BankMeta } from '../../utils/banks'
 import { createDepositAccount, getDepositAccount, updateDepositAccount } from '../../utils/api'
 
 type Account = {
@@ -122,8 +140,9 @@ const isEditing = ref(false)
 const bankPickerVisible = ref(false)
 const bankKeyword = ref('')
 const bankInputFocus = ref(false)
+const bankLogoCandidateIndex = ref<Record<string, number>>({})
 const selectIcon =
-  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10v8"/><path d="M9 10v8"/><path d="M15 10v8"/><path d="M19 10v8"/><path d="M2 18h20"/><path d="M12 4l9 4H3z\"/></svg>'
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23888" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10v8"/><path d="M9 10v8"/><path d="M15 10v8"/><path d="M19 10v8"/><path d="M2 18h20"/><path d="M12 4l9 4H3z"/></svg>'
 
 const initial = computed(() => String(form.value.bank || '').trim().slice(0, 1) || '存')
 const isMpWeixin = ref(false)
@@ -251,9 +270,79 @@ function closeBankPicker() {
   bankPickerVisible.value = false
 }
 
-function selectBank(bank: { name: string; logo: string; wordmark: string }) {
+function toAssetPath(raw: string): string {
+  const v = String(raw || '').trim()
+  if (!v) return ''
+  if (v.startsWith('/')) return v
+  if (/^https?:\/\//i.test(v)) {
+    try {
+      return String(new URL(v).pathname || '').trim()
+    } catch (e) {}
+  }
+  return ''
+}
+
+function currentOrigin(): string {
+  try {
+    // #ifdef H5
+    return String(window?.location?.origin || '').trim()
+    // #endif
+  } catch (e) {}
+  return ''
+}
+
+function bankLogoCandidates(bank: BankMeta): string[] {
+  const list: string[] = []
+  const push = (v: string) => {
+    const s = String(v || '').trim()
+    if (!s || list.includes(s)) return
+    list.push(s)
+  }
+  const origin = currentOrigin()
+  const addFrom = (raw: string) => {
+    const source = String(raw || '').trim()
+    if (!source) return
+    push(source)
+    const pathname = toAssetPath(source)
+    if (!pathname) return
+    push(pathname)
+    if (origin) push(`${origin}${pathname}`)
+    push(`https://wxapi.wcoder.com${pathname}`)
+  }
+  addFrom(bank.logo)
+  addFrom(bank.wordmark)
+  return list
+}
+
+function bankLogoSrc(bank: BankMeta): string {
+  const key = String(bank?.name || '')
+  const idx = bankLogoCandidateIndex.value[key] ?? 0
+  const candidates = bankLogoCandidates(bank)
+  if (idx < 0 || idx >= candidates.length) return ''
+  return candidates[idx]
+}
+
+function onBankLogoError(bank: BankMeta) {
+  const key = String(bank?.name || '')
+  if (!key) return
+  const current = bankLogoCandidateIndex.value[key] ?? 0
+  const total = bankLogoCandidates(bank).length
+  if (current + 1 < total) {
+    bankLogoCandidateIndex.value[key] = current + 1
+    return
+  }
+  bankLogoCandidateIndex.value[key] = -1
+}
+
+function bankLogoFallbackText(bank: BankMeta): string {
+  const abbr = String(bank?.abbr || '').trim()
+  if (abbr) return abbr.slice(0, 2).toUpperCase()
+  return String(bank?.name || '').trim().slice(0, 1) || '银'
+}
+
+function selectBank(bank: BankMeta) {
   form.value.bank = bank.name
-  form.value.avatarUrl = bank.logo || bank.wordmark || ''
+  form.value.avatarUrl = bankLogoSrc(bank) || bank.logo || bank.wordmark || ''
   closeBankPicker()
 }
 
@@ -425,6 +514,10 @@ async function onChooseAvatar(e: any) {
   width: 88rpx;
   height: 44rpx;
 }
+.select-icon-h5 {
+  display: block;
+  object-fit: contain;
+}
 .input {
   width: 100%;
   background: #f6f7fb;
@@ -513,6 +606,20 @@ async function onChooseAvatar(e: any) {
   width: 52rpx;
   height: 52rpx;
   flex: none;
+}
+.bank-logo-h5 {
+  display: block;
+  object-fit: contain;
+}
+.bank-logo-fallback {
+  border-radius: 10rpx;
+  background: #f1f2f6;
+  color: #666;
+  font-size: 20rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .bank-info {
   display: flex;

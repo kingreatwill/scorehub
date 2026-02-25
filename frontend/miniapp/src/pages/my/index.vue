@@ -87,24 +87,26 @@
     </view>
 
     <t-fab
+      v-if="!isH5"
       class="color-dot-fab"
       t-class-button="color-dot-fab-button"
       text="●"
       :draggable="true"
       :custom-style="colorDotFabCustomStyle"
       :button-props="colorDotFabButtonProps"
-      @click.stop="onColorDotTap"
+      @click="onColorDotTap"
       @touchstart="onColorDotPressStart"
       @touchend="onColorDotPressEnd"
       @touchcancel="onColorDotPressEnd"
       @dragstart="onColorDotDragStart"
       @dragend="onColorDotDragEnd"
     />
+    <button v-else-if="!colorPickerVisible" class="color-dot-h5-btn" @click="onColorDotTap" hover-class="none"></button>
     <t-color-picker
       use-popup
       :visible="colorPickerVisible"
       :value="colorPickerDraft"
-      type="multiple"
+      :type="colorPickerType"
       format="HEX"
       :swatch-colors="presetDotColors"
       :auto-close="false"
@@ -112,10 +114,12 @@
       @change="onColorPickerChange"
       @close="onColorPickerClose"
     >
-      <view slot="footer" class="picker-footer">
-        <button class="confirm-btn picker-btn" @click="onColorPickerCancel">取消</button>
-        <button class="confirm-btn picker-btn" @click="onColorPickerConfirm">确认</button>
-      </view>
+      <template #footer>
+        <view class="picker-footer">
+          <button class="confirm-btn picker-btn" @click="onColorPickerCancel">取消</button>
+          <button class="confirm-btn picker-btn" @click="onColorPickerConfirm">确认</button>
+        </view>
+      </template>
     </t-color-picker>
   </view>
 </template>
@@ -139,8 +143,12 @@ const token = ref('')
 const user = ref<any>(null)
 
 const isMpWeixin = ref(false)
+const isH5 = ref(false)
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
+// #endif
+// #ifdef H5
+isH5.value = true
 // #endif
 
 const nickname = ref('')
@@ -193,6 +201,7 @@ const colorDotFabButtonProps = computed(() => ({
     'color:transparent',
   ].join(';'),
 }))
+const colorPickerType = computed(() => (isH5.value ? 'single' : 'multiple'))
 const presetDotColors = ['#FFFFFF', '#111111', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6']
 const scorebookIcon = computed(() => iconDataUrl('scorebook', colorDot.value))
 const ledgerIcon = computed(() => iconDataUrl('ledger', colorDot.value))
@@ -902,6 +911,27 @@ function logout() {
 :deep(.color-dot-fab .t-button__content) {
   opacity: 0;
   font-size: 0;
+}
+.color-dot-h5-btn {
+  position: fixed;
+  right: 24rpx;
+  bottom: calc(138rpx + env(safe-area-inset-bottom));
+  z-index: 1201;
+  width: 70rpx;
+  height: 70rpx;
+  min-width: 70rpx;
+  min-height: 70rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  border: 0;
+  background: v-bind(colorDotFabBg);
+  box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.16);
+}
+.color-dot-h5-btn:active {
+  background: v-bind(colorDotFabBgActive);
+}
+.color-dot-h5-btn::after {
+  border: none;
 }
 .picker-footer {
   padding: 12rpx 24rpx 24rpx;

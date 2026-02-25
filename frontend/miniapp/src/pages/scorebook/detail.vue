@@ -424,17 +424,40 @@ function navFrontColor(hex: string): '#000000' | '#ffffff' {
   return luminance > 0.62 ? '#000000' : '#ffffff'
 }
 
+function isNavPageNotReadyError(err: any): boolean {
+  const msg = String(err?.errMsg || err?.message || err || '').toLowerCase()
+  return msg.includes('setnavigationbarcolor:fail page not found') || msg.includes('page not found')
+}
+
+function setNavigationBarColorSafely(option: any) {
+  try {
+    const ret = uni.setNavigationBarColor(option as any)
+    const maybePromise = ret as any
+    if (maybePromise && typeof maybePromise.catch === 'function') {
+      maybePromise.catch((err: any) => {
+        if (isNavPageNotReadyError(err)) return
+        console.warn('setNavigationBarColor failed', err)
+      })
+    }
+  } catch (err: any) {
+    if (isNavPageNotReadyError(err)) return
+    console.warn('setNavigationBarColor failed', err)
+  }
+}
+
 function applyNavBarTheme() {
+  const pages = (typeof getCurrentPages === 'function' ? (getCurrentPages() as any[]) : []) || []
+  if (!pages.length) return
   const bg = normalizeHexColor(themeBaseColor.value) || '#111111'
   const front = navFrontColor(bg)
   if (lastAppliedNavBg === bg && lastAppliedNavFront === front) return
   lastAppliedNavBg = bg
   lastAppliedNavFront = front
-  uni.setNavigationBarColor({
+  setNavigationBarColorSafely({
     frontColor: front,
     backgroundColor: bg,
     animation: { duration: 0, timingFunc: 'linear' },
-  } as any)
+  })
 }
 
 function loadThemeColor() {

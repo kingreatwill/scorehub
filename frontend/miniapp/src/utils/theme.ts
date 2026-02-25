@@ -145,17 +145,40 @@ function tabIndexByRoute(route: string): number {
   return TAB_PAGE_ROUTES.indexOf(String(route || ''))
 }
 
+function isNavPageNotReadyError(err: any): boolean {
+  const msg = String(err?.errMsg || err?.message || err || '').toLowerCase()
+  return msg.includes('setnavigationbarcolor:fail page not found') || msg.includes('page not found')
+}
+
+function setNavigationBarColorSafely(option: UniNamespace.SetNavigationBarColorOptions) {
+  try {
+    const ret = uni.setNavigationBarColor(option as any)
+    const maybePromise = ret as any
+    if (maybePromise && typeof maybePromise.catch === 'function') {
+      maybePromise.catch((err: any) => {
+        if (isNavPageNotReadyError(err)) return
+        console.warn('setNavigationBarColor failed', err)
+      })
+    }
+  } catch (err: any) {
+    if (isNavPageNotReadyError(err)) return
+    console.warn('setNavigationBarColor failed', err)
+  }
+}
+
 export function applyNavigationBarTheme(base?: string) {
+  const route = currentRouteFromPages()
+  if (!route) return
   const bg = normalizeHexColor(base || '') || normalizeHexColor(getThemeBaseColor()) || DEFAULT_THEME_COLOR
   const front = navFrontColor(bg)
-  const applyKey = `${currentRouteFromPages()}|${bg}|${front}`
+  const applyKey = `${route}|${bg}|${front}`
   if (lastNavApplyKey === applyKey) return
   lastNavApplyKey = applyKey
-  uni.setNavigationBarColor({
+  setNavigationBarColorSafely({
     frontColor: front,
     backgroundColor: bg,
     animation: { duration: 0, timingFunc: 'linear' },
-  } as any)
+  })
 }
 
 export function syncCurrentPageCustomTabBar(base?: string, pageVm?: any) {
