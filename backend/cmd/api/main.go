@@ -41,6 +41,7 @@ func main() {
 		AllowHeaders:    []string{"Authorization", "Content-Type", "X-Dev-OpenID"},
 	}))
 	h.GET("/", h5IndexHandler())
+	h.GET("/favicon.ico", h5FaviconHandler())
 	h.GET("/assets/*filepath", h5AssetsHandler())
 	h.GET("/static/*filepath", staticAssetsHandler())
 	h.NoRoute(h5SpaFallbackHandler())
@@ -161,6 +162,15 @@ func h5AssetsHandler() app.HandlerFunc {
 func h5IndexHandler() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		if serveEmbeddedFile(c, "h5/index.html") {
+			return
+		}
+		c.SetStatusCode(404)
+	}
+}
+
+func h5FaviconHandler() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		if serveEmbeddedFile(c, "h5/favicon.ico") {
 			return
 		}
 		c.SetStatusCode(404)

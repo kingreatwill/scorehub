@@ -7,6 +7,7 @@ RUN npm -C frontend/miniapp ci --no-fund --no-audit
 
 COPY frontend/miniapp ./frontend/miniapp
 COPY backend ./backend
+COPY favicon.ico ./favicon.ico
 RUN npm -C frontend/miniapp run build:h5-backend
 
 FROM golang:1.26-alpine AS builder
