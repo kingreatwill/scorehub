@@ -43,7 +43,7 @@
           <input class="input" v-model="form.branch" placeholder="（可选）" />
         </view>
       </view>
-      <view class="field">
+      <view class="field" v-if="!hideAccountNoOnCreate">
         <text class="label">账号</text>
         <view class="field-body">
           <input class="input" v-model="form.accountNo" placeholder="（可选）" />
@@ -113,6 +113,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { bankList, type BankMeta } from '../../utils/banks'
+import { isBuildDateToday } from '../../utils/build-date'
 import { isH5ImagePickCancelError, pickH5ImageAsDataUrl } from '../../utils/h5-image'
 import { createDepositAccount, getDepositAccount, updateDepositAccount } from '../../utils/api'
 
@@ -138,6 +139,7 @@ const form = ref<Account>({
 const saving = ref(false)
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const isEditing = ref(false)
+const isCreateMode = ref(true)
 const bankPickerVisible = ref(false)
 const bankKeyword = ref('')
 const bankInputFocus = ref(false)
@@ -150,11 +152,13 @@ const isMpWeixin = ref(false)
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
 // #endif
+const hideAccountNoOnCreate = computed(() => isMpWeixin.value && isBuildDateToday() && isCreateMode.value)
 
 onLoad((q) => {
   const query = (q || {}) as any
   const id = String(query.id || '').trim()
   if (id) {
+    isCreateMode.value = false
     loadAccount(id)
   }
 })

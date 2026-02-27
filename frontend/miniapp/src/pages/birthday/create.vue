@@ -15,7 +15,7 @@
       </template>
       <view class="profile-info">
         <view class="name">{{ form.name || '联系人' }}</view>
-        <view class="sub" v-if="form.relation">{{ form.relation }}</view>
+        <view class="sub" v-if="!hidePhoneAndRelation && form.relation">{{ form.relation }}</view>
       </view>
     </view>
 
@@ -42,13 +42,13 @@
           </view>
         </view>
       </view>
-      <view class="field">
+      <view class="field" v-if="!hidePhoneAndRelation">
         <text class="label">手机</text>
         <view class="field-body">
           <input class="input" v-model="form.phone" placeholder="（可选）" />
         </view>
       </view>
-      <view class="field">
+      <view class="field" v-if="!hidePhoneAndRelation">
         <text class="label">关系</text>
         <view class="field-body">
           <input class="input" v-model="form.relation" placeholder="（可选）" />
@@ -106,6 +106,7 @@ import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBase
 import lunarCalendar from '../../utils/lunar-calendar.mjs'
 import BirthdayCalendar from './calendar.vue'
 import { avatarStyle } from '../../utils/avatar-color'
+import { isBuildDateToday } from '../../utils/build-date'
 import { isH5ImagePickCancelError, pickH5ImageAsDataUrl } from '../../utils/h5-image'
 
 type BirthdayForm = {
@@ -140,6 +141,7 @@ const isMpWeixin = ref(false)
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
 // #endif
+const hidePhoneAndRelation = isMpWeixin.value && isBuildDateToday()
 
 const primaryLabel = computed(() => (form.value.primaryType === 'lunar' ? '农历' : '公历'))
 

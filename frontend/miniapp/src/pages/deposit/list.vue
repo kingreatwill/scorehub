@@ -1,173 +1,178 @@
 <template>
   <view class="page" :style="themeStyle">
-    <view class="card hero">
-      <view class="title-row hero-row">
-        <view class="title">{{ displayName }}</view>
-        <view class="badge">
-          <image class="bank-icon" :src="bankIcon" mode="aspectFit" />
-          <text>银行卡 {{ accounts.length }}</text>
-        </view>
-      </view>
-      <view class="hero-stats">
-        <view class="stat">
-          <view class="stat-label">存款</view>
-          <view class="stat-value" v-for="(line, idx) in depositLines" :key="`deposit-${idx}`">{{ line }}</view>
-        </view>
-        <view class="stat stat-right">
-          <view class="stat-label">本年收益</view>
-          <view class="stat-value" v-for="(line, idx) in yieldLines" :key="`yield-${idx}`">{{ line }}</view>
-        </view>
-      </view>
+    <view class="card" v-if="!token">
+      <view class="hint">登录后可查看存款薄</view>
+      <button class="btn confirm-btn" @click="goLogin">去登录</button>
     </view>
+    <template v-else>
+      <view class="card hero">
+        <view class="title-row hero-row">
+          <view class="title">{{ displayName }}</view>
+          <view class="badge">
+            <image class="bank-icon" :src="bankIcon" mode="aspectFit" />
+            <text>银行卡 {{ accounts.length }}</text>
+          </view>
+        </view>
+        <view class="hero-stats">
+          <view class="stat">
+            <view class="stat-label">存款</view>
+            <view class="stat-value" v-for="(line, idx) in depositLines" :key="`deposit-${idx}`">{{ line }}</view>
+          </view>
+          <view class="stat stat-right">
+            <view class="stat-label">本年收益</view>
+            <view class="stat-value" v-for="(line, idx) in yieldLines" :key="`yield-${idx}`">{{ line }}</view>
+          </view>
+        </view>
+      </view>
 
-    <view class="card member-card">
-      <view class="title-row">
-        <view class="title">银行</view>
-        <view class="title-actions">
-          <button class="icon-btn primary" @click="openAccountCreate">
-            <view class="plus-icon" />
-          </button>
+      <view class="card member-card">
+        <view class="title-row">
+          <view class="title">银行</view>
+          <view class="title-actions">
+            <button class="icon-btn primary" @click="openAccountCreate">
+              <view class="plus-icon" />
+            </button>
+          </view>
         </view>
-      </view>
-      <view class="tip">点头像记一笔存款</view>
-      <view class="hint" v-if="accounts.length === 0">暂无银行账户</view>
-      <view class="member-grid" v-else>
-        <view class="member" v-for="acc in accounts" :key="acc.id" @click="openDeposit(acc)">
-          <button class="member-edit" @click.stop="openAccountEdit(acc)">
-            <view class="edit-icon" />
-          </button>
-          <view class="avatar-wrap">
-            <image v-if="acc.avatarUrl" class="avatar" :src="acc.avatarUrl" mode="aspectFill" />
-            <view v-else class="avatar avatar-fallback" :style="avatarStyle(acc.bank)">{{ initialOf(acc.bank) }}</view>
-          </view>
-          <view class="member-name">{{ acc.bank }}</view>
-          <view class="member-total">{{ accountTotalLabel(acc.id) }}</view>
-          <view class="member-sub" v-if="acc.branch">{{ acc.branch }}</view>
-          <view class="member-sub" v-else-if="acc.accountNo">尾号 {{ tailOf(acc.accountNo) }}</view>
-          <view class="member-sub" v-else-if="acc.holder">户名 {{ acc.holder }}</view>
-        </view>
-      </view>
-    </view>
-
-    <view class="card">
-      <view class="title-row">
-        <view class="title">记录</view>
-        <view class="record-totals" v-if="showActiveTotal || showActiveInterest">
-          <view class="record-total" v-if="showActiveTotal">总 {{ filteredActiveTotal }}</view>
-          <view class="record-total" v-if="showActiveInterest">总利息 {{ filteredActiveInterest }}</view>
-        </view>
-      </view>
-      <view class="filter-panel">
-        <scroll-view class="filter-scroll" scroll-x>
-          <view
-            v-for="opt in statusOptions"
-            :key="opt"
-            class="filter-chip"
-            :class="{ active: statusFilter === opt }"
-            @click="statusFilter = opt"
-          >
-            {{ opt }}
-          </view>
-        </scroll-view>
-      </view>
-      <view class="filter-panel" v-if="bankOptions.length">
-        <scroll-view class="filter-scroll" scroll-x>
-          <view class="filter-chip" :class="{ active: !bankFilterId }" @click="setBankFilter('')">全部</view>
-          <view
-            class="filter-chip"
-            v-for="opt in bankOptions"
-            :key="opt.id"
-            :class="{ active: bankFilterId === opt.id }"
-            @click="setBankFilter(opt.id)"
-          >
-            {{ opt.label }}
-          </view>
-        </scroll-view>
-      </view>
-      <view class="filter-panel" v-if="tagOptions.length">
-        <scroll-view class="filter-scroll" scroll-x>
-          <view class="filter-chip" :class="{ active: tagFilters.length === 0 }" @click="clearTagFilter">全部</view>
-          <view
-            class="filter-chip"
-            v-for="tag in tagOptions"
-            :key="tag"
-            :class="{ active: tagFilters.includes(tag) }"
-            @click="toggleTagFilter(tag)"
-          >
-            {{ tag }}
-          </view>
-        </scroll-view>
-      </view>
-      <view class="hint" v-if="filteredRecords.length === 0">暂无存款记录</view>
-      <view class="records" v-else>
-        <view class="record-wrap" v-for="(rec, idx) in filteredRecords" :key="rec.id">
-          <view class="swipe-item" :class="{ open: isSwiped(rec.id) }">
-            <view
-              class="swipe-actions"
-              :class="{ dragging: isDragging && touchItemId === rec.id }"
-              :style="swipeActionStyle(rec.id)"
-            >
-              <button class="swipe-btn" v-if="canWithdraw(rec)" @click.stop="onWithdraw(rec)">支取</button>
-              <button class="swipe-btn danger" @click.stop="confirmDelete(rec)">删除</button>
+        <view class="tip">点头像记一笔存款</view>
+        <view class="hint" v-if="accounts.length === 0">暂无银行账户</view>
+        <view class="member-grid" v-else>
+          <view class="member" v-for="acc in accounts" :key="acc.id" @click="openDeposit(acc)">
+            <button class="member-edit" @click.stop="openAccountEdit(acc)">
+              <view class="edit-icon" />
+            </button>
+            <view class="avatar-wrap">
+              <image v-if="acc.avatarUrl" class="avatar" :src="acc.avatarUrl" mode="aspectFill" />
+              <view v-else class="avatar avatar-fallback" :style="avatarStyle(acc.bank)">{{ initialOf(acc.bank) }}</view>
             </view>
+            <view class="member-name">{{ acc.bank }}</view>
+            <view class="member-total">{{ accountTotalLabel(acc.id) }}</view>
+            <view class="member-sub" v-if="acc.branch">{{ acc.branch }}</view>
+            <view class="member-sub" v-else-if="acc.accountNo">尾号 {{ tailOf(acc.accountNo) }}</view>
+            <view class="member-sub" v-else-if="acc.holder">户名 {{ acc.holder }}</view>
+          </view>
+        </view>
+      </view>
+      <view class="card">
+        <view class="title-row">
+          <view class="title">记录</view>
+          <view class="record-totals" v-if="showActiveTotal || showActiveInterest">
+            <view class="record-total" v-if="showActiveTotal">总 {{ filteredActiveTotal }}</view>
+            <view class="record-total" v-if="showActiveInterest">总利息 {{ filteredActiveInterest }}</view>
+          </view>
+        </view>
+        <view class="filter-panel">
+          <scroll-view class="filter-scroll" scroll-x>
             <view
-              class="record swipe-main"
-              :class="{ dragging: isDragging && touchItemId === rec.id }"
-              :style="swipeMainStyle(rec.id)"
-              @touchstart="onTouchStart($event, rec.id)"
-              @touchmove="onTouchMove($event, rec.id)"
-              @touchend="onTouchEnd($event, rec.id)"
-              @click="onRecordTap(rec)"
+              v-for="opt in statusOptions"
+              :key="opt"
+              class="filter-chip"
+              :class="{ active: statusFilter === opt }"
+              @click="statusFilter = opt"
             >
-              <view class="record-row">
-                <view class="record-user">
-                  <image v-if="rec.avatarUrl" class="record-avatar" :src="rec.avatarUrl" mode="aspectFill" />
-                  <view v-else class="record-avatar avatar-fallback" :style="avatarStyle(rec.bank)">{{ initialOf(rec.bank) }}</view>
-                  <text class="record-name">{{ rec.bank }}</text>
+              {{ opt }}
+            </view>
+          </scroll-view>
+        </view>
+        <view class="filter-panel" v-if="bankOptions.length">
+          <scroll-view class="filter-scroll" scroll-x>
+            <view class="filter-chip" :class="{ active: !bankFilterId }" @click="setBankFilter('')">全部</view>
+            <view
+              class="filter-chip"
+              v-for="opt in bankOptions"
+              :key="opt.id"
+              :class="{ active: bankFilterId === opt.id }"
+              @click="setBankFilter(opt.id)"
+            >
+              {{ opt.label }}
+            </view>
+          </scroll-view>
+        </view>
+        <view class="filter-panel" v-if="tagOptions.length">
+          <scroll-view class="filter-scroll" scroll-x>
+            <view class="filter-chip" :class="{ active: tagFilters.length === 0 }" @click="clearTagFilter">全部</view>
+            <view
+              class="filter-chip"
+              v-for="tag in tagOptions"
+              :key="tag"
+              :class="{ active: tagFilters.includes(tag) }"
+              @click="toggleTagFilter(tag)"
+            >
+              {{ tag }}
+            </view>
+          </scroll-view>
+        </view>
+        <view class="hint" v-if="filteredRecords.length === 0">暂无存款记录</view>
+        <view class="records" v-else>
+          <view class="record-wrap" v-for="(rec, idx) in filteredRecords" :key="rec.id">
+            <view class="swipe-item" :class="{ open: isSwiped(rec.id) }">
+              <view
+                class="swipe-actions"
+                :class="{ dragging: isDragging && touchItemId === rec.id }"
+                :style="swipeActionStyle(rec.id)"
+              >
+                <button class="swipe-btn" v-if="canWithdraw(rec)" @click.stop="onWithdraw(rec)">支取</button>
+                <button class="swipe-btn danger" @click.stop="confirmDelete(rec)">删除</button>
+              </view>
+              <view
+                class="record swipe-main"
+                :class="{ dragging: isDragging && touchItemId === rec.id }"
+                :style="swipeMainStyle(rec.id)"
+                @touchstart="onTouchStart($event, rec.id)"
+                @touchmove="onTouchMove($event, rec.id)"
+                @touchend="onTouchEnd($event, rec.id)"
+                @click="onRecordTap(rec)"
+              >
+                <view class="record-row">
+                  <view class="record-user">
+                    <image v-if="rec.avatarUrl" class="record-avatar" :src="rec.avatarUrl" mode="aspectFill" />
+                    <view v-else class="record-avatar avatar-fallback" :style="avatarStyle(rec.bank)">{{ initialOf(rec.bank) }}</view>
+                    <text class="record-name">{{ rec.bank }}</text>
+                  </view>
+                  <view class="record-right">
+                    <view class="record-amount">{{ currencySymbol(rec.currency) }}{{ formatAmount(rec.amount) }}</view>
+                  </view>
                 </view>
-                <view class="record-right">
-                  <view class="record-amount">{{ currencySymbol(rec.currency) }}{{ formatAmount(rec.amount) }}</view>
+                <view class="record-footer">
+                  <view class="record-info">
+                    <view class="record-info-top">
+                    <text class="record-item" v-if="rec.status === '已支取'">支取日 {{ rec.withdrawnAt || rec.endDate }}</text>
+                      <template v-else-if="rec.status === '已到期'">
+                        <text class="record-item">到期日 {{ rec.endDate }}</text>
+                      </template>
+                      <template v-else>
+                        <text class="record-item">到期日 {{ rec.endDate }}</text>
+                        <text class="record-item">距到期 {{ rec.daysLeft }} 天</text>
+                      </template>
+                    </view>
+                    <view class="record-info-bottom">
+                      <text class="record-item">利率 {{ rec.rate }}%</text>
+                      <text class="record-item">存期 {{ rec.termValue }}{{ termLabel(rec.termUnit) }}</text>
+                      <view class="record-interest">到期利息 {{ currencySymbol(rec.currency) }}{{ formatAmount(rec.interest) }}</view>
+                    </view>
+                    <view class="record-tags">
+                      <template v-if="rec.tags && rec.tags.length">
+                        <view class="record-tag" v-for="(tag, idx2) in rec.tags" :key="`${tag}-${idx2}`">{{ tag }}</view>
+                      </template>
+                      <text class="record-tag empty" v-else>无标签</text>
+                    </view>
+                  </view>
+                  <view class="record-side">
+                    <view class="record-status" v-if="rec.status !== '未到期'">{{ rec.status }}</view>
+                  </view>
                 </view>
               </view>
-              <view class="record-footer">
-                <view class="record-info">
-                  <view class="record-info-top">
-                  <text class="record-item" v-if="rec.status === '已支取'">支取日 {{ rec.withdrawnAt || rec.endDate }}</text>
-                    <template v-else-if="rec.status === '已到期'">
-                      <text class="record-item">到期日 {{ rec.endDate }}</text>
-                    </template>
-                    <template v-else>
-                      <text class="record-item">到期日 {{ rec.endDate }}</text>
-                      <text class="record-item">距到期 {{ rec.daysLeft }} 天</text>
-                    </template>
-                  </view>
-                  <view class="record-info-bottom">
-                    <text class="record-item">利率 {{ rec.rate }}%</text>
-                    <text class="record-item">存期 {{ rec.termValue }}{{ termLabel(rec.termUnit) }}</text>
-                    <view class="record-interest">到期利息 {{ currencySymbol(rec.currency) }}{{ formatAmount(rec.interest) }}</view>
-                  </view>
-                  <view class="record-tags">
-                    <template v-if="rec.tags && rec.tags.length">
-                      <view class="record-tag" v-for="(tag, idx2) in rec.tags" :key="`${tag}-${idx2}`">{{ tag }}</view>
-                    </template>
-                    <text class="record-tag empty" v-else>无标签</text>
-                  </view>
-                </view>
-                <view class="record-side">
-                  <view class="record-status" v-if="rec.status !== '未到期'">{{ rec.status }}</view>                  
-                </view>
-              </view>
             </view>
+            <view class="record-divider" v-if="idx !== filteredRecords.length - 1"></view>
           </view>
-          <view class="record-divider" v-if="idx !== filteredRecords.length - 1"></view>
+        </view>
+        <view class="records-footer" v-if="recordsLoaded && records.length > 0">
+          <t-loading v-if="recordsPaging" :loading="true" text="加载中…" />
+          <text v-else-if="recordsHasMore">滑动加载下一页</text>
+          <text v-else>已全部加载完毕</text>
         </view>
       </view>
-      <view class="records-footer" v-if="recordsLoaded && records.length > 0">
-        <t-loading v-if="recordsPaging" :loading="true" text="加载中…" />
-        <text v-else-if="recordsHasMore">滑动加载下一页</text>
-        <text v-else>已全部加载完毕</text>
-      </view>
-    </view>
+    </template>
   </view>
 </template>
 
@@ -235,6 +240,7 @@ type RecordView = DepositRecord & {
 
 const accounts = ref<Account[]>([])
 const records = ref<DepositRecord[]>([])
+const token = ref('')
 const recordsLoaded = ref(false)
 const recordsPaging = ref(false)
 const recordsHasMore = ref(false)
@@ -243,6 +249,9 @@ const recordsPageSize = 20
 const statusFilter = ref('未到期')
 const bankFilterId = ref('')
 const tagFilters = ref<string[]>([])
+const appliedStatusFilter = ref(statusFilter.value)
+const appliedBankFilterId = ref(bankFilterId.value)
+const appliedTagFilters = ref<string[]>([])
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const user = ref<any>(null)
 const tagOptionsRemote = ref<string[]>([])
@@ -272,6 +281,7 @@ onShow(async () => {
 })
 
 onReachBottom(() => {
+  if (!token.value) return
   if (recordsPaging.value || !recordsHasMore.value) return
   loadMoreRecords()
 })
@@ -281,6 +291,25 @@ function syncTheme() {
   themeStyle.value = buildThemeVars(base)
   applyNavigationBarTheme(base)
   applyTabBarTheme(base)
+}
+
+function syncAppliedFilters() {
+  appliedStatusFilter.value = statusFilter.value
+  appliedBankFilterId.value = bankFilterId.value
+  appliedTagFilters.value = [...tagFilters.value]
+}
+
+function resetStateForLoggedOut() {
+  accounts.value = []
+  records.value = []
+  recordsLoaded.value = false
+  recordsPaging.value = false
+  recordsHasMore.value = false
+  recordsNextOffset.value = 0
+  activeRecordQueryKey.value = ''
+  tagOptionsRemote.value = []
+  stats.value = null
+  annualYieldStats.value = null
 }
 
 const recordItems = computed<RecordView[]>(() => {
@@ -345,12 +374,12 @@ const tagOptions = computed(() => {
 })
 
 const filteredRecords = computed<RecordView[]>(() => {
-  const status = statusFilter.value
+  const status = appliedStatusFilter.value
   return recordItems.value.filter((rec) => {
-    if (bankFilterId.value && rec.accountId !== bankFilterId.value) return false
-    if (tagFilters.value.length > 0) {
+    if (appliedBankFilterId.value && rec.accountId !== appliedBankFilterId.value) return false
+    if (appliedTagFilters.value.length > 0) {
       const tags = Array.isArray(rec.tags) ? rec.tags : []
-      return tagFilters.value.some((tag) => tags.includes(tag))
+      return appliedTagFilters.value.some((tag) => tags.includes(tag))
     }
     if (status === '全部') return true
     return rec.status === status
@@ -459,6 +488,11 @@ function mapDepositRecord(rec: any): DepositRecord {
 }
 
 async function load() {
+  token.value = (uni.getStorageSync('token') as string) || ''
+  if (!token.value) {
+    resetStateForLoggedOut()
+    return
+  }
   try {
     recordsLoaded.value = false
     recordsPaging.value = false
@@ -480,6 +514,7 @@ async function load() {
       note: String(acc.note || ''),
     }))
     records.value = (recordsRes?.items || []).map(mapDepositRecord)
+    syncAppliedFilters()
     recordsLoaded.value = true
     recordsNextOffset.value = records.value.length
     recordsHasMore.value = records.value.length >= recordsPageSize
@@ -495,27 +530,30 @@ async function load() {
 }
 
 async function reloadRecords() {
+  if (!token.value) return
   if (recordsPaging.value) return
   const queryKey = recordQueryKey.value
   activeRecordQueryKey.value = queryKey
   recordsPaging.value = true
-  recordsLoaded.value = false
-  recordsHasMore.value = true
-  recordsNextOffset.value = 0
-  records.value = []
   try {
     const res = await listDepositRecords({ ...buildRecordQuery(), limit: recordsPageSize, offset: 0 })
     if (activeRecordQueryKey.value !== queryKey) return
     const items = res?.items || []
     records.value = items.map(mapDepositRecord)
+    syncAppliedFilters()
     recordsNextOffset.value = records.value.length
     recordsHasMore.value = records.value.length >= recordsPageSize
+    openId.value = ''
+    swipeOffsetById.value = {}
   } catch (e: any) {
     uni.showToast({ title: e?.message || '加载失败', icon: 'none' })
   } finally {
     recordsPaging.value = false
-    if (activeRecordQueryKey.value === queryKey) {
-      recordsLoaded.value = true
+    recordsLoaded.value = true
+    const latestKey = recordQueryKey.value
+    if (latestKey !== queryKey) {
+      activeRecordQueryKey.value = latestKey
+      await reloadRecords()
     }
   }
 }
@@ -548,6 +586,11 @@ async function loadMoreRecords() {
     recordsPaging.value = false
     recordsLoaded.value = true
   }
+  const latestKey = recordQueryKey.value
+  if (latestKey !== queryKey) {
+    activeRecordQueryKey.value = latestKey
+    await reloadRecords()
+  }
 }
 
 async function loadStatsAndTags() {
@@ -567,6 +610,11 @@ async function loadStatsAndTags() {
 
 function openAccountCreate() {
   uni.navigateTo({ url: '/pages/deposit/account-create' })
+}
+
+function goLogin() {
+  uni.setStorageSync('scorehub.afterLogin', { url: '/pages/deposit/list', ts: Date.now() })
+  uni.switchTab({ url: '/pages/my/index' })
 }
 
 function openDeposit(acc: Account) {
@@ -1114,6 +1162,9 @@ function formatCurrencyLines(items: { currency: string; amount: number }[], pref
   color: #666;
   font-size: 26rpx;
   margin-top: 8rpx;
+}
+.btn {
+  margin-top: 12rpx;
 }
 .member-grid {
   display: grid;
