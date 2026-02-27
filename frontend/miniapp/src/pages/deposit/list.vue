@@ -144,6 +144,7 @@
                   <view class="record-info-bottom">
                     <text class="record-item">利率 {{ rec.rate }}%</text>
                     <text class="record-item">存期 {{ rec.termValue }}{{ termLabel(rec.termUnit) }}</text>
+                    <view class="record-interest">到期利息 {{ currencySymbol(rec.currency) }}{{ formatAmount(rec.interest) }}</view>
                   </view>
                   <view class="record-tags">
                     <template v-if="rec.tags && rec.tags.length">
@@ -153,8 +154,7 @@
                   </view>
                 </view>
                 <view class="record-side">
-                  <view class="record-status" v-if="rec.status !== '未到期'">{{ rec.status }}</view>
-                  <view class="record-interest">到期利息 {{ currencySymbol(rec.currency) }}{{ formatAmount(rec.interest) }}</view>
+                  <view class="record-status" v-if="rec.status !== '未到期'">{{ rec.status }}</view>                  
                 </view>
               </view>
             </view>
