@@ -125,7 +125,9 @@
                   <view v-else class="record-avatar avatar-fallback" :style="avatarStyle(rec.bank)">{{ initialOf(rec.bank) }}</view>
                   <text class="record-name">{{ rec.bank }}</text>
                 </view>
-                <view class="record-amount">{{ currencySymbol(rec.currency) }}{{ formatAmount(rec.amount) }}</view>
+                <view class="record-right">
+                  <view class="record-amount">{{ currencySymbol(rec.currency) }}{{ formatAmount(rec.amount) }}</view>
+                </view>
               </view>
               <view class="record-footer">
                 <view class="record-info">
@@ -150,7 +152,10 @@
                     <text class="record-tag empty" v-else>无标签</text>
                   </view>
                 </view>
-                <view class="record-status" v-if="rec.status !== '未到期'">{{ rec.status }}</view>
+                <view class="record-side">
+                  <view class="record-status" v-if="rec.status !== '未到期'">{{ rec.status }}</view>
+                  <view class="record-interest">到期利息 {{ currencySymbol(rec.currency) }}{{ formatAmount(rec.interest) }}</view>
+                </view>
               </view>
             </view>
           </view>
@@ -1375,6 +1380,17 @@ function formatCurrencyLines(items: { currency: string; amount: number }[], pref
   color: #111;
   font-size: 28rpx;
 }
+.record-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  flex: none;
+}
+.record-interest {
+  font-size: 22rpx;
+  color: #666;
+}
 .record-footer {
   margin-top: 10rpx;
   display: flex;
@@ -1388,6 +1404,16 @@ function formatCurrencyLines(items: { currency: string; amount: number }[], pref
   gap: 6rpx;
   font-size: 24rpx;
   color: #666;
+  flex: 1;
+  min-width: 0;
+}
+.record-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8rpx;
+  flex: none;
 }
 .record-info-top,
 .record-info-bottom {
