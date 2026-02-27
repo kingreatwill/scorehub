@@ -31,8 +31,17 @@ EXPOSE 8080
 ENTRYPOINT ["/app/scorehub"]
 
 # run from repository root:
-# docker build -f backend/Dockerfile -t scorehub .
-# docker tag scorehub kingreatwill/scorehub:v2.3.0
 # docker login -u kingreatwill
-# docker push kingreatwill/scorehub:v2.3.0
-# docker run -d --name scorehub --link postgresql   -p 10005:8080   -v /data/dockerv/scorehub/.env:/app/.env:ro   -v /etc/localtime:/etc/localtime:ro   --restart unless-stopped kingreatwill/scorehub:v2.3.0
+
+# 1
+# docker buildx build -f backend/Dockerfile -t kingreatwill/scorehub:v2.3.8 --push .
+
+# 2
+# docker build -f backend/Dockerfile -t scorehub .
+# docker tag scorehub kingreatwill/scorehub:v2.3.8
+# docker push kingreatwill/scorehub:v2.3.8
+
+# 3
+# docker build -f backend/Dockerfile -t kingreatwill/scorehub:v2.3.8 . && docker push kingreatwill/scorehub:v2.3.8
+
+# docker run -d --name scorehub --link postgresql   -p 10005:8080   -v /data/dockerv/scorehub/.env:/app/.env:ro   -v /etc/localtime:/etc/localtime:ro   --restart unless-stopped kingreatwill/scorehub:v2.3.8
