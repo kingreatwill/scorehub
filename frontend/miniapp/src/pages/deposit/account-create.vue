@@ -37,19 +37,19 @@
           </view>
         </view>
       </view>
-      <view class="field">
+      <view class="field" v-if="!hideBankDetailFields">
         <text class="label">支行</text>
         <view class="field-body">
           <input class="input" v-model="form.branch" placeholder="（可选）" />
         </view>
       </view>
-      <view class="field" v-if="!hideAccountNoOnCreate">
+      <view class="field" v-if="!hideBankDetailFields">
         <text class="label">账号</text>
         <view class="field-body">
           <input class="input" v-model="form.accountNo" placeholder="（可选）" />
         </view>
       </view>
-      <view class="field">
+      <view class="field" v-if="!hideBankDetailFields">
         <text class="label">户名</text>
         <view class="field-body">
           <input class="input" v-model="form.holder" placeholder="（可选）" />
@@ -139,7 +139,6 @@ const form = ref<Account>({
 const saving = ref(false)
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const isEditing = ref(false)
-const isCreateMode = ref(true)
 const bankPickerVisible = ref(false)
 const bankKeyword = ref('')
 const bankInputFocus = ref(false)
@@ -152,13 +151,12 @@ const isMpWeixin = ref(false)
 // #ifdef MP-WEIXIN
 isMpWeixin.value = true
 // #endif
-const hideAccountNoOnCreate = computed(() => isMpWeixin.value && isBuildDateToday() && isCreateMode.value)
+const hideBankDetailFields = computed(() => isMpWeixin.value && isBuildDateToday())
 
 onLoad((q) => {
   const query = (q || {}) as any
   const id = String(query.id || '').trim()
   if (id) {
-    isCreateMode.value = false
     loadAccount(id)
   }
 })
