@@ -615,6 +615,13 @@ function formatCurrencyUpper(amount: number): string {
 .fab-panel .action-btn {
   width: 200rpx;
   text-align: center;
+  background-image: linear-gradient(#eee, #eee);
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: 60% 1rpx;
+}
+.fab-panel .action-btn:last-child {
+  background-image: none;
 }
 .fab-panel .action-btn.disabled {
   color: #999;
