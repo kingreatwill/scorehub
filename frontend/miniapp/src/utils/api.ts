@@ -388,6 +388,7 @@ export async function createDepositRecord(
 export async function updateDepositRecord(
   id: string,
   payload: {
+    accountId?: string
     currency?: string
     amount?: number
     amountUpper?: string

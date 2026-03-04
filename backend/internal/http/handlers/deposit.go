@@ -59,6 +59,7 @@ type createDepositRecordRequest struct {
 }
 
 type updateDepositRecordRequest struct {
+	AccountID   *string                    `json:"accountId"`
 	Currency    *string                    `json:"currency"`
 	Amount      *float64                   `json:"amount"`
 	AmountUpper *string                    `json:"amountUpper"`
@@ -517,6 +518,14 @@ func (h *DepositHandlers) UpdateDepositRecord(ctx context.Context, c *app.Reques
 		return
 	}
 
+	if req.AccountID != nil {
+		val := strings.TrimSpace(*req.AccountID)
+		if val == "" {
+			writeError(c, http.StatusBadRequest, "bad_request", "invalid accountId")
+			return
+		}
+		req.AccountID = &val
+	}
 	if req.Currency != nil {
 		cur := normalizeCurrency(*req.Currency)
 		if !isValidCurrency(cur) {
@@ -640,6 +649,7 @@ func (h *DepositHandlers) UpdateDepositRecord(ctx context.Context, c *app.Reques
 	}
 
 	record, err := h.st.UpdateDepositRecord(ctx, uid, id, store.DepositRecordUpdate{
+		AccountID:        req.AccountID,
 		Currency:         req.Currency,
 		Amount:           req.Amount,
 		AmountUpper:      req.AmountUpper,

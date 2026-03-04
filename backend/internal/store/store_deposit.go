@@ -395,13 +395,34 @@ WHERE id = $1::uuid AND user_id = $2 AND deleted_at IS NULL
 
 func (s *Store) UpdateDepositRecord(ctx context.Context, userID int64, id string, in DepositRecordUpdate) (DepositRecord, error) {
 	hasUpdate := false
-	if in.Currency != nil || in.Amount != nil || in.AmountUpper != nil || in.TermValue != nil || in.TermUnit != nil ||
+	if in.AccountID != nil || in.Currency != nil || in.Amount != nil || in.AmountUpper != nil || in.TermValue != nil || in.TermUnit != nil ||
 		in.Rate != nil || in.StartDate != nil || in.EndDate != nil || in.Interest != nil || in.ReceiptNo != nil ||
 		in.Status != nil || in.WithdrawnAt != nil || in.WithdrawnSetNull || in.Tags != nil || in.Attachments != nil || in.Note != nil {
 		hasUpdate = true
 	}
 	if !hasUpdate {
 		return DepositRecord{}, ErrInvalidArgument
+	}
+
+	var accountID sql.NullString
+	if in.AccountID != nil {
+		next := strings.TrimSpace(*in.AccountID)
+		if next == "" {
+			return DepositRecord{}, ErrInvalidArgument
+		}
+		var exists bool
+		if err := s.pool.QueryRow(ctx, `
+SELECT EXISTS(
+  SELECT 1 FROM deposit_accounts
+  WHERE id::text = $1 AND user_id = $2 AND deleted_at IS NULL
+)
+`, next, userID).Scan(&exists); err != nil {
+			return DepositRecord{}, err
+		}
+		if !exists {
+			return DepositRecord{}, ErrInvalidArgument
+		}
+		accountID = sql.NullString{Valid: true, String: next}
 	}
 
 	var currency sql.NullString
@@ -477,28 +498,29 @@ func (s *Store) UpdateDepositRecord(ctx context.Context, userID int64, id string
 	var attachmentsOut []byte
 	err := s.pool.QueryRow(ctx, `
 UPDATE deposit_records
-SET currency = COALESCE($3, currency),
-    amount = COALESCE($4, amount),
-    amount_upper = COALESCE($5, amount_upper),
-    term_value = COALESCE($6, term_value),
-    term_unit = COALESCE($7, term_unit),
-    rate = COALESCE($8, rate),
-    start_date = COALESCE($9, start_date),
-    end_date = COALESCE($10, end_date),
-    interest = COALESCE($11, interest),
-    receipt_no = COALESCE($12, receipt_no),
-    status = COALESCE($13, status),
-    withdrawn_at = CASE WHEN $14 THEN NULL ELSE COALESCE($15, withdrawn_at) END,
-    tags = COALESCE($16::text[], tags),
-    attachments = COALESCE($17::jsonb, attachments),
-    note = COALESCE($18, note),
+SET account_id = COALESCE($3::uuid, account_id),
+    currency = COALESCE($4, currency),
+    amount = COALESCE($5, amount),
+    amount_upper = COALESCE($6, amount_upper),
+    term_value = COALESCE($7, term_value),
+    term_unit = COALESCE($8, term_unit),
+    rate = COALESCE($9, rate),
+    start_date = COALESCE($10, start_date),
+    end_date = COALESCE($11, end_date),
+    interest = COALESCE($12, interest),
+    receipt_no = COALESCE($13, receipt_no),
+    status = COALESCE($14, status),
+    withdrawn_at = CASE WHEN $15 THEN NULL ELSE COALESCE($16, withdrawn_at) END,
+    tags = COALESCE($17::text[], tags),
+    attachments = COALESCE($18::jsonb, attachments),
+    note = COALESCE($19, note),
     updated_at = NOW()
 WHERE id = $1::uuid AND user_id = $2 AND deleted_at IS NULL
 RETURNING id::text, user_id, account_id::text, currency, amount, amount_upper, term_value, term_unit, rate,
           start_date, end_date, interest, receipt_no, status, withdrawn_at, tags, attachments, note,
           created_at, updated_at, deleted_at
 `, id, userID,
-		currency, amount, amountUpper, termValue, termUnit, rate, startDate, endDate,
+		accountID, currency, amount, amountUpper, termValue, termUnit, rate, startDate, endDate,
 		interest, receiptNo, status,
 		in.WithdrawnSetNull, withdrawn,
 		tagsArray, attachments, note).Scan(

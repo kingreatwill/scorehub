@@ -10,6 +10,19 @@
         <view class="account-sub" v-if="account.branch">{{ account.branch }}</view>
         <view class="account-sub" v-if="account.accountNo">尾号 {{ tailOf(account.accountNo) }}</view>
       </view>
+      <picker
+        v-if="canSwitchAccount"
+        class="account-switch-picker"
+        mode="selector"
+        :range="accountOptions"
+        range-key="bank"
+        :value="accountPickerIndex"
+        @change="onAccountChange"
+      >
+        <view class="account-switch-btn">
+          <text class="account-switch-icon">⇆</text>
+        </view>
+      </picker>
     </view>
 
     <view class="card">
@@ -208,7 +221,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { currencyList, getCurrencyMeta } from '../../utils/currency'
-import { createDepositRecord, getDepositAccount, getDepositRecord, updateDepositRecord } from '../../utils/api'
+import { createDepositRecord, getDepositAccount, getDepositRecord, listDepositAccounts, updateDepositRecord } from '../../utils/api'
 
 type Account = {
   id: string
@@ -246,6 +259,7 @@ type TermHistoryItem = {
 }
 
 const account = ref<Account | null>(null)
+const accountOptions = ref<Account[]>([])
 const accountId = ref('')
 const recordId = ref('')
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
@@ -289,6 +303,12 @@ const interestHint = computed(() => {
   const unit = form.value.termUnit === 'year' ? '年' : '个月'
   return `按 ${term} ${unit}计息（年化，可修改）`
 })
+const accountPickerIndex = computed(() => {
+  const id = String(account.value?.id || accountId.value || '')
+  const idx = accountOptions.value.findIndex((item) => item.id === id)
+  return idx >= 0 ? idx : 0
+})
+const canSwitchAccount = computed(() => isEditing.value && accountOptions.value.length > 1)
 
 onLoad((q) => {
   const query = (q || {}) as any
@@ -306,6 +326,7 @@ onShow(async () => {
   syncTheme()
   if (initialized.value) return
   loadHistory()
+  await loadAccountOptions()
   if (isEditing.value && recordId.value) {
     await loadRecord(recordId.value)
   } else {
@@ -343,26 +364,32 @@ function syncTheme() {
 
 async function loadAccount() {
   if (!accountId.value) return
+  const cached = accountOptions.value.find((item) => item.id === accountId.value)
+  if (cached) {
+    account.value = { ...cached }
+    return
+  }
   try {
     const res = await getDepositAccount(accountId.value)
-    const found = res?.account
+    const found = mapAccount(res?.account)
     if (!found) {
       throw new Error('未找到账户')
     }
-    account.value = {
-      id: String(found.id || ''),
-      bank: String(found.bank || ''),
-      branch: String(found.branch || ''),
-      accountNo: String(found.accountNo || ''),
-      holder: String(found.holder || ''),
-      avatarUrl: String(found.avatarUrl || ''),
-      note: String(found.note || ''),
-    }
+    account.value = found
   } catch (e: any) {
     uni.showToast({ title: e?.message || '未找到账户', icon: 'none' })
     setTimeout(() => {
       uni.navigateBack({ delta: 1 })
     }, 400)
+  }
+}
+
+async function loadAccountOptions() {
+  try {
+    const res = await listDepositAccounts(200, 0)
+    accountOptions.value = (res?.items || []).map(mapAccount).filter((item): item is Account => !!item)
+  } catch (e) {
+    accountOptions.value = []
   }
 }
 
@@ -410,6 +437,15 @@ function setCurrency(code: string) {
 
 function setTermUnit(unit: 'year' | 'month') {
   form.value.termUnit = unit
+}
+
+function onAccountChange(e: any) {
+  const idx = Number(e?.detail?.value ?? -1)
+  if (!Number.isFinite(idx) || idx < 0) return
+  const selected = accountOptions.value[idx]
+  if (!selected) return
+  account.value = { ...selected }
+  accountId.value = selected.id
 }
 
 function onStartDateChange(e: any) {
@@ -607,6 +643,7 @@ async function onSave() {
     }
     if (isEditing.value && recordId.value) {
       await updateDepositRecord(recordId.value, {
+        accountId: account.value.id,
         currency: payload.currency,
         amount: payload.amount,
         amountUpper: payload.amountUpper,
@@ -681,6 +718,21 @@ function recordHistory() {
 function normalizeHistoryList(value: any): string[] {
   if (!Array.isArray(value)) return []
   return value.map((item) => String(item || '').trim()).filter(Boolean)
+}
+
+function mapAccount(raw: any): Account | null {
+  if (!raw) return null
+  const id = String(raw.id || '').trim()
+  if (!id) return null
+  return {
+    id,
+    bank: String(raw.bank || ''),
+    branch: String(raw.branch || ''),
+    accountNo: String(raw.accountNo || ''),
+    holder: String(raw.holder || ''),
+    avatarUrl: String(raw.avatarUrl || ''),
+    note: String(raw.note || ''),
+  }
 }
 
 function normalizeAttachments(value: any): AttachmentItem[] {
@@ -944,6 +996,30 @@ function amountToChineseUpper(amount: number, currency: string): string {
   flex: 1;
   min-width: 0;
 }
+.account-switch-picker {
+  flex: none;
+  margin-left: 4rpx;
+}
+.account-switch-btn {
+  width: 56rpx;
+  height: 56rpx;
+  background: transparent;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.account-switch-icon {
+  color: var(--brand-solid);
+  font-size: 38rpx;
+  line-height: 1;
+  font-weight: 500;
+}
+/* #ifdef H5 */
+.account-switch-btn {
+  cursor: pointer;
+}
+/* #endif */
 .account-name {
   font-size: 30rpx;
   font-weight: 600;

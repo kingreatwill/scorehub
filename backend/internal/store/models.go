@@ -252,6 +252,7 @@ type DepositRecordInput struct {
 }
 
 type DepositRecordUpdate struct {
+	AccountID        *string
 	Currency         *string
 	Amount           *float64
 	AmountUpper      *string
