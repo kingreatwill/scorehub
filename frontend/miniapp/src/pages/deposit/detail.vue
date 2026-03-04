@@ -97,6 +97,7 @@
     <view class="fab-mask" v-if="actionMenuOpen && hasActions" @tap="closeActionMenu" />
     <view class="fab" v-if="hasActions" @tap.stop>
       <view class="fab-panel" :class="{ open: actionMenuOpen }" @tap.stop>
+        <button size="mini" class="action-btn" @click="editRecord">编辑</button>
         <button size="mini" class="action-btn" :class="{ disabled: !canWithdraw }" @click="withdrawRecord">
           支取
         </button>
@@ -316,6 +317,16 @@ function toggleActionMenu() {
 
 function closeActionMenu() {
   actionMenuOpen.value = false
+}
+
+function editRecord() {
+  if (!record.value?.id) return
+  const id = encodeURIComponent(String(record.value.id))
+  if (!id) return
+  const accountID = encodeURIComponent(String(record.value.accountId || account.value?.id || ''))
+  const query = accountID ? `?id=${id}&accountId=${accountID}` : `?id=${id}`
+  closeActionMenu()
+  uni.navigateTo({ url: `/pages/deposit/deposit-create${query}` })
 }
 
 async function withdrawRecord() {

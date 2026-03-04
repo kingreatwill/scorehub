@@ -196,7 +196,9 @@
       <textarea class="textarea" v-model="form.note" placeholder="（可选）" />
     </view>
 
-    <button class="btn confirm-btn" :disabled="saving" @click="onSave">{{ saving ? '保存中…' : '保存' }}</button>
+    <button class="btn confirm-btn" :disabled="saving" @click="onSave">
+      {{ saving ? (isEditing ? '更新中…' : '保存中…') : isEditing ? '更新' : '保存' }}
+    </button>
   </view>
 </template>
 
@@ -206,7 +208,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { applyNavigationBarTheme, applyTabBarTheme, buildThemeVars, getThemeBaseColor } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { currencyList, getCurrencyMeta } from '../../utils/currency'
-import { createDepositRecord, getDepositAccount } from '../../utils/api'
+import { createDepositRecord, getDepositAccount, getDepositRecord, updateDepositRecord } from '../../utils/api'
 
 type Account = {
   id: string
@@ -245,8 +247,11 @@ type TermHistoryItem = {
 
 const account = ref<Account | null>(null)
 const accountId = ref('')
+const recordId = ref('')
 const themeStyle = ref<Record<string, string>>(buildThemeVars(getThemeBaseColor()))
 const saving = ref(false)
+const isEditing = ref(false)
+const initialized = ref(false)
 const endDateManual = ref(false)
 const tagInput = ref('')
 const amountHistory = ref<string[]>([])
@@ -288,15 +293,28 @@ const interestHint = computed(() => {
 onLoad((q) => {
   const query = (q || {}) as any
   accountId.value = String(query.accountId || '')
+  recordId.value = String(query.id || '')
+  if (recordId.value) {
+    isEditing.value = true
+    uni.setNavigationBarTitle({ title: '编辑存款' })
+    return
+  }
+  uni.setNavigationBarTitle({ title: '存款' })
 })
 
 onShow(async () => {
   syncTheme()
+  if (initialized.value) return
   loadHistory()
-  await loadAccount()
-  if (!form.value.endDate) {
-    form.value.endDate = calcEndDate(form.value.startDate, form.value.termValue, form.value.termUnit)
+  if (isEditing.value && recordId.value) {
+    await loadRecord(recordId.value)
+  } else {
+    await loadAccount()
+    if (!form.value.endDate) {
+      form.value.endDate = calcEndDate(form.value.startDate, form.value.termValue, form.value.termUnit)
+    }
   }
+  initialized.value = true
 })
 
 watch(
@@ -342,6 +360,44 @@ async function loadAccount() {
     }
   } catch (e: any) {
     uni.showToast({ title: e?.message || '未找到账户', icon: 'none' })
+    setTimeout(() => {
+      uni.navigateBack({ delta: 1 })
+    }, 400)
+  }
+}
+
+async function loadRecord(id: string) {
+  try {
+    const res = await getDepositRecord(id)
+    const found = res?.record
+    if (!found) {
+      throw new Error('未找到记录')
+    }
+    recordId.value = String(found.id || id)
+    accountId.value = String(found.accountId || accountId.value || '')
+    form.value = {
+      currency: String(found.currency || 'CNY'),
+      amount: String(found.amount ?? ''),
+      termValue: String(found.termValue ?? ''),
+      termUnit: found.termUnit === 'month' ? 'month' : 'year',
+      rate: String(found.rate ?? ''),
+      receiptNo: String(found.receiptNo || ''),
+      startDate: String(found.startDate || todayString()),
+      endDate: String(found.endDate || ''),
+      tags: normalizeHistoryList(found.tags),
+      note: String(found.note || ''),
+      attachments: normalizeAttachments(found.attachments),
+    }
+    interestManual.value = true
+    interestInput.value = formatAmount(parseAmount(String(found.interest ?? '0')))
+    endDateManual.value = true
+    if (!form.value.endDate) {
+      endDateManual.value = false
+      form.value.endDate = calcEndDate(form.value.startDate, form.value.termValue, form.value.termUnit)
+    }
+    await loadAccount()
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '未找到记录', icon: 'none' })
     setTimeout(() => {
       uni.navigateBack({ delta: 1 })
     }, 400)
@@ -533,7 +589,7 @@ async function onSave() {
 
   saving.value = true
   try {
-    await createDepositRecord(account.value.id, {
+    const payload = {
       currency: form.value.currency,
       amount: parseAmount(form.value.amount),
       amountUpper: amountUpper.value,
@@ -548,9 +604,29 @@ async function onSave() {
       note: form.value.note.trim(),
       attachments: form.value.attachments,
       status: '未到期',
-    })
+    }
+    if (isEditing.value && recordId.value) {
+      await updateDepositRecord(recordId.value, {
+        currency: payload.currency,
+        amount: payload.amount,
+        amountUpper: payload.amountUpper,
+        termValue: payload.termValue,
+        termUnit: payload.termUnit,
+        rate: payload.rate,
+        receiptNo: payload.receiptNo,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        interest: payload.interest,
+        tags: payload.tags,
+        note: payload.note,
+        attachments: payload.attachments,
+      })
+      uni.showToast({ title: '已更新', icon: 'success' })
+    } else {
+      await createDepositRecord(account.value.id, payload)
+      uni.showToast({ title: '已保存', icon: 'success' })
+    }
     recordHistory()
-    uni.showToast({ title: '已保存', icon: 'success' })
     setTimeout(() => {
       uni.navigateBack({ delta: 1 })
     }, 400)
@@ -605,6 +681,30 @@ function recordHistory() {
 function normalizeHistoryList(value: any): string[] {
   if (!Array.isArray(value)) return []
   return value.map((item) => String(item || '').trim()).filter(Boolean)
+}
+
+function normalizeAttachments(value: any): AttachmentItem[] {
+  if (!Array.isArray(value)) return []
+  const out: AttachmentItem[] = []
+  for (const item of value) {
+    if (typeof item === 'string') {
+      const url = String(item || '').trim()
+      if (!url) continue
+      out.push({ type: 'image', url })
+      continue
+    }
+    const raw = item || {}
+    const url = String(raw.url || '').trim()
+    if (!url) continue
+    const type = raw.type === 'file' ? 'file' : 'image'
+    const name = String(raw.name || '').trim()
+    if (name) {
+      out.push({ type, url, name })
+    } else {
+      out.push({ type, url })
+    }
+  }
+  return out.slice(0, 9)
 }
 
 function pushHistory(list: string[], value: string, limit = 6): string[] {

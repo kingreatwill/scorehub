@@ -304,8 +304,8 @@ func (h *DepositHandlers) CreateDepositRecord(ctx context.Context, c *app.Reques
 		writeError(c, http.StatusBadRequest, "bad_request", "invalid termUnit")
 		return
 	}
-	if req.Rate <= 0 {
-		writeError(c, http.StatusBadRequest, "bad_request", "rate required")
+	if req.Rate < 0 {
+		writeError(c, http.StatusBadRequest, "bad_request", "invalid rate")
 		return
 	}
 	startDate, err := parseDateRequired(req.StartDate)
@@ -541,7 +541,7 @@ func (h *DepositHandlers) UpdateDepositRecord(ctx context.Context, c *app.Reques
 		}
 		req.TermUnit = &unit
 	}
-	if req.Rate != nil && *req.Rate <= 0 {
+	if req.Rate != nil && *req.Rate < 0 {
 		writeError(c, http.StatusBadRequest, "bad_request", "invalid rate")
 		return
 	}

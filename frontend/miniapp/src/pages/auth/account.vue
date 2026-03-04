@@ -90,6 +90,9 @@ async function onPasswordLogin() {
     token.value = res.token
     user.value = res.user
     uni.showToast({ title: '登录成功', icon: 'success' })
+    setTimeout(() => {
+      uni.switchTab({ url: '/pages/my/index' })
+    }, 250)
   } catch (e: any) {
     try {
       console.error('password login failed', e)
@@ -210,4 +213,3 @@ async function onChangePassword() {
   margin: 18rpx 0;
 }
 </style>
-
