@@ -34,6 +34,13 @@
 
 ## 构建
 
+当前 Dockerfile 已经改成多阶段构建：
+
+- builder 阶段安装 `build-essential / git`
+- 运行阶段只保留 Python 运行环境和必要系统库
+
+这样能明显减小最终镜像，相比单阶段更省。
+
 在仓库根目录执行：
 
 ```bash
@@ -56,6 +63,14 @@ docker run -d \
 ```
 
 首次启动或首次请求时，MeloTTS 可能会下载模型文件；建议保留 `/models/huggingface` 卷做缓存。
+如果你没挂这个卷，模型会落在容器可写层里，容器体积会继续涨；这通常比镜像本身更大。
+
+可以分别看这两个体积：
+
+```bash
+docker image ls scorehub-melo-tts
+docker ps -s --filter name=scorehub-melo-tts
+```
 
 ## 健康检查
 
