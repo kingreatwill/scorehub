@@ -1,8 +1,8 @@
 services:
   melo-tts:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: sidecars/melo-tts/Dockerfile
     image: scorehub-melo-tts:local
     environment:
       PORT: "18090"

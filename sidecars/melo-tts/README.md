@@ -37,7 +37,7 @@
 在仓库根目录执行：
 
 ```bash
-docker build -t scorehub-melo-tts ./sidecars/melo-tts
+docker build -f sidecars/melo-tts/Dockerfile -t scorehub-melo-tts .
 ```
 
 ## 运行
