@@ -59,6 +59,17 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "18090"]
 
 # docker buildx build -f sidecars/melo-tts/Dockerfile -t kingreatwill/scorehub-melo-tts:v0.0.1 --push .
 
+# docker run -d \
+#   --name scorehub-melo-tts \
+#   -p 18090:18090 \
+#   -e MELO_DEVICE=cpu \
+#   -e MELO_DEFAULT_LANGUAGE=ZH \
+#   -e MELO_PRELOAD_LANGUAGES=ZH \
+#   -e 'MELO_VOICES_JSON=[{"id":"warm","label":"温柔","language":"ZH","speaker":"ZH","speed":0.96,"isDefault":true},{"id":"bright","label":"清亮","language":"ZH","speaker":"ZH","speed":1.06},{"id":"steady","label":"沉稳","language":"ZH","speaker":"ZH","speed":1.0}]' \
+#   -v /data/dockerv/scorehub/melo_tts_hf:/models/huggingface \
+#   --restart unless-stopped \
+#   kingreatwill/scorehub-melo-tts:v0.0.2
+
 # curl -sS \
 #   -X POST http://127.0.0.1:18090/v1/audio/speech \
 #   -H 'Content-Type: application/json' \

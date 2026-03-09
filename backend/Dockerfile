@@ -46,11 +46,11 @@ ENTRYPOINT ["/app/scorehub"]
 
 
 # 运行相关
-# docker run -d --name scorehub --link postgresql   -p 10005:8080   -v /data/dockerv/scorehub/.env:/app/.env:ro   -v /etc/localtime:/etc/localtime:ro   --restart unless-stopped kingreatwill/scorehub:v2.3.8
+# docker run -d --name scorehub --link postgresql --link scorehub-melo-tts   -p 10005:8080   -v /data/dockerv/scorehub/.env:/app/.env:ro   -v /etc/localtime:/etc/localtime:ro   --restart unless-stopped kingreatwill/scorehub:v2.3.8
 
-# docker pull kingreatwill/scorehub:v2.3.9 && docker rm -f scorehub && docker run -d --name scorehub --link postgresql -p 10005:8080 -v /data/dockerv/scorehub/.env:/app/.env:ro -v /etc/localtime:/etc/localtime:ro --restart unless-stopped kingreatwill/scorehub:v2.3.9
+# docker pull kingreatwill/scorehub:v2.3.9 && docker rm -f scorehub && docker run -d --name scorehub --link postgresql --link scorehub-melo-tts -p 10005:8080 -v /data/dockerv/scorehub/.env:/app/.env:ro -v /etc/localtime:/etc/localtime:ro --restart unless-stopped kingreatwill/scorehub:v2.3.9
 
 # 容器不存在也能继续运行
-# docker pull kingreatwill/scorehub:v2.3.9 && (docker rm -f scorehub >/dev/null 2>&1 || true) && docker run -d --name scorehub --link postgresql -p 10005:8080 -v /data/dockerv/scorehub/.env:/app/.env:ro -v /etc/localtime:/etc/localtime:ro --restart unless-stopped kingreatwill/scorehub:v2.3.9
+# docker pull kingreatwill/scorehub:v2.3.9 && (docker rm -f scorehub >/dev/null 2>&1 || true) && docker run -d --name scorehub --link postgresql --link scorehub-melo-tts -p 10005:8080 -v /data/dockerv/scorehub/.env:/app/.env:ro -v /etc/localtime:/etc/localtime:ro --restart unless-stopped kingreatwill/scorehub:v2.3.9
 
-# TAG=v2.3.9 && IMAGE="kingreatwill/scorehub:${TAG}" && docker pull "$IMAGE" && (docker rm -f scorehub >/dev/null 2>&1 || true) && docker run -d --name scorehub --link postgresql -p 10005:8080 -v /data/dockerv/scorehub/.env:/app/.env:ro -v /etc/localtime:/etc/localtime:ro --restart unless-stopped "$IMAGE"
+# TAG=v2.3.9 && IMAGE="kingreatwill/scorehub:${TAG}" && docker pull "$IMAGE" && (docker rm -f scorehub >/dev/null 2>&1 || true) && docker run -d --name scorehub --link postgresql --link scorehub-melo-tts -p 10005:8080 -v /data/dockerv/scorehub/.env:/app/.env:ro -v /etc/localtime:/etc/localtime:ro --restart unless-stopped "$IMAGE"
