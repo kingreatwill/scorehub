@@ -18,6 +18,7 @@ import (
 	"scorehub/internal/http/middleware"
 	"scorehub/internal/realtime"
 	"scorehub/internal/store"
+	"scorehub/internal/tts"
 )
 
 func main() {
@@ -31,6 +32,7 @@ func main() {
 	defer st.Close()
 
 	hub := realtime.NewHub()
+	ttsService := tts.New(cfg)
 	startAutoEndInactiveScorebooksJob(ctx, st, hub)
 
 	h := server.Default(server.WithHostPorts(cfg.Addr))
@@ -53,6 +55,7 @@ func main() {
 	birthdayHandlers := handlers.NewBirthdayHandlers(st)
 	depositHandlers := handlers.NewDepositHandlers(st)
 	locationHandlers := handlers.NewLocationHandlers(cfg)
+	voiceHandlers := handlers.NewVoiceHandlers(ttsService)
 
 	api := h.Group("/api/v1")
 	auth := api.Group("/auth")
@@ -66,6 +69,8 @@ func main() {
 	authed.POST("/auth/set_credentials", authHandlers.SetCredentials)
 	authed.POST("/auth/change_password", authHandlers.ChangePassword)
 	authed.POST("/auth/bind_wechat", authHandlers.BindWeChat)
+	authed.GET("/voice/voices", voiceHandlers.ListVoices)
+	authed.POST("/voice/score_received", voiceHandlers.ScoreReceivedSpeech)
 	authed.POST("/scorebooks", scorebookHandlers.CreateScorebook)
 	authed.GET("/scorebooks", scorebookHandlers.ListMyScorebooks)
 	authed.GET("/scorebooks/:id", scorebookHandlers.GetScorebookDetail)

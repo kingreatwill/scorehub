@@ -28,6 +28,10 @@
           </view>
           <text class="mono"> {{ scorebook.inviteCode }}</text> 
         </view>
+        <view v-if="canVoiceSettings" class="pill voice-pill" @click="openVoiceSettings">
+          <view class="voice-state-icon light" :class="{ muted: !scoreVoiceEnabled }" aria-hidden="true" />
+          <text>{{ scoreVoiceEnabled ? '播报' : '静音' }}</text>
+        </view>
       </view>
     </view>
 
@@ -230,6 +234,78 @@
       <view class="qr-link" v-if="browserJoinURL" @click="copyBrowserJoinURL">{{ browserJoinURL }}</view>
     </view>
 
+    <view class="modal-mask score-mask" v-if="voiceSettingsOpen" @click="closeVoiceSettings">
+      <view class="modal voice-modal" @click.stop>
+        <view class="modal-head">
+          <view class="modal-title voice-modal-title">
+            <view class="voice-state-icon" :class="{ muted: !scoreVoiceEnabled }" aria-hidden="true" />
+            <text>语音播报</text>
+          </view>
+          <view class="modal-close" @click="closeVoiceSettings">×</view>
+        </view>
+        <view class="voice-card">
+          <view class="row voice-head">
+            <view class="voice-head-copy">
+              <view class="voice-sub">{{ scoreVoicePlatform }}</view>
+            </view>
+            <button size="mini" class="voice-btn" @click="toggleScoreVoice">
+              {{ scoreVoiceEnabled ? '关闭' : '开启' }}
+            </button>
+          </view>
+
+          <view v-if="scoreVoiceEnabled" class="voice-settings-body">
+            <view class="voice-row">
+              <view class="voice-copy">
+                <view class="voice-label">声音</view>
+                <view class="voice-value">{{ scoreVoiceLabel }}</view>
+              </view>
+              <button size="mini" class="voice-btn" @click="chooseScoreVoice">选择</button>
+            </view>
+
+            <view class="voice-template-box">
+              <view class="voice-label">播报文案</view>
+              <input
+                class="input voice-template-input"
+                :value="scoreVoiceTemplateDraft"
+                maxlength="48"
+                placeholder="支持 {X} 和 {N}"
+                @input="onScoreVoiceTemplateInput"
+                @blur="commitScoreVoiceTemplate"
+                @confirm="commitScoreVoiceTemplate"
+              />
+              <view class="voice-template-hint">支持占位符 {X} 记分人、{N} 分数；至少保留 {N}</view>
+            </view>
+
+            <view class="voice-preset-row">
+              <button
+                v-for="item in scoreVoiceTemplatePresets"
+                :key="item.key"
+                size="mini"
+                class="voice-preset"
+                :class="{ active: scoreVoiceTemplateDraft === item.template }"
+                @click="applyScoreVoiceTemplatePreset(item.template)"
+              >
+                {{ item.label }}
+              </button>
+            </view>
+
+            <view class="voice-preview-row">
+              <view class="voice-copy">
+                <view class="voice-label">预览</view>
+                <view class="voice-sub">{{ scoreVoicePreviewText }}</view>
+              </view>
+              <button size="mini" class="voice-btn" @click="previewScoreVoice">试听</button>
+            </view>
+          </view>
+
+          <view v-else class="voice-disabled-state">
+            <view class="voice-disabled-title">播报已关闭</view>
+            <view class="voice-disabled-copy">开启后才可选择声音、编辑播报文案并试听。</view>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <view class="modal-mask" v-if="endModalOpen" @click="closeEndModal" />
     <view class="modal" v-if="endModalOpen">
       <view class="modal-title">本局结束</view>
@@ -254,6 +330,9 @@
     <view class="fab-mask" v-if="actionMenuOpen && hasActions" @tap="closeActionMenu" />
     <view class="fab" v-if="hasActions" @tap.stop>
       <view class="fab-panel" :class="{ open: actionMenuOpen }" @tap.stop>
+        <button size="mini" class="action-btn" v-if="canVoiceSettings" @click="closeActionMenu(); openVoiceSettings()">
+          语音播报
+        </button>
         <button size="mini" class="action-btn" v-if="canOpenQRCode" @click="closeActionMenu(); openQRCode()">
           小程序码
         </button>
@@ -300,6 +379,7 @@ import {
   endScorebook,
   getInviteQRCode,
   getScorebookDetail,
+  listScoreVoiceOptions,
   listScorebookRecords,
   updateScorebookName,
 } from '../../utils/api'
@@ -308,6 +388,19 @@ import { clampNickname } from '../../utils/nickname'
 import { applyTabBarTheme, resolveThemeColorForUi } from '../../utils/theme'
 import { avatarStyle } from '../../utils/avatar-color'
 import { buildInviteBrowserJoinURL } from '../../utils/invite-link'
+import {
+  listScorebookVoiceTemplatePresets,
+  loadScorebookVoiceCatalog,
+  loadScorebookVoiceSettings,
+  normalizeScorebookVoiceTemplate,
+  previewScorebookVoice,
+  renderScorebookVoiceText,
+  resolveScorebookVoiceLabel,
+  saveScorebookVoiceCatalog,
+  saveScorebookVoiceSettings,
+  scorebookVoicePlatformHint,
+  ScorebookVoiceAnnouncer,
+} from '../../utils/scorebook-voice'
 
 const token = ref('')
 const id = ref('')
@@ -335,6 +428,8 @@ const fabToggleStyle = computed(() => {
 const me = ref<{ memberId: string; isOwner: boolean } | null>(null)
 const members = ref<any[]>([])
 const socketTask = ref<UniApp.SocketTask | null>(null)
+const socketConnected = ref(false)
+const socketConnecting = ref(false)
 const loadError = ref('')
 const isMpWeixin = ref(false)
 // #ifdef MP-WEIXIN
@@ -363,6 +458,7 @@ const inviteQRSrc = ref('')
 const browserQRModalOpen = ref(false)
 const browserQRLoading = ref(false)
 const browserQRSrc = ref('')
+const voiceSettingsOpen = ref(false)
 const inviteQRSize = 232
 const endModalOpen = ref(false)
 const endWinners = ref<any>(null)
@@ -376,6 +472,31 @@ const pollTimer = ref<any>(null)
 let pollSession = 0
 const localRecordIDs = new Map<string, number>()
 const pageActive = ref(false)
+const scoreVoiceAnnouncer = new ScorebookVoiceAnnouncer()
+const scoreVoiceEnabled = ref(true)
+const scoreVoiceOptions = ref(loadScorebookVoiceCatalog())
+const scoreVoice = ref('')
+const scoreVoiceTemplateDraft = ref('收到{N}分')
+const scoreVoiceTemplatePresets = listScorebookVoiceTemplatePresets()
+const scoreVoiceLoading = ref(false)
+const scoreVoiceLabel = computed(() => resolveScorebookVoiceLabel(scoreVoice.value, scoreVoiceOptions.value))
+const scoreVoicePlatform = computed(() => scorebookVoicePlatformHint())
+const scoreVoicePreviewFromName = computed(() => {
+  const candidate =
+    members.value.find((m) => String(m?.id || '') && String(m?.id || '') !== String(me.value?.memberId || '')) ||
+    members.value.find((m) => !m?.isMe) ||
+    members.value[0]
+  return displayNickname(candidate?.nickname || '小王')
+})
+const scoreVoicePreviewText = computed(() =>
+  renderScorebookVoiceText(scoreVoiceTemplateDraft.value, { fromName: scoreVoicePreviewFromName.value, delta: 8 }),
+)
+const socketReconnectBaseDelay = 800
+const socketReconnectMaxDelay = 5000
+let socketReconnectTimer: any = null
+let socketReconnectAttempts = 0
+let socketSession = 0
+let socketClosedByUs = false
 
 function scoreTone(v: any): string {
   const n = Number(v || 0)
@@ -563,10 +684,117 @@ const canOpenQRCode = computed(() => !!me.value?.memberId && scorebook.value?.st
 const canShare = computed(() => isMpWeixin.value)
 const canRename = computed(() => !!me.value?.isOwner)
 const canEnd = computed(() => !!me.value?.isOwner && scorebook.value?.status !== 'ended')
+const canVoiceSettings = computed(() => !!token.value)
 const browserJoinURL = computed(() => buildInviteBrowserJoinURL(String(scorebook.value?.inviteCode || '').trim()))
 const hasActions = computed(
-  () => canOpenQRCode.value || canShare.value || canRename.value || canEnd.value,
+  () => canVoiceSettings.value || canOpenQRCode.value || canShare.value || canRename.value || canEnd.value,
 )
+
+function loadScoreVoiceSettings() {
+  scoreVoiceOptions.value = loadScorebookVoiceCatalog()
+  const saved = loadScorebookVoiceSettings()
+  scoreVoiceEnabled.value = saved.enabled
+  scoreVoice.value = saved.voice
+  scoreVoiceTemplateDraft.value = saved.template
+}
+
+function persistScoreVoiceSettings(patch: { enabled?: boolean; voice?: string; template?: string }) {
+  const saved = saveScorebookVoiceSettings(patch)
+  scoreVoiceEnabled.value = saved.enabled
+  scoreVoice.value = saved.voice
+  scoreVoiceTemplateDraft.value = saved.template
+  scoreVoiceAnnouncer.refreshSettings()
+  return saved
+}
+
+async function ensureScoreVoiceOptions(force = false) {
+  if (!token.value) return
+  if (!force && scoreVoiceOptions.value.length) return
+  if (scoreVoiceLoading.value) return
+  scoreVoiceLoading.value = true
+  try {
+    const res = await listScoreVoiceOptions()
+    scoreVoiceOptions.value = saveScorebookVoiceCatalog(res.items || [])
+    loadScoreVoiceSettings()
+  } finally {
+    scoreVoiceLoading.value = false
+  }
+}
+
+function toggleScoreVoice() {
+  persistScoreVoiceSettings({ enabled: !scoreVoiceEnabled.value })
+  uni.showToast({ title: scoreVoiceEnabled.value ? '已开启播报' : '已关闭播报', icon: 'none' })
+}
+
+async function chooseScoreVoice() {
+  try {
+    await ensureScoreVoiceOptions()
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '获取声音列表失败', icon: 'none' })
+    return
+  }
+  if (!scoreVoiceOptions.value.length) {
+    uni.showToast({ title: '暂无可用声音', icon: 'none' })
+    return
+  }
+  uni.showActionSheet({
+    itemList: scoreVoiceOptions.value.map((item) => item.label),
+    success: (res) => {
+      const picked = scoreVoiceOptions.value[res.tapIndex]
+      if (!picked) return
+      persistScoreVoiceSettings({ voice: picked.id })
+    },
+  })
+}
+
+function onScoreVoiceTemplateInput(e: any) {
+  scoreVoiceTemplateDraft.value = String(e?.detail?.value || '').slice(0, 48)
+}
+
+function commitScoreVoiceTemplate() {
+  const raw = String(scoreVoiceTemplateDraft.value || '')
+  const compact = raw.replace(/\s+/g, ' ').trim()
+  if (compact && !compact.includes('{N}')) {
+    scoreVoiceTemplateDraft.value = loadScorebookVoiceSettings().template
+    uni.showToast({ title: '播报文案需包含 {N}', icon: 'none' })
+    return
+  }
+  persistScoreVoiceSettings({ template: normalizeScorebookVoiceTemplate(compact) })
+}
+
+function applyScoreVoiceTemplatePreset(template: string) {
+  scoreVoiceTemplateDraft.value = template
+  persistScoreVoiceSettings({ template })
+}
+
+function openVoiceSettings() {
+  loadScoreVoiceSettings()
+  void ensureScoreVoiceOptions()
+  voiceSettingsOpen.value = true
+}
+
+function closeVoiceSettings() {
+  commitScoreVoiceTemplate()
+  voiceSettingsOpen.value = false
+}
+
+async function previewScoreVoice() {
+  const raw = String(scoreVoiceTemplateDraft.value || '').replace(/\s+/g, ' ').trim()
+  if (raw && !raw.includes('{N}')) {
+    uni.showToast({ title: '播报文案需包含 {N}', icon: 'none' })
+    return
+  }
+  const saved = persistScoreVoiceSettings({ template: normalizeScorebookVoiceTemplate(raw) })
+  try {
+    await previewScorebookVoice({
+      delta: 8,
+      fromName: scoreVoicePreviewFromName.value,
+      override: { enabled: true, voice: saved.voice, template: saved.template },
+    })
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '语音播放失败', icon: 'none' })
+  }
+}
 
 function addDelta(v: number) {
   const next = parseAmountSafe(scoreDelta.value) + v
@@ -616,6 +844,7 @@ onShareAppMessage(() => {
 onLoad(async (q) => {
   pageActive.value = true
   loadThemeColor()
+  loadScoreVoiceSettings()
   token.value = (uni.getStorageSync('token') as string) || ''
 
   const query = (q || {}) as any
@@ -631,6 +860,7 @@ onLoad(async (q) => {
     return
   }
 
+  void ensureScoreVoiceOptions()
   try {
     await refresh()
   } catch (e: any) {
@@ -638,17 +868,17 @@ onLoad(async (q) => {
     return
   }
 
-  try {
-    socketTask.value = await connectScorebookWS(id.value, onEvent)
-  } catch (e) {
-    socketTask.value = null
-  }
+  void ensureSocketConnected()
   startPolling()
 })
 
 onShow(() => {
   pageActive.value = true
   loadThemeColor()
+  loadScoreVoiceSettings()
+  void ensureScoreVoiceOptions()
+  scoreVoiceAnnouncer.refreshSettings()
+  void ensureSocketConnected()
   startPolling()
 })
 
@@ -661,14 +891,17 @@ onReachBottom(() => {
 onHide(() => {
   pageActive.value = false
   stopPolling()
+  scoreVoiceAnnouncer.stop()
+  voiceSettingsOpen.value = false
+  closeSocket(true)
 })
 
 onUnload(() => {
   pageActive.value = false
   stopPolling()
-  try {
-    socketTask.value?.close({})
-  } catch (e) {}
+  scoreVoiceAnnouncer.dispose()
+  voiceSettingsOpen.value = false
+  closeSocket(true)
 })
 
 async function refresh() {
@@ -739,6 +972,19 @@ async function refreshRecordsFirstPage() {
         recordsNextOffset.value = Math.max(recordsNextOffset.value, items.length)
       }
     }
+
+    await scoreVoiceAnnouncer.syncRecords({
+      scorebookId: id.value,
+      meMemberId: String(me.value?.memberId || ''),
+      records: items,
+      pageSize: recordsPageSize,
+      resolveFromMemberName: (memberId: string) => nicknameOf(memberId),
+      fetchPage: async (offset: number) => {
+        if (!pageActive.value) return []
+        const more = await listScorebookRecords(id.value, recordsPageSize, offset)
+        return more.items || []
+      },
+    })
   } catch (e) {
     // 后台刷新失败不弹 toast
   } finally {
@@ -793,11 +1039,111 @@ async function safeRefresh() {
   }
 }
 
+function clearSocketReconnectTimer() {
+  if (!socketReconnectTimer) return
+  clearTimeout(socketReconnectTimer)
+  socketReconnectTimer = null
+}
+
+function nextSocketReconnectDelay(): number {
+  const delay = socketReconnectBaseDelay * Math.pow(2, socketReconnectAttempts)
+  return Math.min(socketReconnectMaxDelay, delay)
+}
+
+function scheduleSocketReconnect() {
+  if (!pageActive.value || !id.value || !token.value) return
+  if (socketReconnectTimer || socketConnected.value || socketConnecting.value) return
+  const delay = nextSocketReconnectDelay()
+  socketReconnectAttempts += 1
+  socketReconnectTimer = setTimeout(() => {
+    socketReconnectTimer = null
+    void ensureSocketConnected()
+  }, delay)
+}
+
+function closeSocket(manual = false) {
+  clearSocketReconnectTimer()
+  socketClosedByUs = manual
+  socketConnected.value = false
+  socketConnecting.value = false
+  socketSession += 1
+
+  const task = socketTask.value
+  socketTask.value = null
+  if (!task) return
+  try {
+    task.close({})
+  } catch (e) {}
+}
+
+async function ensureSocketConnected() {
+  if (!pageActive.value || !id.value || !token.value) return
+  if (socketConnected.value || socketConnecting.value) return
+
+  clearSocketReconnectTimer()
+  socketClosedByUs = false
+  socketConnecting.value = true
+  const session = socketSession + 1
+  socketSession = session
+
+  let task: UniApp.SocketTask | null = null
+  try {
+    task = await connectScorebookWS(id.value, onEvent)
+  } catch (e) {
+    socketConnecting.value = false
+    socketConnected.value = false
+    scheduleSocketReconnect()
+    return
+  }
+
+  if (!task) {
+    socketConnecting.value = false
+    scheduleSocketReconnect()
+    return
+  }
+
+  if (!pageActive.value || session !== socketSession) {
+    try {
+      task.close({})
+    } catch (e) {}
+    return
+  }
+
+  socketTask.value = task
+
+  task.onOpen(() => {
+    if (session !== socketSession) return
+    socketConnecting.value = false
+    socketConnected.value = true
+    socketReconnectAttempts = 0
+    void safeRefresh()
+  })
+
+  task.onClose(() => {
+    if (session !== socketSession) return
+    socketTask.value = null
+    socketConnecting.value = false
+    socketConnected.value = false
+    if (!socketClosedByUs) scheduleSocketReconnect()
+  })
+
+  task.onError(() => {
+    if (session !== socketSession) return
+    socketTask.value = null
+    socketConnecting.value = false
+    socketConnected.value = false
+    try {
+      task?.close({})
+    } catch (e) {}
+    if (!socketClosedByUs) scheduleSocketReconnect()
+  })
+}
+
 function startPolling() {
   if (!pageActive.value) return
+  stopPolling()
   pollSession += 1
   const session = pollSession
-  stopPolling()
   pollTimer.value = setInterval(() => {
     if (!pageActive.value || session !== pollSession) {
       stopPolling()
@@ -808,6 +1154,7 @@ function startPolling() {
       qrModalOpen.value ||
       inviteQRModalOpen.value ||
       browserQRModalOpen.value ||
+      voiceSettingsOpen.value ||
       endModalOpen.value ||
       recordsPaging.value
     )
@@ -863,21 +1210,27 @@ function onEvent(evt: any) {
     }
     applyRecordToMembers(r)
     prependRecord(r)
+    scoreVoiceAnnouncer.handleRealtimeRecord({
+      scorebookId: id.value,
+      meMemberId: String(me.value?.memberId || ''),
+      record: r,
+      resolveFromMemberName: (memberId: string) => nicknameOf(memberId),
+    })
     return
   }
-	  if (evt.type === 'member.joined') {
-	    const m = evt.data?.member
-	    if (!m?.id) return
-	    if (!members.value.some((x) => x.id === m.id)) {
-	      members.value.push({
-	        ...m,
-	        score: 0,
-	        isMe: m.id === me.value?.memberId,
-	        isOwner: m.role === 'owner',
-	      })
-	    }
-	    return
-	  }
+  if (evt.type === 'member.joined') {
+    const m = evt.data?.member
+    if (!m?.id) return
+    if (!members.value.some((x) => x.id === m.id)) {
+      members.value.push({
+        ...m,
+        score: 0,
+        isMe: m.id === me.value?.memberId,
+        isOwner: m.role === 'owner',
+      })
+    }
+    return
+  }
   if (evt.type === 'member.updated') {
     const m = evt.data?.member
     if (!m?.id) return
@@ -1412,6 +1765,125 @@ async function submitScore() {
   padding: 24rpx;
   box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.06);
 }
+.voice-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+.voice-modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 14rpx;
+}
+.voice-state-icon {
+  width: 36rpx;
+  height: 36rpx;
+  flex: 0 0 36rpx;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231f1f1f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 10h4l6-5v14l-6-5H4z'/><path d='M17 9a5 5 0 0 1 0 6'/><path d='M19.5 6.5a8.5 8.5 0 0 1 0 11'/></svg>");
+}
+.voice-state-icon.light {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 10h4l6-5v14l-6-5H4z'/><path d='M17 9a5 5 0 0 1 0 6'/><path d='M19.5 6.5a8.5 8.5 0 0 1 0 11'/></svg>");
+}
+.voice-state-icon.muted {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231f1f1f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 10h4l6-5v14l-6-5H4z'/><path d='M17 9l4 6'/><path d='M21 9l-4 6'/></svg>");
+}
+.voice-state-icon.light.muted {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 10h4l6-5v14l-6-5H4z'/><path d='M17 9l4 6'/><path d='M21 9l-4 6'/></svg>");
+}
+.voice-head {
+  align-items: flex-start;
+  gap: 20rpx;
+}
+.voice-head-copy {
+  flex: 1;
+  min-width: 0;
+}
+.voice-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+.voice-row,
+.voice-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+.voice-copy {
+  flex: 1;
+  min-width: 0;
+}
+.voice-label {
+  font-size: 24rpx;
+  color: #8c8c8c;
+}
+.voice-value,
+.voice-sub {
+  margin-top: 8rpx;
+  font-size: 28rpx;
+  color: #1f1f1f;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.voice-template-box {
+  padding: 20rpx;
+  border-radius: 16rpx;
+  background: #f7f8fb;
+}
+.voice-template-input {
+  margin-top: 12rpx;
+  background: #fff;
+}
+.voice-template-hint {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #8c8c8c;
+  line-height: 1.5;
+}
+.voice-disabled-state {
+  padding: 24rpx;
+  border-radius: 16rpx;
+  background: linear-gradient(135deg, rgba(17, 17, 17, 0.04), rgba(17, 17, 17, 0.02));
+}
+.voice-disabled-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f1f1f;
+}
+.voice-disabled-copy {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #8c8c8c;
+}
+.voice-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+.voice-preset {
+  min-width: 0;
+  border-radius: 999rpx;
+  padding: 0 20rpx;
+  background: rgba(17, 17, 17, 0.06);
+  color: #1f1f1f;
+  border: 1rpx solid rgba(17, 17, 17, 0.08);
+}
+.voice-preset.active {
+  background: rgba(17, 17, 17, 0.12);
+  border-color: rgba(17, 17, 17, 0.2);
+}
+.voice-btn {
+  min-width: 116rpx;
+  border-radius: 999rpx;
+}
+.voice-btn::after {
+  border: none;
+}
 .row {
   display: flex;
   justify-content: space-between;
@@ -1547,6 +2019,14 @@ async function submitScore() {
   display: flex;
   align-items: center;
   gap: 8rpx;
+}
+.pill.voice-pill {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.pill.voice-pill:active {
+  opacity: 0.85;
 }
 .qr-icon {
   width: 34rpx;
@@ -2012,6 +2492,18 @@ async function submitScore() {
   box-shadow: 0 18rpx 50rpx rgba(0, 0, 0, 0.18);
 }
 .score-modal {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  top: auto;
+  transform: none;
+  width: 100%;
+  max-height: 80vh;
+  overflow: auto;
+  z-index: 1;
+}
+.voice-modal {
   position: relative;
   left: auto;
   right: auto;

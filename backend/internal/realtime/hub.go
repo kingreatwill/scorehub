@@ -9,12 +9,17 @@ import (
 
 type Hub struct {
 	mu    sync.RWMutex
-	rooms map[string]map[*websocket.Conn]struct{}
+	rooms map[string]map[*websocket.Conn]*client
+}
+
+type client struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		rooms: make(map[string]map[*websocket.Conn]struct{}),
+		rooms: make(map[string]map[*websocket.Conn]*client),
 	}
 }
 
@@ -22,9 +27,12 @@ func (h *Hub) Join(room string, conn *websocket.Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.rooms[room] == nil {
-		h.rooms[room] = make(map[*websocket.Conn]struct{})
+		h.rooms[room] = make(map[*websocket.Conn]*client)
 	}
-	h.rooms[room][conn] = struct{}{}
+	if _, ok := h.rooms[room][conn]; ok {
+		return
+	}
+	h.rooms[room][conn] = &client{conn: conn}
 }
 
 func (h *Hub) Leave(room string, conn *websocket.Conn) {
@@ -48,17 +56,19 @@ func (h *Hub) Broadcast(room string, v any) {
 
 	h.mu.RLock()
 	conns := h.rooms[room]
-	var targets []*websocket.Conn
-	for c := range conns {
+	var targets []*client
+	for _, c := range conns {
 		targets = append(targets, c)
 	}
 	h.mu.RUnlock()
 
 	for _, c := range targets {
-		if err := c.WriteMessage(websocket.TextMessage, raw); err != nil {
-			_ = c.Close()
-			h.Leave(room, c)
+		c.mu.Lock()
+		err := c.conn.WriteMessage(websocket.TextMessage, raw)
+		c.mu.Unlock()
+		if err != nil {
+			_ = c.conn.Close()
+			h.Leave(room, c.conn)
 		}
 	}
 }
-

@@ -17,20 +17,37 @@ type Config struct {
 	TencentMapKey string
 	AmapKey       string
 	BaiduMapAK    string
+
+	TTSAPIBase       string
+	TTSAPISpeechPath string
+	TTSAPIVoicesPath string
+	TTSVoicesJSON    string
+	TTSAPIKey        string
+	TTSModel         string
+	TTSAudioFormat   string
+	TTSDefaultVoice  string
 }
 
 func Load() Config {
 	loadDotEnv()
 	return Config{
-		Addr:          getenv("SCOREHUB_ADDR", ":8080"),
-		DBDSN:         getenv("SCOREHUB_DB_DSN", ""),
-		TokenSecret:   getenv("SCOREHUB_TOKEN_SECRET", "change-me"),
-		DevAuth:       getenvBool("SCOREHUB_DEV_AUTH", false),
-		WeChatAppID:   getenv("SCOREHUB_WECHAT_APPID", ""),
-		WeChatSecret:  getenv("SCOREHUB_WECHAT_SECRET", ""),
-		TencentMapKey: getenv("SCOREHUB_TENCENT_MAP_KEY", ""),
-		AmapKey:       getenv("SCOREHUB_AMAP_KEY", ""),
-		BaiduMapAK:    getenv("SCOREHUB_BAIDU_MAP_AK", ""),
+		Addr:             getenv("SCOREHUB_ADDR", ":8080"),
+		DBDSN:            getenv("SCOREHUB_DB_DSN", ""),
+		TokenSecret:      getenv("SCOREHUB_TOKEN_SECRET", "change-me"),
+		DevAuth:          getenvBool("SCOREHUB_DEV_AUTH", false),
+		WeChatAppID:      getenv("SCOREHUB_WECHAT_APPID", ""),
+		WeChatSecret:     getenv("SCOREHUB_WECHAT_SECRET", ""),
+		TencentMapKey:    getenv("SCOREHUB_TENCENT_MAP_KEY", ""),
+		AmapKey:          getenv("SCOREHUB_AMAP_KEY", ""),
+		BaiduMapAK:       getenv("SCOREHUB_BAIDU_MAP_AK", ""),
+		TTSAPIBase:       getenv("SCOREHUB_TTS_API_BASE", ""),
+		TTSAPISpeechPath: getenv("SCOREHUB_TTS_API_SPEECH_PATH", "/audio/speech"),
+		TTSAPIVoicesPath: getenv("SCOREHUB_TTS_API_VOICES_PATH", "/audio/voices"),
+		TTSVoicesJSON:    getenv("SCOREHUB_TTS_VOICES_JSON", ""),
+		TTSAPIKey:        getenv("SCOREHUB_TTS_API_KEY", ""),
+		TTSModel:         getenv("SCOREHUB_TTS_MODEL", ""),
+		TTSAudioFormat:   getenv("SCOREHUB_TTS_AUDIO_FORMAT", "mp3"),
+		TTSDefaultVoice:  getenv("SCOREHUB_TTS_DEFAULT_VOICE", ""),
 	}
 }
 

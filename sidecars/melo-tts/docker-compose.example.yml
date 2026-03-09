@@ -1,0 +1,25 @@
+services:
+  melo-tts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scorehub-melo-tts:local
+    environment:
+      PORT: "18090"
+      MELO_DEVICE: cpu
+      MELO_DEFAULT_LANGUAGE: ZH
+      MELO_PRELOAD_LANGUAGES: ZH
+      MELO_VOICES_JSON: >-
+        [
+          {"id":"warm","label":"温柔","language":"ZH","speaker":"ZH","speed":0.96,"isDefault":true,"description":"默认柔和语速"},
+          {"id":"bright","label":"清亮","language":"ZH","speaker":"ZH","speed":1.06,"description":"更快一点的语速"},
+          {"id":"steady","label":"沉稳","language":"ZH","speaker":"ZH","speed":1.0,"description":"标准语速"}
+        ]
+    ports:
+      - "18090:18090"
+    volumes:
+      - melo_hf_cache:/models/huggingface
+    restart: unless-stopped
+
+volumes:
+  melo_hf_cache:

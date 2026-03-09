@@ -121,6 +121,50 @@ export async function listScorebookRecords(id: string, limit = 20, offset = 0) {
   return request<{ items: any[]; limit: number; offset: number }>('GET', `/scorebooks/${id}/records${q}`)
 }
 
+export async function listScoreVoiceOptions() {
+  return request<{ items: Array<{ id: string; label: string; language?: string; description?: string; isDefault?: boolean }> }>(
+    'GET',
+    '/voice/voices',
+  )
+}
+
+export async function getScoreReceivedSpeechAudio(text: string, voice: string) {
+  const token = getToken()
+  const res = await new Promise<UniApp.RequestSuccessCallbackResult>((resolve, reject) => {
+    uni.request({
+      url: `${API_BASE}/voice/score_received`,
+      method: 'POST',
+      timeout: REQUEST_TIMEOUT_MS,
+      header: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      data: { text, voice },
+      responseType: 'arraybuffer',
+      success: resolve,
+      fail: reject,
+    })
+  })
+
+  if (res.statusCode !== 200) {
+    try {
+      const buf = new Uint8Array(res.data as ArrayBuffer)
+      const text = String.fromCharCode(...buf)
+      const body = JSON.parse(text) as any
+      throw body?.error || { message: '获取语音失败' }
+    } catch (e: any) {
+      throw e?.message ? e : { message: '获取语音失败' }
+    }
+  }
+
+  const headers = (res.header || {}) as Record<string, any>
+  const contentType = String(headers['Content-Type'] || headers['content-type'] || '').trim() || 'audio/mpeg'
+  return {
+    contentType,
+    data: res.data as ArrayBuffer,
+  }
+}
+
 export async function getInviteInfo(code: string) {
   return request<{ invite: any }>('GET', `/invites/${code}`)
 }
