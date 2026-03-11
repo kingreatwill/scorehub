@@ -318,6 +318,12 @@ ModuleNotFoundError: No module named 'g2pw'
 ModuleNotFoundError: No module named 'requests'
 ```
 
+或：
+
+```text
+ModuleNotFoundError: No module named 'torch'
+```
+
 说明当前本地镜像还是旧版本，或镜像里缺少中文 voice 运行时依赖，需要重新构建镜像并重建容器：
 
 ```bash
@@ -336,7 +342,7 @@ docker run -d --name scorehub-piper-tts -p 18091:18091 -e PIPER_AUTO_DOWNLOAD=tr
 另外，日志里那条 `onnxruntime` 的 PCI warning 通常不是这次失败的主因；真正导致失败的是后面的 Python 异常。
 
 
-`xiao_ya`、`huayan`、`chaowen` 这类中文 voice 在当前 Python 运行方式下会走中文音素流程；如果缺少 `g2pw`，就会在合成阶段返回 `502`。
+`xiao_ya`、`huayan`、`chaowen` 这类中文 voice 在当前 Python 运行方式下会走中文音素流程；如果缺少 `g2pw`、`requests` 或 `torch`，就会在合成阶段返回 `502`。
 
 ### `500 Internal Server Error`
 
