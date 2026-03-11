@@ -109,7 +109,7 @@ type configuredVoiceItem struct {
 
 func New(cfg appconfig.Config) *Service {
 	service := &Service{
-		client: &http.Client{Timeout: 20 * time.Second},
+		client: &http.Client{Timeout: 45 * time.Second},
 		cfg: config{
 			apiBase:      strings.TrimSpace(cfg.TTSAPIBase),
 			speechPath:   strings.TrimSpace(cfg.TTSAPISpeechPath),

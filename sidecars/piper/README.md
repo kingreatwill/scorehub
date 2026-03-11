@@ -87,11 +87,35 @@ Piper 通常需要一对模型文件：
 docker build -f sidecars/piper/Dockerfile -t scorehub-piper-tts .
 ```
 
+如果你主要跑中文 voice，推荐直接用完整依赖版：
+
+```bash
+docker build -f sidecars/piper/Dockerfile.full -t scorehub-piper-tts:full .
+```
+
+`Dockerfile.full` 会额外显式安装中文链路常见依赖：
+
+- `torch`
+- `g2pw`
+- `requests`
+- `unicode-rbnf`
+- `sentence-stream`
+- `transformers`
+- `onnxruntime`
+- `tokenizers`
+- `safetensors`
+- `huggingface-hub`
+- `tqdm`
+
+它更适合 `chaowen`、`huayan`、`xiao_ya` 这类中文 voice。
+
 ## 运行
 
 ### 推荐：自动下载模式
 
 首次运行时，即使 `./models` 是空目录，也可以先启动；第一次合成时会自动下载缺失模型。
+
+如果你使用 `Dockerfile.full`，建议把镜像名改成 `scorehub-piper-tts:full`。
 
 ```bash
 docker run -d \

@@ -9,6 +9,7 @@ function normalizeBase(v: string): string {
 const API_BASE = normalizeBase(import.meta.env.VITE_SCOREHUB_API_BASE || 'https://wxapi.wcoder.com/api/v1')
 const WS_BASE = normalizeBase(import.meta.env.VITE_SCOREHUB_WS_BASE || 'wss://wxapi.wcoder.com')
 const REQUEST_TIMEOUT_MS = 10_000
+const TTS_REQUEST_TIMEOUT_MS = 30_000
 
 function getToken(): string {
   return (uni.getStorageSync('token') as string) || ''
@@ -134,7 +135,7 @@ export async function getScoreReceivedSpeechAudio(text: string, voice: string) {
     uni.request({
       url: `${API_BASE}/voice/score_received`,
       method: 'POST',
-      timeout: REQUEST_TIMEOUT_MS,
+      timeout: TTS_REQUEST_TIMEOUT_MS,
       header: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
