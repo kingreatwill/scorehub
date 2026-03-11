@@ -312,6 +312,12 @@ ModuleNotFoundError: No module named 'pathvalidate'
 ModuleNotFoundError: No module named 'g2pw'
 ```
 
+或：
+
+```text
+ModuleNotFoundError: No module named 'requests'
+```
+
 说明当前本地镜像还是旧版本，或镜像里缺少中文 voice 运行时依赖，需要重新构建镜像并重建容器：
 
 ```bash
