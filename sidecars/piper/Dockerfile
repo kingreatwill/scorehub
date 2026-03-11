@@ -59,4 +59,7 @@ CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "18091"]
 
 # docker buildx build -f sidecars/piper/Dockerfile -t kingreatwill/scorehub-piper-tts:v0.0.1 --push .
 
+# chown -R 10001:10001 /data/dockerv/scorehub/piper-tts/models
+# chmod -R 755 /data/dockerv/scorehub/piper-tts/models
+
 # docker run -d --name scorehub-tts -p 18091:18091 -e PIPER_AUTO_DOWNLOAD=true -e PIPER_PRELOAD_MODELS=true -e PIPER_MODELS_DIR=/models -e 'PIPER_VOICES_JSON=[{"id":"chaowen","label":"超文","language":"zh-CN","model":"piper-zh-cn-chaowen","modelPath":"zh_CN-chaowen-medium.onnx","description":"中文中性声线","isDefault":true},{"id":"huayan","label":"华妍","language":"zh-CN","model":"piper-zh-cn-huayan","modelPath":"zh_CN-huayan-medium.onnx","description":"中文女声"},{"id":"xiao_ya","label":"小雅","language":"zh-CN","model":"piper-zh-cn-xiao-ya","modelPath":"zh_CN-xiao_ya-medium.onnx","description":"中文女声（仅限非商用）"}]' -v "/data/dockerv/scorehub/piper-tts/models:/models" --restart unless-stopped kingreatwill/scorehub-piper-tts:v0.0.2
