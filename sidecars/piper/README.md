@@ -152,6 +152,78 @@ curl -sS http://127.0.0.1:18091/health
 curl -sS http://127.0.0.1:18091/v1/audio/voices
 ```
 
+## 测试步骤
+
+建议按下面顺序验证：
+
+### 1. 看健康状态
+
+```bash
+curl -sS http://127.0.0.1:18091/health
+```
+
+确认这几个字段：
+
+- `ready`
+- `autoDownload`
+- `preloadModels`
+- `missingModels`
+
+### 2. 看 voice 列表
+
+```bash
+curl -sS http://127.0.0.1:18091/v1/audio/voices
+```
+
+先确认返回里确实有你要用的 voice，例如：
+
+- `chaowen`
+- `huayan`
+- `xiao_ya`
+
+### 3. 直接测试合成
+
+```bash
+curl -sS \
+  -X POST http://127.0.0.1:18091/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -o /tmp/piper-test.wav \
+  -d '{"model":"piper-zh-cn-chaowen","voice":"chaowen","input":"收到8分","response_format":"wav"}'
+```
+
+检查文件：
+
+```bash
+ls -lh /tmp/piper-test.wav
+file /tmp/piper-test.wav
+```
+
+macOS 可以直接试听：
+
+```bash
+afplay /tmp/piper-test.wav
+```
+
+### 4. 报错时先看返回 body
+
+不要一上来就 `-o wav`，先直接看错误体：
+
+```bash
+curl -i \
+  -X POST http://127.0.0.1:18091/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"piper-zh-cn-chaowen","voice":"chaowen","input":"收到8分","response_format":"wav"}'
+```
+
+如果要更清楚一点，可以这样：
+
+```bash
+curl -sS \
+  -X POST http://127.0.0.1:18091/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"piper-zh-cn-chaowen","voice":"chaowen","input":"收到8分","response_format":"wav"}' | jq .
+```
+
 ## 合成接口
 
 请求：
@@ -170,6 +242,94 @@ curl -sS http://127.0.0.1:18091/v1/audio/voices
 - `200 OK`
 - `Content-Type: audio/wav`
 - body 为 wav 音频字节
+
+## 常见报错
+
+### `400 Bad Request`
+
+当前 sidecar 里会返回 400 的常见原因只有 3 个：
+
+- `{"detail":"invalid voice"}`
+- `{"detail":"input is required"}`
+- `{"detail":"piper sidecar currently supports wav only"}`
+
+你这次返回头里有：
+
+- `HTTP/1.1 400 Bad Request`
+- `content-length: 26`
+
+这和 `{"detail":"invalid voice"}` 的长度是对上的，所以这次**大概率就是 voice 不存在**。
+
+也就是说，你请求里的 `voice` 很可能不是当前容器实际配置的 voice。
+
+先执行：
+
+```bash
+curl -sS http://127.0.0.1:18091/v1/audio/voices
+```
+
+然后只用返回里的 `id` 去测，例如：
+
+```bash
+curl -i \
+  -X POST http://127.0.0.1:18091/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"piper-zh-cn-chaowen","voice":"chaowen","input":"收到8分","response_format":"wav"}'
+```
+
+特别注意：
+
+- `xiao_ya` 是下划线，不是 `xiaoya`
+- `xiao_ya` 也不是 `xiao-ya`
+- `voice` 要和 `/v1/audio/voices` 返回的 `id` 完全一致
+- `response_format` 目前只能是 `wav`
+- `input` 不能为空
+
+### `502 Bad Gateway`
+
+常见表示：
+
+- 自动下载失败
+- 模型文件下载不完整
+- `piper` 命令执行失败
+- 镜像里缺少 `piper` 运行时依赖
+
+这时优先看：
+
+```bash
+docker logs <piper-container-name>
+```
+
+如果日志里出现类似：
+
+```text
+ModuleNotFoundError: No module named 'pathvalidate'
+```
+
+说明当前本地镜像还是旧版本，需要重新构建镜像并重建容器：
+
+```bash
+docker compose -f sidecars/piper/docker-compose.example.yml down
+docker compose -f sidecars/piper/docker-compose.example.yml up -d --build --force-recreate
+```
+
+如果你不是用 `compose`，则执行：
+
+```bash
+docker rm -f scorehub-piper-tts
+docker build -f sidecars/piper/Dockerfile -t scorehub-piper-tts .
+docker run -d --name scorehub-piper-tts -p 18091:18091 -e PIPER_AUTO_DOWNLOAD=true -e PIPER_PRELOAD_MODELS=true -e PIPER_MODELS_DIR=/models -e 'PIPER_VOICES_JSON=[{"id":"chaowen","label":"超文","language":"zh-CN","model":"piper-zh-cn-chaowen","modelPath":"zh_CN-chaowen-medium.onnx","description":"中文中性声线","isDefault":true},{"id":"huayan","label":"华妍","language":"zh-CN","model":"piper-zh-cn-huayan","modelPath":"zh_CN-huayan-medium.onnx","description":"中文女声"},{"id":"xiao_ya","label":"小雅","language":"zh-CN","model":"piper-zh-cn-xiao-ya","modelPath":"zh_CN-xiao_ya-medium.onnx","description":"中文女声（仅限非商用）"}]' -v "$(pwd)/sidecars/piper/models:/models" --restart unless-stopped scorehub-piper-tts
+```
+
+另外，日志里那条 `onnxruntime` 的 PCI warning 通常不是这次失败的主因；真正导致失败的是后面的 Python 异常。
+
+### `500 Internal Server Error`
+
+常见表示：
+
+- 自动下载关闭了，但模型文件不存在
+- `/models` 没写权限
+- 容器卷挂载方式不对
 
 ## ScoreHub 后端配置
 

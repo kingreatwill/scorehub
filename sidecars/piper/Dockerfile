@@ -17,7 +17,7 @@ ENV PATH=/opt/venv/bin:$PATH
 COPY sidecars/piper/requirements.txt /tmp/requirements.txt
 RUN python -m pip install --upgrade pip setuptools wheel && \
     python -m pip install --no-compile -r /tmp/requirements.txt && \
-    python -m pip install --no-compile piper-tts && \
+    python -m pip install --no-compile piper-tts pathvalidate && \
     find /opt/venv -type d -name '__pycache__' -prune -exec rm -rf {} + && \
     find /opt/venv -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
 
