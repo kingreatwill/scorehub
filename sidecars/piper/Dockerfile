@@ -18,7 +18,7 @@ COPY sidecars/piper/requirements.txt /tmp/requirements.txt
 RUN python -m pip install --upgrade pip setuptools wheel && \
     python -m pip install --no-compile -r /tmp/requirements.txt && \
     python -m pip install --no-compile --index-url https://download.pytorch.org/whl/cpu torch && \
-    python -m pip install --no-compile piper-tts pathvalidate g2pw requests && \
+    python -m pip install --no-compile piper-tts pathvalidate g2pw requests unicode-rbnf && \
     find /opt/venv -type d -name '__pycache__' -prune -exec rm -rf {} + && \
     find /opt/venv -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
 
