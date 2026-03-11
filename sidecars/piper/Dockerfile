@@ -55,16 +55,8 @@ EXPOSE 18091
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "18091"]
 
+# docker login -u kingreatwill
+
 # docker buildx build -f sidecars/piper/Dockerfile -t kingreatwill/scorehub-piper-tts:v0.0.1 --push .
 
-# docker run -d \
-#   --name scorehub-piper-tts \
-#   -p 18091:18091 \
-#   -e PIPER_MODEL_PATH=/models/zh_CN-huayan-medium.onnx \
-#   -e PIPER_DEFAULT_VOICE_ID=huayan \
-#   -e PIPER_DEFAULT_VOICE_LABEL=华妍 \
-#   -e PIPER_DEFAULT_LANGUAGE=zh-CN \
-#   -e PIPER_DEFAULT_MODEL=piper-zh-cn \
-#   -v /data/dockerv/scorehub/piper:/models:ro \
-#   --restart unless-stopped \
-#   kingreatwill/scorehub-piper-tts:v0.0.1
+# docker run -d --name scorehub-tts -p 18091:18091 -e PIPER_AUTO_DOWNLOAD=true -e PIPER_PRELOAD_MODELS=true -e PIPER_MODELS_DIR=/models -e 'PIPER_VOICES_JSON=[{"id":"chaowen","label":"超文","language":"zh-CN","model":"piper-zh-cn-chaowen","modelPath":"zh_CN-chaowen-medium.onnx","description":"中文中性声线","isDefault":true},{"id":"huayan","label":"华妍","language":"zh-CN","model":"piper-zh-cn-huayan","modelPath":"zh_CN-huayan-medium.onnx","description":"中文女声"},{"id":"xiao_ya","label":"小雅","language":"zh-CN","model":"piper-zh-cn-xiao-ya","modelPath":"zh_CN-xiao_ya-medium.onnx","description":"中文女声（仅限非商用）"}]' -v "/data/dockerv/scorehub/piper-tts/models:/models" --restart unless-stopped kingreatwill/scorehub-piper-tts:v0.0.2
